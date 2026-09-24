@@ -129,35 +129,36 @@ export function Navbar() {
 
   return (
     <>
-      <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 bg-[#050505]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-20 max-w-[1440px] items-center justify-between px-5 lg:px-10">
+      <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 bg-[#050505]/95 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 sm:h-20 2xl:h-24 max-w-[1440px] 2xl:max-w-[1800px] 3xl:max-w-[2200px] items-center justify-between px-3 sm:px-6 lg:px-10 2xl:px-14">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-2 sm:gap-3 shrink-0">
             <img
               src={logoUrl}
               alt="ELITE Kannada emblem"
-              className="h-12 w-12 rounded-full object-cover transition hover:scale-105"
+              className="h-9 w-9 sm:h-12 sm:w-12 2xl:h-14 2xl:w-14 rounded-full object-cover transition hover:scale-105"
             />
-            <div className="hidden leading-none sm:block">
-              <span className="font-display text-lg font-black tracking-[0.16em]">
+            <div className="leading-tight">
+              <span className="font-display text-sm sm:text-lg 2xl:text-xl font-black tracking-[0.14em] text-white">
                 ELITE
               </span>
-              <span className="ml-2 text-sm font-bold text-red-500">
+              <span className="ml-1.5 text-xs sm:text-sm 2xl:text-base font-bold text-red-500">
                 ಕನ್ನಡಿಗ
               </span>
             </div>
           </Link>
 
-          {/* Navigation Links */}
-          <nav className="hidden items-center gap-7 lg:flex">
+          {/* Navigation Links (Desktop & Ultrawide) */}
+          <nav className="hidden items-center gap-5 xl:gap-7 2xl:gap-10 lg:flex">
             {filteredNavItems.map((item) => {
               const isActive = pathname === item.path
               return (
                 <Link
                   key={item.name}
                   href={item.path}
-                  className={`nav-link relative py-1 text-xs font-black tracking-widest transition ${isActive ? 'text-red-500 active' : 'text-white/70 hover:text-white'
-                    }`}
+                  className={`nav-link relative py-1 text-xs 2xl:text-sm font-black tracking-widest transition ${
+                    isActive ? 'text-red-500 active' : 'text-white/70 hover:text-white'
+                  }`}
                 >
                   {item.name}
                 </Link>
@@ -166,9 +167,9 @@ export function Navbar() {
           </nav>
 
           {/* Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 2xl:gap-4">
             {/* DB Status */}
-            <div className="hidden items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold sm:flex">
+            <div className="hidden items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] 2xl:text-xs font-bold md:flex">
               <Database
                 size={12}
                 className={dbConnected ? 'text-emerald-400' : 'text-amber-400'}
@@ -188,98 +189,145 @@ export function Navbar() {
             {/* QnA Arena Button */}
             <button
               onClick={() => setQuizModalOpen(true)}
-              className="hidden items-center gap-1.5 border border-amber-500/40 bg-amber-950/40 px-3 py-1.5 text-[10px] font-black tracking-widest text-amber-400 transition hover:bg-amber-500 hover:text-black sm:flex"
+              className="hidden items-center gap-1.5 border border-amber-500/40 bg-amber-950/40 px-3 py-1.5 text-[10px] 2xl:text-xs font-black tracking-widest text-amber-400 transition hover:bg-amber-500 hover:text-black sm:flex"
             >
               <HelpCircle size={13} /> QnA ARENA
             </button>
 
             {/* Auth / Account Profile Button & Logout */}
             {userProfile ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 sm:gap-2.5">
                 {userProfile.role === 'admin' && (
                   <button
                     onClick={() => {
                       setAdminOpen(true)
                       setDashboardOpen(false)
                     }}
-                    className="flex items-center gap-2 border border-amber-500 bg-amber-950/60 px-3 py-1.5 text-[10px] font-black tracking-widest text-amber-400 transition hover:bg-amber-500 hover:text-black"
+                    className="flex items-center gap-1 border border-amber-500 bg-amber-950/60 px-2 py-1 sm:px-3 sm:py-1.5 text-[9px] sm:text-[10px] 2xl:text-xs font-black tracking-widest text-amber-400 transition hover:bg-amber-500 hover:text-black"
                   >
-                    <ShieldCheck size={13} /> ADMIN
+                    <ShieldCheck size={12} className="sm:size-[13px]" /> ADMIN
                   </button>
                 )}
 
                 <button
                   onClick={handleProfileClick}
-                  className="relative group p-0.5 rounded-full border-2 border-red-600/80 bg-red-950/40 transition hover:border-red-500 hover:scale-105 shadow-md"
+                  className="relative group p-0.5 rounded-full border-2 border-red-600/80 bg-red-950/40 transition hover:border-red-500 hover:scale-105 shadow-md shrink-0"
                   title={`${userProfile.ign || 'User'} - Open Profile`}
                 >
                   {userProfile.avatar_url && !userProfile.avatar_url.includes('hebbkx1anhila5yf') && !userProfile.avatar_url.includes('/logo.png') ? (
                     <img
                       src={userProfile.avatar_url}
                       alt={userProfile.ign || 'User Profile'}
-                      className="h-9 w-9 rounded-full object-cover"
+                      className="h-8 w-8 sm:h-9 sm:w-9 2xl:h-11 2xl:w-11 rounded-full object-cover"
                     />
                   ) : (
-                    <div className="h-9 w-9 rounded-full bg-red-700 flex items-center justify-center">
-                      <span className="text-[11px] font-black text-white">
+                    <div className="h-8 w-8 sm:h-9 sm:w-9 2xl:h-11 2xl:w-11 rounded-full bg-red-700 flex items-center justify-center">
+                      <span className="text-[10px] sm:text-[11px] 2xl:text-xs font-black text-white">
                         {(userProfile.ign || userProfile.username || 'U').slice(0, 2).toUpperCase()}
                       </span>
                     </div>
                   )}
-                  <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-emerald-500 border border-black">
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5 sm:h-3 sm:w-3 items-center justify-center rounded-full bg-emerald-500 border border-black">
                   </span>
                 </button>
 
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-1 border border-red-800/80 bg-red-950/60 px-2.5 py-1.5 text-[10px] font-black tracking-widest text-red-400 transition hover:bg-red-600 hover:text-white"
+                  className="hidden sm:flex items-center gap-1 border border-red-800/80 bg-red-950/60 px-2.5 py-1.5 text-[10px] 2xl:text-xs font-black tracking-widest text-red-400 transition hover:bg-red-600 hover:text-white"
                   title="Logout"
                 >
-                  <LogOut size={13} /> LOGOUT
+                  <LogOut size={12} /> LOGOUT
                 </button>
               </div>
             ) : (
               <button
                 onClick={() => setAuthModalOpen(true)}
-                className="flex items-center gap-1.5 border border-red-700 bg-red-600 px-4 py-2 text-[10px] font-black tracking-widest transition hover:bg-red-500"
+                className="flex items-center gap-1 sm:gap-1.5 border border-red-700 bg-red-600 px-2.5 py-1.5 sm:px-4 sm:py-2 text-[9px] sm:text-[10px] 2xl:text-xs font-black tracking-wider transition hover:bg-red-500 shrink-0"
               >
-                <LogIn size={13} /> LOGIN / SIGNUP
+                <LogIn size={12} className="sm:size-[13px]" />
+                <span>LOGIN</span>
+                <span className="hidden xs:inline">/ SIGNUP</span>
               </button>
             )}
 
             {/* Mobile Hamburger */}
             <button
-              className="text-white lg:hidden"
+              className="p-1.5 text-white/80 hover:text-white lg:hidden"
               onClick={() => setMenuOpen(!menuOpen)}
+              aria-label="Toggle navigation menu"
             >
-              {menuOpen ? <X /> : <Menu />}
+              {menuOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
           </div>
         </div>
 
         {/* Mobile Navigation Dropdown */}
         {menuOpen && (
-          <nav className="border-t border-white/10 bg-[#0b0b0d] px-6 py-5 lg:hidden">
-            {filteredNavItems.map((item) => (
-              <Link
-                key={item.name}
-                href={item.path}
-                onClick={() => setMenuOpen(false)}
-                className={`block border-b border-white/5 py-3 text-xs font-bold tracking-widest ${pathname === item.path ? 'text-red-500' : 'text-white/70'
+          <nav className="border-t border-white/10 bg-[#0b0b0d]/98 backdrop-blur-2xl px-5 py-4 lg:hidden max-h-[calc(100vh-4rem)] overflow-y-auto space-y-3">
+            {userProfile && (
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-red-700 flex items-center justify-center font-bold text-sm text-white overflow-hidden border border-red-500">
+                    {userProfile.avatar_url && !userProfile.avatar_url.includes('hebbkx1anhila5yf') && !userProfile.avatar_url.includes('/logo.png') ? (
+                      <img src={userProfile.avatar_url} alt={userProfile.ign} className="h-full w-full object-cover" />
+                    ) : (
+                      (userProfile.ign || 'U').slice(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-display font-black text-sm text-white">{userProfile.ign || userProfile.username}</p>
+                    <p className="text-[10px] font-mono text-amber-400">UID: {userProfile.free_fire_uid || 'N/A'}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setMenuOpen(false)
+                    handleLogout()
+                  }}
+                  className="flex items-center gap-1 border border-red-800/80 bg-red-950/60 px-3 py-1.5 text-[10px] font-bold text-red-400"
+                >
+                  <LogOut size={12} /> LOGOUT
+                </button>
+              </div>
+            )}
+
+            <div className="space-y-1">
+              {filteredNavItems.map((item) => (
+                <Link
+                  key={item.name}
+                  href={item.path}
+                  onClick={() => setMenuOpen(false)}
+                  className={`flex items-center justify-between border-b border-white/5 py-3 text-xs font-bold tracking-widest transition ${
+                    pathname === item.path ? 'text-red-500 pl-2 border-l-2 border-l-red-500' : 'text-white/70 hover:text-white'
                   }`}
+                >
+                  <span>{item.name}</span>
+                  <span className="text-[10px] text-white/20">→</span>
+                </Link>
+              ))}
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  setMenuOpen(false)
+                  setQuizModalOpen(true)
+                }}
+                className="w-full text-center py-2.5 border border-amber-500/50 bg-amber-950/40 text-xs font-bold tracking-widest text-amber-400"
               >
-                {item.name}
-              </Link>
-            ))}
-            <button
-              onClick={() => {
-                setMenuOpen(false)
-                setQuizModalOpen(true)
-              }}
-              className="mt-3 block w-full text-left py-3 text-xs font-bold tracking-widest text-amber-400"
-            >
-              QnA ARENA (+10 XP)
-            </button>
+                🎮 QnA ARENA (+10 XP)
+              </button>
+
+              <div className="flex items-center justify-between px-2 py-2 text-[10px] font-bold text-white/50 border border-white/5">
+                <span className="flex items-center gap-1.5">
+                  <Database size={11} className={dbConnected ? 'text-emerald-400' : 'text-amber-400'} />
+                  DATABASE STATUS
+                </span>
+                <span className={dbConnected ? 'text-emerald-400' : 'text-amber-400'}>
+                  {dbConnected ? 'ONLINE & CONNECTED' : 'INITIALIZED'}
+                </span>
+              </div>
+            </div>
           </nav>
         )}
       </header>

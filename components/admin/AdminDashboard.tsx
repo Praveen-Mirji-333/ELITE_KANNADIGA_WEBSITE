@@ -798,27 +798,27 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
     <div className="fixed inset-0 z-50 flex flex-col bg-[#050505] text-white overflow-hidden">
       <div className="relative flex h-full w-full flex-col bg-[#0c0c0e] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 bg-[#120607] px-6 py-4">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="text-amber-500" size={28} />
-            <div>
-              <h3 className="font-display text-2xl font-black uppercase text-white">
+        <div className="flex items-center justify-between border-b border-white/10 bg-[#120607] px-4 sm:px-6 py-3 sm:py-4 gap-2 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <ShieldCheck className="text-amber-500 shrink-0" size={26} />
+            <div className="min-w-0">
+              <h3 className="font-display text-lg sm:text-2xl font-black uppercase text-white truncate">
                 ADMIN CONTROL CENTER
               </h3>
-              <p className="text-[10px] font-bold tracking-widest text-amber-500">
+              <p className="text-[9px] sm:text-[10px] font-bold tracking-widest text-amber-500 truncate">
                 ELITE KANNADIGA BACKEND MANAGEMENT
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 border border-red-800 bg-red-950/60 px-4 py-2 text-xs font-black tracking-widest text-red-400 transition hover:bg-red-600 hover:text-white"
+              className="flex items-center gap-1.5 sm:gap-2 border border-red-800 bg-red-950/60 px-2.5 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-xs font-black tracking-widest text-red-400 transition hover:bg-red-600 hover:text-white"
             >
-              <LogOut size={14} /> LOGOUT
+              <LogOut size={13} /> <span className="hidden xs:inline">LOGOUT</span>
             </button>
-            <button onClick={onClose} className="text-white/60 hover:text-white">
-              <X size={24} />
+            <button onClick={onClose} className="text-white/60 hover:text-white p-1">
+              <X size={22} />
             </button>
           </div>
         </div>
@@ -826,7 +826,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
         {/* Global Alert Notification */}
         {msg && (
           <div
-            className={`px-6 py-2.5 text-xs font-bold ${
+            className={`px-4 sm:px-6 py-2.5 text-xs font-bold shrink-0 ${
               msg.type === 'success'
                 ? 'bg-emerald-950 text-emerald-400 border-b border-emerald-500/40'
                 : 'bg-red-950 text-red-400 border-b border-red-500/40'
@@ -837,7 +837,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
         )}
 
         {/* Navigation Tabs */}
-        <div className="flex flex-wrap border-b border-white/10 bg-[#050505] px-4">
+        <div className="flex overflow-x-auto no-scrollbar border-b border-white/10 bg-[#050505] px-2 sm:px-4 shrink-0">
           {[
             { id: 'HOME_CMS', label: 'HOME CMS', icon: Home },
             { id: 'TOURNAMENTS', label: 'TOURNAMENTS', icon: Trophy },
@@ -851,13 +851,13 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as TabType)}
-                className={`flex items-center gap-2 px-4 py-3 text-[11px] font-black tracking-wider transition ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-black tracking-wider transition whitespace-nowrap shrink-0 ${
                   activeTab === tab.id
                     ? 'border-b-2 border-red-600 bg-white/5 text-white'
                     : 'text-white/40 hover:text-white'
                 }`}
               >
-                <Icon size={14} className={activeTab === tab.id ? 'text-red-500' : ''} />
+                <Icon size={13} className={activeTab === tab.id ? 'text-red-500' : ''} />
                 {tab.label}
               </button>
             )
@@ -865,7 +865,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 2xl:p-8 space-y-6 max-w-[1800px] w-full mx-auto">
           {/* ============================================================ */}
           {/* 1. HOME CMS TAB */}
           {/* ============================================================ */}

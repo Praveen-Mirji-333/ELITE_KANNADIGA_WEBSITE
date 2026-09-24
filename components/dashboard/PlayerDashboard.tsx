@@ -130,40 +130,40 @@ export function PlayerDashboard({
   const progressPercent = Math.min(100, Math.max(0, Math.floor((xpCurrentRange / xpNeededRange) * 100)))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
-      <div className="relative flex h-[90vh] w-full max-w-4xl flex-col border border-red-800/60 bg-[#0c0c0e] shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-2 sm:p-4 backdrop-blur-md">
+      <div className="relative flex h-[94vh] sm:h-[90vh] w-full max-w-4xl 2xl:max-w-5xl 3xl:max-w-6xl flex-col border border-red-800/60 bg-[#0c0c0e] shadow-2xl overflow-hidden">
         {/* Header - Profile Photo positioned at top right corner */}
-        <div className="flex items-center justify-between border-b border-white/10 bg-[#120607] px-6 py-4">
+        <div className="flex items-center justify-between border-b border-white/10 bg-[#120607] px-4 sm:px-6 py-3 sm:py-4 gap-2">
           {/* Left Side: User Info */}
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-3">
-              <h3 className="font-display text-2xl font-black uppercase text-white">{profile.ign}</h3>
-              <span className="border border-red-600/40 bg-red-950/60 px-2.5 py-0.5 text-[10px] font-bold text-red-400">
+          <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <h3 className="font-display text-lg sm:text-2xl font-black uppercase text-white truncate max-w-[150px] sm:max-w-none">{profile.ign}</h3>
+              <span className="border border-red-600/40 bg-red-950/60 px-2 sm:px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold text-red-400">
                 {profile.player_id}
               </span>
               {profile.role === 'admin' && (
-                <span className="border border-amber-500/40 bg-amber-950/60 px-2 py-0.5 text-[9px] font-black tracking-widest text-amber-400">
+                <span className="border border-amber-500/40 bg-amber-950/60 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[9px] font-black tracking-widest text-amber-400">
                   ADMIN
                 </span>
               )}
             </div>
-            <p className="text-xs text-white/60">
+            <p className="text-[11px] sm:text-xs text-white/60 truncate">
               UID: <span className="font-mono font-bold text-white/90">{profile.free_fire_uid || 'Not Set'}</span> &bull; LEVEL {profile.level} WARRIOR
             </p>
           </div>
 
           {/* Right Side: Profile Photo on Right Corner & Controls */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <div className="relative group shrink-0" title="Click to upload new profile photo">
               {profile.avatar_url ? (
                 <img
                   src={profile.avatar_url}
                   alt={profile.ign}
-                  className="h-14 w-14 rounded-full border-2 border-red-600 object-cover shadow-md shadow-red-950/60"
+                  className="h-10 w-10 sm:h-14 sm:w-14 rounded-full border-2 border-red-600 object-cover shadow-md shadow-red-950/60"
                 />
               ) : (
-                <div className="h-14 w-14 rounded-full border-2 border-red-600 bg-red-700 flex items-center justify-center shadow-md shadow-red-950/60">
-                  <span className="text-base font-black text-white">
+                <div className="h-10 w-10 sm:h-14 sm:w-14 rounded-full border-2 border-red-600 bg-red-700 flex items-center justify-center shadow-md shadow-red-950/60">
+                  <span className="text-xs sm:text-base font-black text-white">
                     {(profile.ign || profile.username || 'P').slice(0, 2).toUpperCase()}
                   </span>
                 </div>
@@ -172,7 +172,7 @@ export function PlayerDashboard({
                 className="absolute inset-0 flex items-center justify-center bg-black/70 opacity-0 group-hover:opacity-100 rounded-full cursor-pointer transition"
                 title="Upload Profile Photo"
               >
-                <Camera size={18} className="text-white" />
+                <Camera size={16} className="text-white" />
                 <input
                   type="file"
                   accept="image/*"
@@ -183,31 +183,31 @@ export function PlayerDashboard({
               </label>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-1.5 border border-red-900/60 bg-red-950/40 px-3 py-1.5 text-xs font-bold text-red-400 transition hover:bg-red-600 hover:text-white"
+                className="flex items-center gap-1 sm:gap-1.5 border border-red-900/60 bg-red-950/40 px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs font-bold text-red-400 transition hover:bg-red-600 hover:text-white"
               >
-                <LogOut size={14} /> LOGOUT
+                <LogOut size={13} /> <span className="hidden xs:inline">LOGOUT</span>
               </button>
               <button onClick={onClose} className="p-1 text-white/60 hover:text-white transition">
-                <X size={22} />
+                <X size={20} />
               </button>
             </div>
           </div>
         </div>
 
         {/* Level XP Bar */}
-        <div className="border-b border-white/10 bg-[#08080a] px-6 py-3">
-          <div className="mb-1.5 flex items-center justify-between text-xs">
+        <div className="border-b border-white/10 bg-[#08080a] px-4 sm:px-6 py-2.5 sm:py-3">
+          <div className="mb-1 flex items-center justify-between text-[11px] sm:text-xs">
             <span className="font-bold tracking-widest text-white/70">
               LEVEL {profile.level} PROGRESS
             </span>
             <span className="font-display font-bold text-red-500">
-              {profile.total_xp.toLocaleString()} / {nextLevelXp.toLocaleString()} TOTAL XP ({progressPercent}%)
+              {profile.total_xp.toLocaleString()} / {nextLevelXp.toLocaleString()} XP ({progressPercent}%)
             </span>
           </div>
-          <div className="h-2.5 w-full bg-white/10">
+          <div className="h-2 sm:h-2.5 w-full bg-white/10">
             <div
               className="h-full bg-gradient-to-r from-red-800 via-red-600 to-amber-500 transition-all duration-500"
               style={{ width: `${progressPercent}%` }}
@@ -216,12 +216,12 @@ export function PlayerDashboard({
         </div>
 
         {/* Navigation Tabs (Only OVERVIEW and SETTINGS) */}
-        <div className="flex border-b border-white/10 bg-[#050505] px-6">
+        <div className="flex border-b border-white/10 bg-[#050505] px-4 sm:px-6">
           {(['OVERVIEW', 'SETTINGS'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-5 py-3.5 text-xs font-black tracking-widest transition ${activeTab === tab
+              className={`px-4 sm:px-5 py-2.5 sm:py-3.5 text-xs font-black tracking-widest transition ${activeTab === tab
                   ? 'border-b-2 border-red-600 text-white'
                   : 'text-white/40 hover:text-white'
                 }`}
@@ -232,7 +232,7 @@ export function PlayerDashboard({
         </div>
 
         {/* Tab Contents */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {activeTab === 'OVERVIEW' && (
             <div className="space-y-6">
               {/* Daily Streak Box */}
@@ -416,7 +416,7 @@ export function PlayerDashboard({
                     type="text"
                     value={editIgn}
                     onChange={(e) => setEditIgn(e.target.value)}
-                    className="w-full border border-white/15 bg-white/5 px-4 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none"
+                    className="w-full border border-white/15 bg-white/5 px-4 py-2.5 text-base sm:text-sm text-white focus:border-red-500 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -427,7 +427,7 @@ export function PlayerDashboard({
                     type="text"
                     value={editUid}
                     onChange={(e) => setEditUid(e.target.value)}
-                    className="w-full border border-white/15 bg-white/5 px-4 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none"
+                    className="w-full border border-white/15 bg-white/5 px-4 py-2.5 text-base sm:text-sm text-white focus:border-red-500 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -438,7 +438,7 @@ export function PlayerDashboard({
                     rows={3}
                     value={editBio}
                     onChange={(e) => setEditBio(e.target.value)}
-                    className="w-full border border-white/15 bg-white/5 px-4 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none"
+                    className="w-full border border-white/15 bg-white/5 px-4 py-2.5 text-base sm:text-sm text-white focus:border-red-500 focus:outline-none"
                   />
                 </div>
                 <button

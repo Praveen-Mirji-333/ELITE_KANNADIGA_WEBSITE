@@ -8,11 +8,11 @@ export const metadata = {
 
 export default function ContactPage() {
   return (
-    <main className="min-h-screen bg-[#050505] text-[#f5f5f5] px-6 py-16 max-w-4xl mx-auto">
-      <Link href="/" className="inline-flex items-center gap-2 text-xs font-bold text-red-500 hover:text-white mb-8">
+    <main className="min-h-screen bg-[#050505] text-[#f5f5f5] px-4 sm:px-6 py-12 sm:py-20 max-w-4xl 2xl:max-w-5xl mx-auto">
+      <Link href="/" className="inline-flex items-center gap-2 text-xs font-bold text-red-500 hover:text-white mb-6 sm:mb-8">
         <ArrowLeft size={16} /> RETURN TO ARENA
       </Link>
-      <h1 className="font-display text-4xl font-black uppercase text-white mb-6">CONTACT & SUPPORT</h1>
+      <h1 className="font-display text-3xl sm:text-5xl font-black uppercase text-white mb-6">CONTACT & SUPPORT</h1>
       <div className="grid gap-6 sm:grid-cols-2 border-t border-white/10 pt-8">
         <div className="border border-white/10 bg-white/5 p-6">
           <Mail className="text-red-500 mb-3" size={32} />

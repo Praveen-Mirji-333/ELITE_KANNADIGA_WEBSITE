@@ -111,8 +111,8 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
-      <div className="relative w-full max-w-md border border-red-800/60 bg-[#0c0c0e] p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-md overflow-y-auto">
+      <div className="relative my-auto w-full max-w-md border border-red-800/60 bg-[#0c0c0e] p-5 sm:p-6 shadow-2xl max-h-[92vh] overflow-y-auto no-scrollbar">
         <button
           onClick={onClose}
           className="absolute right-4 top-4 text-white/60 hover:text-white"
@@ -120,17 +120,17 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
           <X size={20} />
         </button>
 
-        <div className="mb-6 flex items-center gap-3">
-          <Shield className="text-red-500" size={32} />
+        <div className="mb-5 sm:mb-6 flex items-center gap-3">
+          <Shield className="text-red-500 shrink-0" size={30} />
           <div>
-            <h3 className="font-display text-2xl font-black uppercase text-white">
+            <h3 className="font-display text-xl sm:text-2xl font-black uppercase text-white">
               {isSignUp
                 ? 'PLAYER REGISTRATION'
                 : isAdminLogin
                   ? 'ADMIN LOGIN'
                   : 'PLAYER LOGIN'}
             </h3>
-            <p className="text-[10px] font-bold tracking-widest text-red-500">
+            <p className="text-[9px] sm:text-[10px] font-bold tracking-widest text-red-500">
               {isSignUp
                 ? 'REGISTER WITH GAME UID & PLAYER NAME'
                 : isAdminLogin
@@ -203,7 +203,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                     value={freeFireUid}
                     onChange={(e) => setFreeFireUid(e.target.value)}
                     placeholder="e.g. 1928374650"
-                    className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
+                    className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-base sm:text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -220,7 +220,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                     value={ign}
                     onChange={(e) => setIgn(e.target.value)}
                     placeholder="e.g. ELITE_RAHUL"
-                    className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
+                    className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-base sm:text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -241,7 +241,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                   value={freeFireUid}
                   onChange={(e) => setFreeFireUid(e.target.value)}
                   placeholder="Enter your Free Fire UID (e.g. 1928374650)"
-                  className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
+                  className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-base sm:text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
                 />
               </div>
               <p className="mt-1.5 text-[10px] text-white/40">
@@ -265,7 +265,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="admin@elitekannadiga.com"
-                    className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
+                    className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-base sm:text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -283,7 +283,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
+                    className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-base sm:text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
                   />
                 </div>
               </div>

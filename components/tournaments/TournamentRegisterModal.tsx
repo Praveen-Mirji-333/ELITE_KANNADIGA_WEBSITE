@@ -92,8 +92,8 @@ export function TournamentRegisterModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md overflow-y-auto">
-      <div className="relative my-8 w-full max-w-xl border border-red-800/60 bg-[#0c0c0e] p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-md overflow-y-auto">
+      <div className="relative my-auto w-full max-w-xl border border-red-800/60 bg-[#0c0c0e] p-5 sm:p-6 shadow-2xl max-h-[92vh] overflow-y-auto no-scrollbar">
         <button
           onClick={onClose}
           className="absolute right-4 top-4 text-white/60 hover:text-white"
@@ -101,16 +101,16 @@ export function TournamentRegisterModal({
           <X size={20} />
         </button>
 
-        <div className="mb-6 flex items-center gap-3">
-          <Shield className="text-red-500" size={32} />
+        <div className="mb-5 sm:mb-6 flex items-center gap-3">
+          <Shield className="text-red-500 shrink-0" size={30} />
           <div>
-            <span className="text-[10px] font-bold tracking-widest text-red-500 uppercase">
+            <span className="text-[9px] sm:text-[10px] font-bold tracking-widest text-red-500 uppercase">
               {tournament.entry_type} REGISTRATION
             </span>
-            <h3 className="font-display text-2xl font-black uppercase text-white">
+            <h3 className="font-display text-xl sm:text-2xl font-black uppercase text-white">
               {tournament.title}
             </h3>
-            <p className="text-xs text-white/50">
+            <p className="text-[11px] sm:text-xs text-white/50">
               PRIZE POOL: {tournament.prize_pool} • MAP: {tournament.map}
             </p>
           </div>
@@ -131,7 +131,7 @@ export function TournamentRegisterModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="border border-white/10 bg-white/5 p-4 space-y-3">
+          <div className="border border-white/10 bg-white/5 p-3.5 sm:p-4 space-y-3">
             <h4 className="eyebrow text-red-500">CAPTAIN / PLAYER INTEL *</h4>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -144,7 +144,7 @@ export function TournamentRegisterModal({
                   value={captainName}
                   onChange={(e) => setCaptainName(e.target.value)}
                   placeholder="e.g. ELITE_RAHUL"
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:border-red-500 focus:outline-none"
+                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-base sm:text-xs text-white focus:border-red-500 focus:outline-none"
                 />
               </div>
               <div>
@@ -157,7 +157,7 @@ export function TournamentRegisterModal({
                   value={captainUid}
                   onChange={(e) => setCaptainUid(e.target.value)}
                   placeholder="e.g. 1928374650"
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:border-red-500 focus:outline-none"
+                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-base sm:text-xs text-white focus:border-red-500 focus:outline-none"
                 />
               </div>
             </div>
@@ -172,7 +172,7 @@ export function TournamentRegisterModal({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="e.g. +91 9876543210"
-                className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:border-red-500 focus:outline-none"
+                className="w-full border border-white/15 bg-white/5 px-3 py-2 text-base sm:text-xs text-white focus:border-red-500 focus:outline-none"
               />
             </div>
 
@@ -187,14 +187,14 @@ export function TournamentRegisterModal({
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
                   placeholder="e.g. RED WARRIORS"
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:border-red-500 focus:outline-none"
+                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-base sm:text-xs text-white focus:border-red-500 focus:outline-none"
                 />
               </div>
             )}
           </div>
 
           {isSquad && (
-            <div className="border border-white/10 bg-white/5 p-4 space-y-3">
+            <div className="border border-white/10 bg-white/5 p-3.5 sm:p-4 space-y-3">
               <h4 className="eyebrow text-amber-400">SQUAD TEAMMATES (NO DUPLICATE UIDs)</h4>
               
               {/* Teammate 1 */}
@@ -204,14 +204,14 @@ export function TournamentRegisterModal({
                   placeholder="Teammate 1 Name"
                   value={tm1Name}
                   onChange={(e) => setTm1Name(e.target.value)}
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-base sm:text-xs text-white focus:outline-none"
                 />
                 <input
                   type="text"
                   placeholder="Teammate 1 Free Fire UID"
                   value={tm1Uid}
                   onChange={(e) => setTm1Uid(e.target.value)}
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-base sm:text-xs text-white focus:outline-none"
                 />
               </div>
 
@@ -222,14 +222,14 @@ export function TournamentRegisterModal({
                   placeholder="Teammate 2 Name"
                   value={tm2Name}
                   onChange={(e) => setTm2Name(e.target.value)}
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-base sm:text-xs text-white focus:outline-none"
                 />
                 <input
                   type="text"
                   placeholder="Teammate 2 Free Fire UID"
                   value={tm2Uid}
                   onChange={(e) => setTm2Uid(e.target.value)}
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-base sm:text-xs text-white focus:outline-none"
                 />
               </div>
 
@@ -240,14 +240,14 @@ export function TournamentRegisterModal({
                   placeholder="Teammate 3 Name"
                   value={tm3Name}
                   onChange={(e) => setTm3Name(e.target.value)}
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-base sm:text-xs text-white focus:outline-none"
                 />
                 <input
                   type="text"
                   placeholder="Teammate 3 Free Fire UID"
                   value={tm3Uid}
                   onChange={(e) => setTm3Uid(e.target.value)}
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-base sm:text-xs text-white focus:outline-none"
                 />
               </div>
             </div>

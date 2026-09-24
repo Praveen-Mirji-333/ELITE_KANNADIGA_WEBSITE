@@ -96,30 +96,30 @@ export default function TournamentsPage() {
       <div className="noise" />
       <Navbar />
 
-      <div className="mx-auto max-w-[1440px] px-5 pt-32 pb-24 lg:px-10">
+      <div className="site-container pt-24 sm:pt-32 pb-20 sm:pb-28">
         {/* Page Header */}
-        <div className="mb-12 border-b border-white/10 pb-8">
-          <p className="eyebrow mb-3 flex items-center gap-3">
-            <span className="h-px w-8 bg-red-600" /> ARENA TOURNAMENTS
+        <div className="mb-8 sm:mb-12 border-b border-white/10 pb-6 sm:pb-8">
+          <p className="eyebrow mb-2 sm:mb-3 flex items-center gap-3">
+            <span className="h-px w-6 sm:w-8 bg-red-600" /> ARENA TOURNAMENTS
           </p>
-          <h1 className="font-display text-4xl font-black uppercase text-white sm:text-6xl">
+          <h1 className="font-display text-3xl sm:text-5xl 2xl:text-6xl font-black uppercase text-white">
             BATTLEFIELD <span className="text-metallic">TOURNAMENTS</span>
           </h1>
-          <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/60 sm:text-base">
+          <p className="mt-3 sm:mt-4 max-w-xl 2xl:max-w-2xl text-xs sm:text-sm 2xl:text-base leading-relaxed text-white/60">
             Compete in Karnataka&apos;s most prestigious Free Fire tournaments. CS & BR Squad Battles with no duplicate UIDs, live dates, rulebooks, and verified standings.
           </p>
         </div>
 
         {/* Search & Filters Bar */}
-        <div className="mb-10 flex flex-col items-stretch justify-between gap-4 md:flex-row md:items-center">
-          <div className="flex flex-wrap gap-2">
+        <div className="mb-8 sm:mb-10 flex flex-col items-stretch justify-between gap-4 md:flex-row md:items-center">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
             {['ALL', 'CS SQUAD BATTLE', 'BR SQUAD BATTLE', 'BR SOLO', 'GUILD'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setFilterType(tab)}
-                className={`px-4 py-2.5 text-xs font-black tracking-widest transition ${
+                className={`px-3.5 py-2 sm:px-4 sm:py-2.5 text-[11px] sm:text-xs font-black tracking-widest whitespace-nowrap transition shrink-0 ${
                   filterType === tab
-                    ? 'bg-red-600 text-white'
+                    ? 'bg-red-600 text-white shadow-md'
                     : 'border border-white/10 bg-white/5 text-white/50 hover:text-white'
                 }`}
               >
@@ -128,7 +128,7 @@ export default function TournamentsPage() {
             ))}
           </div>
 
-          <div className="relative w-full max-w-xs">
+          <div className="relative w-full md:max-w-xs shrink-0">
             <Search className="absolute left-3.5 top-3 text-white/40" size={16} />
             <input
               type="text"
@@ -146,57 +146,57 @@ export default function TournamentsPage() {
             No tournaments announced yet. Admin will publish new CS & BR tournaments soon!
           </div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-5 sm:gap-6 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-3 3xl:grid-cols-4">
             {filteredTournaments.map((t) => (
               <article
                 key={t.id}
                 className="tournament-card red-edge flex flex-col justify-between"
               >
                 <div>
-                  <div className="mb-6 flex items-start justify-between">
+                  <div className="mb-5 sm:mb-6 flex items-start justify-between">
                     <div>
                       <span className="status">{t.status.replace('_', ' ')}</span>
-                      <h3 className="mt-3 font-display text-2xl font-black text-white">
+                      <h3 className="mt-2.5 sm:mt-3 font-display text-xl sm:text-2xl 2xl:text-3xl font-black text-white">
                         {t.title}
                       </h3>
-                      <p className="mt-1 text-[10px] font-bold tracking-[.2em] text-red-400 uppercase">
+                      <p className="mt-1 text-[10px] 2xl:text-xs font-bold tracking-[.2em] text-red-400 uppercase">
                         {t.game_mode}
                       </p>
                     </div>
-                    <Crosshair className="text-red-600" size={26} />
+                    <Crosshair className="text-red-600 shrink-0" size={24} />
                   </div>
 
                   {/* Prize & Registered Slots */}
-                  <div className="mb-5 grid grid-cols-2 gap-4 border-y border-white/10 py-4">
+                  <div className="mb-4 sm:mb-5 grid grid-cols-2 gap-3 sm:gap-4 border-y border-white/10 py-3 sm:py-4">
                     <div>
                       <p className="label">PRIZE POOL / OFFERS</p>
-                      <p className="font-display mt-1 text-xl font-black text-red-500">
+                      <p className="font-display mt-1 text-lg sm:text-xl 2xl:text-2xl font-black text-red-500">
                         {t.prize_pool}
                       </p>
                     </div>
                     <div>
                       <p className="label">SLOTS REGISTERED</p>
-                      <p className="font-display mt-1 text-xl font-black text-white">
+                      <p className="font-display mt-1 text-lg sm:text-xl 2xl:text-2xl font-black text-white">
                         {t.slots_filled || 0} / {t.max_slots}
                       </p>
                     </div>
                   </div>
 
                   {/* Schedule Dates & Times */}
-                  <div className="mb-5 space-y-2 text-xs bg-white/5 p-3 border border-white/10">
-                    <div className="flex items-center justify-between text-amber-400">
-                      <span className="flex items-center gap-1 font-bold text-[10px]">
+                  <div className="mb-4 sm:mb-5 space-y-2 text-xs bg-white/5 p-2.5 sm:p-3 border border-white/10">
+                    <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-0.5 text-amber-400">
+                      <span className="flex items-center gap-1 font-bold text-[9px] sm:text-[10px]">
                         <Clock size={12} /> REGISTRATION CLOSES:
                       </span>
-                      <span className="font-bold text-[11px]">
+                      <span className="font-bold text-[10px] sm:text-[11px]">
                         {t.registration_end ? new Date(t.registration_end).toLocaleString() : 'OPEN UNTIL FULL'}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-white/80">
-                      <span className="flex items-center gap-1 font-bold text-[10px]">
+                    <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-0.5 text-white/80">
+                      <span className="flex items-center gap-1 font-bold text-[9px] sm:text-[10px]">
                         <Calendar size={12} /> TOURNAMENT STARTS:
                       </span>
-                      <span className="font-bold text-[11px]">
+                      <span className="font-bold text-[10px] sm:text-[11px]">
                         {new Date(t.tournament_start).toLocaleString()}
                       </span>
                     </div>
@@ -207,7 +207,7 @@ export default function TournamentsPage() {
                   {/* See Rules Button */}
                   <button
                     onClick={() => setRulesTournament(t)}
-                    className="flex items-center gap-1.5 text-[10px] font-black tracking-widest text-amber-400 hover:text-white"
+                    className="flex items-center gap-1.5 text-[10px] 2xl:text-xs font-black tracking-widest text-amber-400 hover:text-white"
                   >
                     <FileText size={14} /> SEE RULES
                   </button>
@@ -216,7 +216,7 @@ export default function TournamentsPage() {
                     {(t.status === 'completed' || (t.top_3_teams && t.top_3_teams.length > 0)) && (
                       <button
                         onClick={() => handleOpenResultsModal(t)}
-                        className="flex items-center gap-1 border border-amber-500 bg-amber-950/60 px-3 py-2 text-[10px] font-black tracking-widest text-amber-400 transition hover:bg-amber-500 hover:text-black shadow-lg"
+                        className="flex items-center gap-1 border border-amber-500 bg-amber-950/60 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[10px] 2xl:text-xs font-black tracking-widest text-amber-400 transition hover:bg-amber-500 hover:text-black shadow-lg"
                       >
                         <Trophy size={13} /> VIEW RESULTS
                       </button>
@@ -225,7 +225,7 @@ export default function TournamentsPage() {
                     {t.status !== 'completed' && (
                       <button
                         onClick={() => handleRegisterClick(t)}
-                        className="border border-red-700 bg-red-950/40 px-3.5 py-2 text-[10px] font-black tracking-widest text-red-400 transition hover:bg-red-600 hover:text-white"
+                        className="border border-red-700 bg-red-950/40 px-3 py-1.5 sm:px-3.5 sm:py-2 text-[10px] 2xl:text-xs font-black tracking-widest text-red-400 transition hover:bg-red-600 hover:text-white"
                       >
                         REGISTER <ChevronRight className="ml-1 inline" size={13} />
                       </button>
@@ -316,8 +316,8 @@ export default function TournamentsPage() {
 
       {/* Rules Modal Overlay */}
       {rulesTournament && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
-          <div className="relative w-full max-w-lg border border-red-800/80 bg-[#0c0c0e] p-6 shadow-2xl space-y-4 text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-3 sm:p-4 backdrop-blur-md overflow-y-auto">
+          <div className="relative my-auto w-full max-w-lg border border-red-800/80 bg-[#0c0c0e] p-5 sm:p-6 shadow-2xl space-y-4 text-white max-h-[92vh] overflow-y-auto no-scrollbar">
             <button
               onClick={() => setRulesTournament(null)}
               className="absolute right-4 top-4 text-white/60 hover:text-white"
@@ -325,20 +325,20 @@ export default function TournamentsPage() {
               <X size={20} />
             </button>
             <div className="flex items-center gap-3 border-b border-white/10 pb-4">
-              <FileText className="text-red-500" size={28} />
-              <div>
-                <h3 className="font-display text-xl font-black uppercase text-white">
+              <FileText className="text-red-500 shrink-0" size={26} />
+              <div className="min-w-0">
+                <h3 className="font-display text-lg sm:text-xl font-black uppercase text-white truncate">
                   TOURNAMENT RULES & REGULATIONS
                 </h3>
-                <p className="text-xs text-red-400 font-bold">{rulesTournament.title}</p>
+                <p className="text-xs text-red-400 font-bold truncate">{rulesTournament.title}</p>
               </div>
             </div>
 
-            <div className="max-h-[60vh] overflow-y-auto space-y-3 text-xs leading-relaxed text-white/80 pr-2">
+            <div className="max-h-[55vh] overflow-y-auto space-y-3 text-xs leading-relaxed text-white/80 pr-2">
               <p className="font-bold text-amber-400 uppercase">
                 OFFICIAL RULEBOOK ({rulesTournament.game_mode}):
               </p>
-              <div className="whitespace-pre-wrap border border-white/10 bg-white/5 p-4 rounded text-xs text-white/90">
+              <div className="whitespace-pre-wrap border border-white/10 bg-white/5 p-3.5 sm:p-4 rounded text-xs text-white/90">
                 {rulesTournament.rules ||
                   `1. All players must register with valid Free Fire UIDs.
 2. Duplicate Free Fire UIDs are strictly forbidden across teams.
@@ -360,8 +360,8 @@ export default function TournamentsPage() {
 
       {/* Finished Tournament View Results Modal */}
       {viewResultsModalTourney && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md">
-          <div className="relative w-full max-w-4xl border border-amber-500/80 bg-[#0c0c0e] p-6 shadow-2xl space-y-5 max-h-[90vh] flex flex-col text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-2.5 sm:p-4 backdrop-blur-md">
+          <div className="relative w-full max-w-4xl 2xl:max-w-5xl border border-amber-500/80 bg-[#0c0c0e] p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-5 max-h-[92vh] flex flex-col text-white">
             <button
               onClick={() => setViewResultsModalTourney(null)}
               className="absolute right-4 top-4 text-white/60 hover:text-white"
@@ -371,13 +371,13 @@ export default function TournamentsPage() {
 
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-4 gap-2">
-              <div className="flex items-center gap-3">
-                <Trophy className="text-amber-400" size={32} />
-                <div>
-                  <span className="text-[10px] font-bold text-red-500 tracking-widest uppercase">
+              <div className="flex items-center gap-3 min-w-0">
+                <Trophy className="text-amber-400 shrink-0" size={28} />
+                <div className="min-w-0">
+                  <span className="text-[9px] sm:text-[10px] font-bold text-red-500 tracking-widest uppercase block truncate">
                     {viewResultsModalTourney.game_mode} • OFFICIAL STANDINGS & RESULTS
                   </span>
-                  <h3 className="font-display text-2xl font-black text-white">
+                  <h3 className="font-display text-lg sm:text-2xl font-black text-white truncate">
                     {viewResultsModalTourney.title}
                   </h3>
                 </div>
