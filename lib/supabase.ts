@@ -29,8 +29,9 @@ export async function checkSupabaseConnection() {
   }
   try {
     const { data, error } = await supabase.from('tournaments').select('id').limit(1)
-    if (error && error.code !== 'PGRST116' && error.code !== '42P01') {
-      console.log('Supabase ping status:', error.message)
+    if (error) {
+      console.warn('Supabase ping status error:', error.message)
+      return { connected: false, error: error.message }
     }
     return { connected: true, data }
   } catch (err: any) {
@@ -730,7 +731,7 @@ export async function fetchRankings(): Promise<LeaderboardPlayer[]> {
     // 1. Fetch ALL user profiles from profiles table
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, player_id, username, ign, free_fire_uid, avatar_url, login_streak, longest_login_streak, last_login_date, total_xp, level, guild_id, guilds(name)')
+      .select('id, player_id, username, ign, free_fire_uid, avatar_url, login_streak, longest_login_streak, last_login_date, total_xp, level, guild_id, guilds!fk_profiles_guild(name)')
       .order('login_streak', { ascending: false })
       .order('longest_login_streak', { ascending: false })
       .order('total_xp', { ascending: false })
