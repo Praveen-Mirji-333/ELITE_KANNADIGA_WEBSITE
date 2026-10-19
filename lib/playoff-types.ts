@@ -29,6 +29,7 @@ export interface PlayoffMatchState {
   loserId?: string | null
   status: 'pending' | 'completed'
   completedAt?: string | null
+  scheduledTime?: string | null
 }
 
 export interface PlayoffBracketData {

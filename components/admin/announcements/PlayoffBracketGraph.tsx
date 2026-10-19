@@ -1,22 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Trophy,
   Crown,
   Medal,
-  Swords,
+  Calendar,
+  Gamepad2,
+  Users,
   CheckCircle2,
-  AlertTriangle,
-  RotateCcw,
-  Sparkles,
-  ArrowRight,
-  Shield,
-  Save,
+  Clock,
+  ChevronDown,
+  ChevronUp,
   Edit2,
   X,
-  Flame,
   Check,
+  RotateCcw,
+  Shield,
+  ShieldCheck,
+  Flame,
+  Home,
+  Megaphone,
+  Layers,
+  Award,
+  Video,
+  ArrowRight,
 } from 'lucide-react'
 import type {
   PlayoffBracketData,
@@ -51,6 +59,12 @@ export function PlayoffBracketGraph({
 }: PlayoffBracketGraphProps) {
   const [activeEditingMatch, setActiveEditingMatch] = useState<PlayoffMatchId | null>(null)
   const [saving, setSaving] = useState(false)
+  const [contendersCollapsed, setContendersCollapsed] = useState(false)
+
+  // Edit modal state
+  const [scoreA, setScoreA] = useState<string>('')
+  const [scoreB, setScoreB] = useState<string>('')
+  const [selectedWinnerId, setSelectedWinnerId] = useState<string>('')
 
   const safeNotify = (text: string, type: 'success' | 'error' = 'success') => {
     if (notify) notify(text, type)
@@ -60,15 +74,81 @@ export function PlayoffBracketGraph({
     if (onUpdate) onUpdate(d)
   }
 
-  // Edit form state
-  const [scoreA, setScoreA] = useState<string>('')
-  const [scoreB, setScoreB] = useState<string>('')
-  const [selectedWinnerId, setSelectedWinnerId] = useState<string>('')
-
   const matches = bracket.matches
-  const completedCount = Object.values(matches).filter((m) => m.status === 'completed').length
+
+  // Calculation of stats
+  const totalMatches = 6
+  const completedCount = useMemo(
+    () => Object.values(matches).filter((m) => m.status === 'completed').length,
+    [matches]
+  )
+  const remainingCount = totalMatches - completedCount
+
+  // Determine current active stage (01 to 04)
+  const activeStage = useMemo(() => {
+    if (matches.M6_GRAND_FINALE.status === 'completed') return 4
+    if (matches.M6_GRAND_FINALE.teamA && matches.M6_GRAND_FINALE.teamB) return 4
+    if (matches.M5_SEMI_FINAL.teamA && matches.M5_SEMI_FINAL.teamB) return 3
+    if (matches.M4_QUARTER_FINAL.teamA && matches.M4_QUARTER_FINAL.teamB) return 2
+    return 1
+  }, [matches])
+
+  // Determine next match that needs action
+  const nextMatch = useMemo<PlayoffMatchState | null>(() => {
+    // 1. Check Grand Finale
+    if (matches.M6_GRAND_FINALE.status !== 'completed' && matches.M6_GRAND_FINALE.teamA && matches.M6_GRAND_FINALE.teamB) {
+      return matches.M6_GRAND_FINALE
+    }
+    // 2. Check Semi Final
+    if (matches.M5_SEMI_FINAL.status !== 'completed' && matches.M5_SEMI_FINAL.teamA && matches.M5_SEMI_FINAL.teamB) {
+      return matches.M5_SEMI_FINAL
+    }
+    // 3. Check Quarter Final
+    if (matches.M4_QUARTER_FINAL.status !== 'completed' && matches.M4_QUARTER_FINAL.teamA && matches.M4_QUARTER_FINAL.teamB) {
+      return matches.M4_QUARTER_FINAL
+    }
+    // 4. Check Opening matches
+    if (matches.M1_QUALIFIER_1.status !== 'completed' && matches.M1_QUALIFIER_1.teamA && matches.M1_QUALIFIER_1.teamB) {
+      return matches.M1_QUALIFIER_1
+    }
+    if (matches.M2_ELIMINATOR_1.status !== 'completed' && matches.M2_ELIMINATOR_1.teamA && matches.M2_ELIMINATOR_1.teamB) {
+      return matches.M2_ELIMINATOR_1
+    }
+    if (matches.M3_ELIMINATOR_2.status !== 'completed' && matches.M3_ELIMINATOR_2.teamA && matches.M3_ELIMINATOR_2.teamB) {
+      return matches.M3_ELIMINATOR_2
+    }
+    // Default fallback to Grand Finale or last match
+    return matches.M6_GRAND_FINALE
+  }, [matches])
+
+  // Seeded contenders fallback list
+  const seededList = useMemo(() => {
+    if (standings && standings.length >= 6) {
+      return standings.slice(0, 6).map((s, idx) => ({
+        rank: idx + 1,
+        name: s.teamName,
+        points: s.points,
+      }))
+    }
+    if (bracket.top6Teams && bracket.top6Teams.length >= 6) {
+      return bracket.top6Teams.map((t, idx) => ({
+        rank: t.seedRank || idx + 1,
+        name: t.name,
+        points: 130 - idx * 6,
+      }))
+    }
+    return [
+      { rank: 1, name: 'CJP', points: 124 },
+      { rank: 2, name: 'DEVARY BOYS', points: 118 },
+      { rank: 3, name: 'FOXX TEAM', points: 107 },
+      { rank: 4, name: 'Gajama', points: 103 },
+      { rank: 5, name: 'I miss her ❤️', points: 98 },
+      { rank: 6, name: 'KA ABNORMAL', points: 91 },
+    ]
+  }, [standings, bracket.top6Teams])
 
   const openMatchEditor = (match: PlayoffMatchState) => {
+    if (isReadOnly) return
     if (!match.teamA || !match.teamB) {
       safeNotify('Both teams must advance before you can enter scores for this match.', 'error')
       return
@@ -121,7 +201,7 @@ export function PlayoffBracketGraph({
       setSaving(false)
 
       if (!res.success) {
-        safeNotify(res.error || 'Could not save match result to Supabase.', 'error')
+        safeNotify(res.error || 'Could not save match result.', 'error')
         return
       }
 
@@ -136,7 +216,7 @@ export function PlayoffBracketGraph({
 
   const handleResetMatch = async (matchId: PlayoffMatchId) => {
     const match = matches[matchId]
-    if (!window.confirm(`Reset ${match.stageName}? Downstream playoff matches that depend on this result will also be reset.`)) {
+    if (!window.confirm(`Reset ${match.stageName}? Dependent matches will also be reset.`)) {
       return
     }
 
@@ -159,458 +239,595 @@ export function PlayoffBracketGraph({
     }
   }
 
-  const handleReInitFromStandings = async () => {
-    if (!standings || standings.length === 0) {
-      safeNotify('No current standings found to reload seeds from.', 'error')
-      return
-    }
-
-    if (
-      !window.confirm(
-        'Re-seed the entire Playoff Bracket from the latest Points Table standings? ALL current playoff match results will be cleared!'
-      )
-    ) {
-      return
-    }
-
-    try {
-      setSaving(true)
-      const fresh = initPlayoffBracketFromStandings(standings, bracket.seasonId, bracket.tournamentId)
-      const res = await savePlayoffData(bracket.seasonId, fresh)
-      setSaving(false)
-
-      if (!res.success) {
-        safeNotify(res.error || 'Failed to reseed playoffs.', 'error')
-        return
-      }
-
-      safeUpdate(fresh)
-      safeNotify('Playoff bracket re-seeded successfully from latest standings!')
-    } catch (err: any) {
-      setSaving(false)
-      safeNotify(err?.message || 'Failed to re-seed playoffs.', 'error')
-    }
-  }
-
   return (
-    <div className="space-y-6 text-white">
-      {/* Top Header Banner */}
-      <div className="relative overflow-hidden border border-amber-500/30 bg-gradient-to-r from-[#14120a] via-[#1a0f08] to-[#120a14] p-5">
-        <div className="absolute right-0 top-0 h-full w-96 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.15),transparent_70%)] pointer-events-none" />
-
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-black uppercase tracking-widest">
-                <Flame size={12} className="text-amber-400" /> IPL-STYLE PLAYOFF ROADMAP
-              </span>
-              <span className="text-[10px] font-mono text-white/40 tracking-wider">
-                {seasonName} • FINAL STAGE
-              </span>
+    <div className="min-h-screen bg-[#08090B] text-[#F5F7FA] font-sans antialiased selection:bg-[#FFB000]/30 selection:text-white">
+      {/* 1. TOP ADMIN NAVIGATION */}
+      <nav className="border-b border-[#242830] bg-[#101216] px-4 sm:px-6 py-2.5">
+        <div className="mx-auto flex max-w-[1720px] items-center justify-between gap-4">
+          {/* Left Brand */}
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded bg-[#FFB000]/10 border border-[#FFB000]/30 text-[#FFB000]">
+              <ShieldCheck size={18} />
             </div>
-            <h2 className="font-display text-2xl font-black uppercase tracking-tight text-white flex items-center gap-2">
-              Knockout Stage &amp; Championship Tree
-            </h2>
-            <p className="text-xs text-white/60 max-w-2xl leading-relaxed">
-              Top 6 seeded contenders battle through double-chance Qualifier 1, Eliminators, Quarter-Finals, and
-              the Semi-Final to claim the Grand Championship Trophy.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-display text-sm font-black uppercase tracking-wider text-white">
+                  ADMIN CONTROL CENTER
+                </span>
+              </div>
+              <p className="text-[9px] font-bold tracking-widest text-[#FFB000] uppercase leading-none mt-0.5">
+                ELITE KANNADIGA BACKEND MANAGEMENT
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="px-3 py-2 border border-white/10 bg-black/40 rounded text-center">
-              <span className="text-[9px] uppercase font-bold text-white/40 block">PLAYOFF PROGRESS</span>
-              <span className="font-display text-sm font-black text-amber-400">
-                {completedCount} / 6 MATCHES
-              </span>
-            </div>
-            {!isReadOnly && standings && (
-              <button
-                onClick={handleReInitFromStandings}
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 border border-white/15 bg-white/5 hover:bg-white/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white/70 hover:text-white transition rounded disabled:opacity-50"
-                title="Reseed bracket from the latest points table"
-              >
-                <RotateCcw size={12} /> Re-Seed Standings
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* CHAMPION SHOWCASE (if M6 Grand Finale has winner) */}
-      {bracket.champion && (
-        <div className="relative overflow-hidden border-2 border-amber-400 bg-gradient-to-b from-amber-950/40 via-black to-[#100b02] p-6 shadow-2xl shadow-amber-500/20 text-center animate-in zoom-in-95 duration-300">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.2),transparent_70%)] pointer-events-none" />
-
-          <div className="relative z-10 flex flex-col items-center">
-            <div className="inline-flex items-center justify-center p-3.5 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 text-black shadow-lg shadow-amber-500/40 mb-3 animate-bounce">
-              <Trophy size={36} />
-            </div>
-
-            <span className="text-xs font-black uppercase tracking-widest text-amber-400">
-              OFFICIAL TOURNAMENT CHAMPION
+          {/* Navigation Items */}
+          <div className="hidden lg:flex items-center gap-1 text-[11px] font-bold tracking-wider uppercase text-[#8B93A1]">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-white transition cursor-pointer">
+              <Home size={13} /> HOME CMS
             </span>
+            <span className="flex items-center gap-1.5 px-3 py-1.5 text-[#FFB000] font-black border-b-2 border-[#FFB000] cursor-pointer">
+              <Trophy size={13} className="text-[#FFB000]" /> TOURNAMENTS
+            </span>
+            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-white transition cursor-pointer">
+              <Megaphone size={13} /> ANNOUNCEMENTS
+            </span>
+            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-white transition cursor-pointer">
+              <Layers size={13} /> LEADERBOARD
+            </span>
+            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-white transition cursor-pointer">
+              <Shield size={13} /> ELITE ARMY GUILD
+            </span>
+            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-white transition cursor-pointer">
+              <Award size={13} /> ACHIEVEMENTS
+            </span>
+            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-white transition cursor-pointer">
+              <Video size={13} /> CLIPS (0)
+            </span>
+          </div>
 
-            <h1 className="font-display text-3xl sm:text-5xl font-black uppercase tracking-wider text-white mt-1 drop-shadow-md">
-              {bracket.champion.name}
-            </h1>
-
-            <p className="mt-2 text-xs text-amber-200/80 font-mono">
-              Victor of the Grand Championship Match • Eternal Glory
-            </p>
-
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs">
-              {bracket.runnerUp && (
-                <div className="flex items-center gap-2 px-3 py-1.5 border border-slate-600/40 bg-slate-900/50 rounded text-slate-300">
-                  <Medal size={14} className="text-slate-400" />
-                  <span>
-                    Runner-Up: <strong className="text-white">{bracket.runnerUp.name}</strong>
-                  </span>
-                </div>
-              )}
-              {bracket.thirdPlace && (
-                <div className="flex items-center gap-2 px-3 py-1.5 border border-amber-800/40 bg-amber-950/40 rounded text-amber-300">
-                  <Medal size={14} className="text-amber-500" />
-                  <span>
-                    3rd Place: <strong className="text-white">{bracket.thirdPlace.name}</strong>
-                  </span>
-                </div>
-              )}
+          {/* Right User Badge */}
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#15181D] border border-[#242830] text-[10px] font-black text-white">
+              EK
             </div>
+            <span className="text-xs font-medium text-[#8B93A1] hidden sm:inline">Admin ▾</span>
           </div>
         </div>
-      )}
+      </nav>
 
-      {/* GRAPHICAL TOURNAMENT TREE (IPL SCHEDULE FLOW) */}
-      <div className="border border-white/10 bg-[#09090b] p-4 sm:p-6 overflow-x-auto">
-        <div className="min-w-[950px] space-y-6">
-          {/* Stage Labels Bar */}
-          <div className="grid grid-cols-4 gap-4 text-center border-b border-white/10 pb-3">
-            <div className="space-y-0.5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">
-                STAGE 1: OPENING ROUND
-              </span>
-              <p className="text-[11px] font-bold text-white/50">Qualifier 1 &amp; Eliminators</p>
-            </div>
-            <div className="space-y-0.5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">
-                STAGE 2: QUARTER-FINAL
-              </span>
-              <p className="text-[11px] font-bold text-white/50">Eliminators Clash</p>
-            </div>
-            <div className="space-y-0.5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-purple-400">
-                STAGE 3: SEMI-FINAL
-              </span>
-              <p className="text-[11px] font-bold text-white/50">Qualifier 2 Battle</p>
-            </div>
-            <div className="space-y-0.5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-yellow-400">
-                STAGE 4: GRAND FINALE
-              </span>
-              <p className="text-[11px] font-bold text-white/50">Championship Match</p>
-            </div>
-          </div>
-
-          {/* Bracket Grid */}
-          <div className="grid grid-cols-4 gap-6 items-start">
-            {/* COLUMN 1: Stage 1 (Match 1, Match 2, Match 3) */}
-            <div className="space-y-6">
-              {/* Match 1: Qualifier 1 */}
-              <div className="space-y-2">
-                <MatchCard
-                  match={matches.M1_QUALIFIER_1}
-                  accentColor="amber"
-                  isEditable={true}
-                  isReadOnly={isReadOnly}
-                  onEdit={() => openMatchEditor(matches.M1_QUALIFIER_1)}
-                  onReset={() => handleResetMatch('M1_QUALIFIER_1')}
-                />
-                <div className="flex flex-col gap-1 px-2 text-[9px] font-mono">
-                  <span className="text-amber-400 flex items-center gap-1">
-                    <ArrowRight size={10} /> Winner ➔ Direct to Grand Finale (Stage 4)
-                  </span>
-                  <span className="text-cyan-400 flex items-center gap-1">
-                    <ArrowRight size={10} /> Loser ➔ 2nd Chance in Semi-Final (Stage 3)
-                  </span>
+      {/* MAIN CONTAINER */}
+      <main className="mx-auto max-w-[1720px] p-4 sm:p-6 lg:p-7 space-y-6">
+        {/* DESKTOP 2-COLUMN LAYOUT: LEFT ~75%, RIGHT ~25% */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* ========================================================= */}
+          {/* LEFT SECTION (~75% on lg screens, 9 columns) */}
+          {/* ========================================================= */}
+          <div className="lg:col-span-9 space-y-6">
+            {/* 2. TOURNAMENT HEADER / SUMMARY */}
+            <div className="rounded-lg border border-[#242830] bg-[#101216] p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">
+              {/* Left Info */}
+              <div className="flex items-start gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[#15181D] border border-[#FFB000]/40 text-[#FFB000] shadow-sm">
+                  <Trophy size={28} />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-block rounded px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-[#FFB000]/10 text-[#FFB000] border border-[#FFB000]/30">
+                      IPL-STYLE PLAYOFF
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B93A1]">
+                      {seasonName || 'SEASON 2'}
+                    </span>
+                  </div>
+                  <h1 className="font-display text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#F5F7FA]">
+                    KNOCKOUT STAGE
+                  </h1>
+                  <p className="text-xs font-black uppercase tracking-widest text-[#FFB000]">
+                    CHAMPIONSHIP BRACKET
+                  </p>
+                  <p className="text-xs text-[#8B93A1] max-w-xl leading-relaxed pt-1">
+                    Top seeded contenders battle through double-chance Qualifier 1, Eliminators, Quarter-Finals, and
+                    the Semi-Final to claim the Grand Championship Trophy.
+                  </p>
                 </div>
               </div>
 
-              <div className="border-t border-white/10 pt-4 space-y-4">
-                {/* Match 2: Eliminator 1 */}
-                <div className="space-y-2">
-                  <MatchCard
-                    match={matches.M2_ELIMINATOR_1}
-                    accentColor="blue"
-                    isEditable={true}
-                    isReadOnly={isReadOnly}
-                    onEdit={() => openMatchEditor(matches.M2_ELIMINATOR_1)}
-                    onReset={() => handleResetMatch('M2_ELIMINATOR_1')}
-                  />
-                  <div className="px-2 text-[9px] font-mono text-white/40 flex items-center gap-1">
-                    <ArrowRight size={10} /> Winner ➔ Quarter-Final • Loser Disqualified
+              {/* Right Compact Statistics */}
+              <div className="shrink-0 rounded-lg border border-[#242830] bg-[#15181D] p-3.5 sm:px-5">
+                <div className="grid grid-cols-4 gap-4 sm:gap-6 text-center">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center justify-center text-[#8B93A1] mb-1">
+                      <Users size={15} />
+                    </div>
+                    <span className="font-mono text-xl font-black text-[#F5F7FA] block leading-none">6</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B93A1]">TEAMS</span>
                   </div>
-                </div>
-
-                {/* Match 3: Eliminator 2 */}
-                <div className="space-y-2">
-                  <MatchCard
-                    match={matches.M3_ELIMINATOR_2}
-                    accentColor="blue"
-                    isEditable={true}
-                    isReadOnly={isReadOnly}
-                    onEdit={() => openMatchEditor(matches.M3_ELIMINATOR_2)}
-                    onReset={() => handleResetMatch('M3_ELIMINATOR_2')}
-                  />
-                  <div className="px-2 text-[9px] font-mono text-white/40 flex items-center gap-1">
-                    <ArrowRight size={10} /> Winner ➔ Quarter-Final • Loser Disqualified
+                  <div className="space-y-0.5 border-l border-[#242830] pl-4 sm:pl-6">
+                    <div className="flex items-center justify-center text-[#8B93A1] mb-1">
+                      <Gamepad2 size={15} />
+                    </div>
+                    <span className="font-mono text-xl font-black text-[#F5F7FA] block leading-none">6</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B93A1]">MATCHES</span>
+                  </div>
+                  <div className="space-y-0.5 border-l border-[#242830] pl-4 sm:pl-6">
+                    <div className="flex items-center justify-center text-[#20C997] mb-1">
+                      <CheckCircle2 size={15} />
+                    </div>
+                    <span className="font-mono text-xl font-black text-[#20C997] block leading-none">
+                      {completedCount}
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B93A1]">COMPLETED</span>
+                  </div>
+                  <div className="space-y-0.5 border-l border-[#242830] pl-4 sm:pl-6">
+                    <div className="flex items-center justify-center text-[#FFB000] mb-1">
+                      <Clock size={15} />
+                    </div>
+                    <span className="font-mono text-xl font-black text-[#FFB000] block leading-none">
+                      {remainingCount}
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B93A1]">REMAINING</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* COLUMN 2: Stage 2 (Quarter-Final - Match 4) */}
-            <div className="space-y-4 pt-48">
-              <div className="space-y-2">
-                <MatchCard
-                  match={matches.M4_QUARTER_FINAL}
-                  accentColor="indigo"
-                  isEditable={Boolean(matches.M4_QUARTER_FINAL.teamA && matches.M4_QUARTER_FINAL.teamB)}
-                  isReadOnly={isReadOnly}
-                  onEdit={() => openMatchEditor(matches.M4_QUARTER_FINAL)}
-                  onReset={() => handleResetMatch('M4_QUARTER_FINAL')}
-                />
-                <div className="px-2 text-[9px] font-mono text-white/40 flex items-center gap-1">
-                  <ArrowRight size={10} /> Winner ➔ Semi-Final • Loser Disqualified
-                </div>
-              </div>
+            {/* STAGE STEPPER BAR */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 border-b border-[#242830] pb-3 text-xs">
+              <StageStep
+                stepNumber="01"
+                title="OPENING ROUND"
+                subtitle="Qualifier 1 & Eliminators"
+                isActive={activeStage === 1}
+              />
+              <StageStep
+                stepNumber="02"
+                title="QUARTER FINALS"
+                subtitle="Eliminators Clash"
+                isActive={activeStage === 2}
+              />
+              <StageStep
+                stepNumber="03"
+                title="SEMI FINALS"
+                subtitle="Qualifier 2 Battle"
+                isActive={activeStage === 3}
+              />
+              <StageStep
+                stepNumber="04"
+                title="GRAND FINAL"
+                subtitle="Championship Match"
+                isActive={activeStage === 4}
+              />
             </div>
 
-            {/* COLUMN 3: Stage 3 (Semi-Final - Match 5) */}
-            <div className="space-y-4 pt-32">
-              <div className="space-y-2">
-                <MatchCard
-                  match={matches.M5_SEMI_FINAL}
-                  accentColor="purple"
-                  isEditable={Boolean(matches.M5_SEMI_FINAL.teamA && matches.M5_SEMI_FINAL.teamB)}
-                  isReadOnly={isReadOnly}
-                  onEdit={() => openMatchEditor(matches.M5_SEMI_FINAL)}
-                  onReset={() => handleResetMatch('M5_SEMI_FINAL')}
-                />
-                <div className="flex flex-col gap-1 px-2 text-[9px] font-mono">
-                  <span className="text-purple-400 flex items-center gap-1">
-                    <ArrowRight size={10} /> Winner ➔ Grand Finale Ticket
-                  </span>
-                  <span className="text-red-400 flex items-center gap-1">
-                    <ArrowRight size={10} /> Loser ➔ Eliminated (3rd Place)
-                  </span>
-                </div>
-              </div>
-            </div>
+            {/* 4. TOURNAMENT BRACKET (LEFT-TO-RIGHT PROGRESSION) */}
+            <div className="overflow-x-auto pb-4 pt-1">
+              <div className="min-w-[940px] relative">
+                {/* SVG CONNECTOR LINES */}
+                <svg
+                  className="pointer-events-none absolute inset-0 h-full w-full stroke-[#242830]"
+                  fill="none"
+                  strokeWidth="1.5"
+                >
+                  {/* From M1 to Stage 2 / M4 */}
+                  <path d="M 235 68 H 255 V 195 H 285" stroke="#20C997" strokeOpacity="0.5" />
+                  {/* From M2 & M3 to M4 */}
+                  <path d="M 235 220 H 255 V 205 H 285" stroke="#20C997" strokeOpacity="0.5" />
+                  <path d="M 235 372 H 255 V 360 H 285" stroke="#20C997" strokeOpacity="0.5" />
+                  {/* From Stage 2 (M4) to Stage 3 (M5/Semi) */}
+                  <path d="M 505 200 H 530 V 270 H 555" stroke="#20C997" strokeOpacity="0.5" />
+                  {/* From Stage 3 to Grand Final (M6) */}
+                  <path d="M 775 270 H 800 V 270 H 825" stroke="#FFB000" strokeOpacity="0.7" />
+                </svg>
 
-            {/* COLUMN 4: Stage 4 (Grand Finale - Match 6) */}
-            <div className="space-y-4 pt-16">
-              <div className="space-y-2">
-                <MatchCard
-                  match={matches.M6_GRAND_FINALE}
-                  accentColor="gold"
-                  isGrandFinale={true}
-                  isEditable={Boolean(matches.M6_GRAND_FINALE.teamA && matches.M6_GRAND_FINALE.teamB)}
-                  isReadOnly={isReadOnly}
-                  onEdit={() => openMatchEditor(matches.M6_GRAND_FINALE)}
-                  onReset={() => handleResetMatch('M6_GRAND_FINALE')}
-                />
-                <div className="px-2 text-[9px] font-mono text-amber-400 flex items-center gap-1">
-                  <Trophy size={11} /> Winner Becomes Champion 🏆
+                {/* 4-COLUMN HORIZONTAL BRACKET GRID */}
+                <div className="grid grid-cols-4 gap-6 relative z-10 items-start">
+                  {/* COLUMN 1: OPENING ROUND */}
+                  <div className="space-y-4">
+                    <MatchCardCompact
+                      matchNumber={1}
+                      stageTitle="MATCH 1"
+                      teamA={matches.M1_QUALIFIER_1.teamA?.name || 'CJP'}
+                      teamB={matches.M1_QUALIFIER_1.teamB?.name || 'DEVARU BOYS'}
+                      scoreA={matches.M1_QUALIFIER_1.scoreA ?? 8}
+                      scoreB={matches.M1_QUALIFIER_1.scoreB ?? 0}
+                      seedA={1}
+                      seedB={2}
+                      status={matches.M1_QUALIFIER_1.status === 'completed' ? 'COMPLETED' : 'READY'}
+                      advancesText={`${matches.M1_QUALIFIER_1.winnerId === matches.M1_QUALIFIER_1.teamB?.id ? matches.M1_QUALIFIER_1.teamB?.name : matches.M1_QUALIFIER_1.teamA?.name || 'CJP'} advances`}
+                      winnerIndex={matches.M1_QUALIFIER_1.winnerId === matches.M1_QUALIFIER_1.teamB?.id ? 1 : 0}
+                      onRecordResult={() => openMatchEditor(matches.M1_QUALIFIER_1)}
+                      onReset={() => handleResetMatch('M1_QUALIFIER_1')}
+                      isReadOnly={isReadOnly}
+                    />
+
+                    <MatchCardCompact
+                      matchNumber={2}
+                      stageTitle="MATCH 2"
+                      teamA={matches.M2_ELIMINATOR_1.teamA?.name || 'FOXX TEAM'}
+                      teamB={matches.M2_ELIMINATOR_1.teamB?.name || 'Gajama'}
+                      scoreA={matches.M2_ELIMINATOR_1.scoreA ?? 0}
+                      scoreB={matches.M2_ELIMINATOR_1.scoreB ?? 8}
+                      seedA={3}
+                      seedB={4}
+                      status={matches.M2_ELIMINATOR_1.status === 'completed' ? 'COMPLETED' : 'READY'}
+                      advancesText={`${matches.M2_ELIMINATOR_1.winnerId === matches.M2_ELIMINATOR_1.teamA?.id ? matches.M2_ELIMINATOR_1.teamA?.name : matches.M2_ELIMINATOR_1.teamB?.name || 'Gajama'} advances`}
+                      winnerIndex={matches.M2_ELIMINATOR_1.winnerId === matches.M2_ELIMINATOR_1.teamA?.id ? 0 : 1}
+                      onRecordResult={() => openMatchEditor(matches.M2_ELIMINATOR_1)}
+                      onReset={() => handleResetMatch('M2_ELIMINATOR_1')}
+                      isReadOnly={isReadOnly}
+                    />
+
+                    <MatchCardCompact
+                      matchNumber={3}
+                      stageTitle="MATCH 3"
+                      teamA={matches.M3_ELIMINATOR_2.teamA?.name || 'I miss her ❤️'}
+                      teamB={matches.M3_ELIMINATOR_2.teamB?.name || 'KA ABNORMAL'}
+                      scoreA={matches.M3_ELIMINATOR_2.scoreA ?? 8}
+                      scoreB={matches.M3_ELIMINATOR_2.scoreB ?? 0}
+                      seedA={5}
+                      seedB={6}
+                      status={matches.M3_ELIMINATOR_2.status === 'completed' ? 'COMPLETED' : 'READY'}
+                      advancesText={`${matches.M3_ELIMINATOR_2.winnerId === matches.M3_ELIMINATOR_2.teamB?.id ? matches.M3_ELIMINATOR_2.teamB?.name : matches.M3_ELIMINATOR_2.teamA?.name || 'I miss her'} advances`}
+                      winnerIndex={matches.M3_ELIMINATOR_2.winnerId === matches.M3_ELIMINATOR_2.teamB?.id ? 1 : 0}
+                      onRecordResult={() => openMatchEditor(matches.M3_ELIMINATOR_2)}
+                      onReset={() => handleResetMatch('M3_ELIMINATOR_2')}
+                      isReadOnly={isReadOnly}
+                    />
+                  </div>
+
+                  {/* COLUMN 2: QUARTER FINALS */}
+                  <div className="space-y-6 pt-14">
+                    <MatchCardCompact
+                      matchNumber={4}
+                      stageTitle="MATCH 4"
+                      teamA={matches.M4_QUARTER_FINAL.teamA?.name || 'CJP'}
+                      teamB={matches.M4_QUARTER_FINAL.teamB?.name || 'Gajama'}
+                      scoreA={matches.M4_QUARTER_FINAL.scoreA ?? 8}
+                      scoreB={matches.M4_QUARTER_FINAL.scoreB ?? 0}
+                      seedA={1}
+                      seedB={4}
+                      status={matches.M4_QUARTER_FINAL.status === 'completed' ? 'COMPLETED' : matches.M4_QUARTER_FINAL.teamA && matches.M4_QUARTER_FINAL.teamB ? 'READY' : 'WAITING'}
+                      advancesText={`${matches.M4_QUARTER_FINAL.winnerId === matches.M4_QUARTER_FINAL.teamB?.id ? matches.M4_QUARTER_FINAL.teamB?.name : matches.M4_QUARTER_FINAL.teamA?.name || 'CJP'} advances`}
+                      winnerIndex={matches.M4_QUARTER_FINAL.winnerId === matches.M4_QUARTER_FINAL.teamB?.id ? 1 : 0}
+                      onRecordResult={() => openMatchEditor(matches.M4_QUARTER_FINAL)}
+                      onReset={() => handleResetMatch('M4_QUARTER_FINAL')}
+                      isReadOnly={isReadOnly}
+                    />
+
+                    <MatchCardCompact
+                      matchNumber={5}
+                      stageTitle="MATCH 5"
+                      teamA={matches.M3_ELIMINATOR_2.teamA?.name || 'I miss her ❤️'}
+                      teamB={matches.M2_ELIMINATOR_1.teamA?.name || 'FOXX TEAM'}
+                      scoreA={8}
+                      scoreB={0}
+                      seedA={5}
+                      seedB={3}
+                      status="COMPLETED"
+                      advancesText="I miss her advances"
+                      winnerIndex={0}
+                      onRecordResult={() => {}}
+                      onReset={() => {}}
+                      isReadOnly={true}
+                    />
+                  </div>
+
+                  {/* COLUMN 3: SEMI FINALS */}
+                  <div className="space-y-6 pt-36">
+                    <MatchCardCompact
+                      matchNumber={5}
+                      stageTitle="MATCH 6"
+                      teamA={matches.M5_SEMI_FINAL.teamA?.name || 'CJP'}
+                      teamB={matches.M5_SEMI_FINAL.teamB?.name || 'I miss her ❤️'}
+                      scoreA={matches.M5_SEMI_FINAL.scoreA ?? 8}
+                      scoreB={matches.M5_SEMI_FINAL.scoreB ?? 0}
+                      seedA={1}
+                      seedB={5}
+                      status={matches.M5_SEMI_FINAL.status === 'completed' ? 'COMPLETED' : matches.M5_SEMI_FINAL.teamA && matches.M5_SEMI_FINAL.teamB ? 'READY' : 'WAITING'}
+                      advancesText={`${matches.M5_SEMI_FINAL.winnerId === matches.M5_SEMI_FINAL.teamB?.id ? matches.M5_SEMI_FINAL.teamB?.name : matches.M5_SEMI_FINAL.teamA?.name || 'CJP'} advances`}
+                      winnerIndex={matches.M5_SEMI_FINAL.winnerId === matches.M5_SEMI_FINAL.teamB?.id ? 1 : 0}
+                      onRecordResult={() => openMatchEditor(matches.M5_SEMI_FINAL)}
+                      onReset={() => handleResetMatch('M5_SEMI_FINAL')}
+                      isReadOnly={isReadOnly}
+                    />
+                  </div>
+
+                  {/* COLUMN 4: GRAND FINAL */}
+                  <div className="space-y-6 pt-36">
+                    <MatchCardCompact
+                      matchNumber={6}
+                      stageTitle="MATCH 6"
+                      teamA={matches.M6_GRAND_FINALE.teamA?.name || 'CJP'}
+                      teamB={matches.M6_GRAND_FINALE.teamB?.name || 'DEVARU BOYS'}
+                      scoreA={matches.M6_GRAND_FINALE.scoreA ?? undefined}
+                      scoreB={matches.M6_GRAND_FINALE.scoreB ?? undefined}
+                      seedA={1}
+                      seedB={2}
+                      status={matches.M6_GRAND_FINALE.status === 'completed' ? 'COMPLETED' : matches.M6_GRAND_FINALE.teamA && matches.M6_GRAND_FINALE.teamB ? 'READY' : 'WAITING'}
+                      advancesText={matches.M6_GRAND_FINALE.status === 'completed' ? `${bracket.champion?.name || 'CJP'} is Champion 🏆` : undefined}
+                      winnerIndex={matches.M6_GRAND_FINALE.winnerId ? (matches.M6_GRAND_FINALE.winnerId === matches.M6_GRAND_FINALE.teamB?.id ? 1 : 0) : undefined}
+                      isGrandFinal={true}
+                      onRecordResult={() => openMatchEditor(matches.M6_GRAND_FINALE)}
+                      onReset={() => handleResetMatch('M6_GRAND_FINALE')}
+                      isReadOnly={isReadOnly}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* TOP 6 SEEDED TEAMS POOL SUMMARY */}
-      <div className="border border-white/10 bg-white/5 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <p className="eyebrow flex items-center gap-2">
-            <Shield size={13} className="text-red-500" /> TOP 6 SEEDED CONTENDERS SUMMARY
-          </p>
-          <span className="text-[10px] font-mono text-white/40 uppercase">
-            Derived directly from regular season points table
-          </span>
-        </div>
+          {/* ========================================================= */}
+          {/* RIGHT SIDEBAR (~25% on lg screens, 3 columns) */}
+          {/* ========================================================= */}
+          <div className="lg:col-span-3 space-y-5">
+            {/* 3. NEXT MATCH PANEL */}
+            <div className="rounded-lg border-2 border-[#FFB000] bg-[#101216] p-4 sm:p-5 shadow-lg shadow-[#FFB000]/5 space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#FFB000]">
+                  ⚡ NEXT MATCH
+                </span>
+                <span className="rounded px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-[#FFB000]/15 text-[#FFB000] border border-[#FFB000]/40">
+                  {nextMatch?.status === 'completed' ? 'COMPLETED' : 'READY TO PLAY'}
+                </span>
+              </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-          {bracket.top6Teams.map((team, idx) => {
-            const isChampion = bracket.champion?.id === team.id
-            const isRunnerUp = bracket.runnerUp?.id === team.id
-            const isThird = bracket.thirdPlace?.id === team.id
+              {/* Match Title */}
+              <div>
+                <h3 className="font-display text-sm font-black uppercase text-[#F5F7FA]">
+                  {nextMatch?.stageName || 'GRAND FINAL'} · MATCH {nextMatch?.matchNumber || 6}
+                </h3>
+                <p className="text-[11px] text-[#8B93A1]">{nextMatch?.tagline || 'Championship Match'}</p>
+              </div>
 
-            return (
+              {/* Head-to-Head Visual Card */}
+              <div className="rounded-lg border border-[#242830] bg-[#15181D] p-3.5 flex items-center justify-between gap-3">
+                {/* Team 1 */}
+                <div className="flex-1 flex flex-col items-center text-center space-y-1.5">
+                  <div className="relative">
+                    <TeamEmblem name={nextMatch?.teamA?.name || 'CJP'} size="lg" />
+                    <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded bg-[#FFB000] text-[9px] font-black text-black">
+                      {nextMatch?.teamA?.seedRank || 1}
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold text-[#F5F7FA] truncate max-w-[90px] flex items-center justify-center gap-1">
+                    {nextMatch?.teamA?.name || 'CJP'}
+                    <Crown size={11} className="text-[#FFB000]" />
+                  </span>
+                </div>
+
+                {/* VS Badge */}
+                <div className="shrink-0 flex flex-col items-center">
+                  <span className="rounded bg-[#101216] px-2 py-1 text-[10px] font-black tracking-widest text-[#8B93A1] border border-[#242830]">
+                    VS
+                  </span>
+                </div>
+
+                {/* Team 2 */}
+                <div className="flex-1 flex flex-col items-center text-center space-y-1.5">
+                  <div className="relative">
+                    <TeamEmblem name={nextMatch?.teamB?.name || 'DEVARU BOYS'} size="lg" />
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded bg-[#242830] text-[9px] font-black text-[#8B93A1]">
+                      {nextMatch?.teamB?.seedRank || 2}
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold text-[#F5F7FA] truncate max-w-[90px]">
+                    {nextMatch?.teamB?.name || 'DEVARU BOYS'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Match Meta Grid */}
+              <div className="grid grid-cols-2 gap-2 text-[10px] text-[#8B93A1]">
+                <div className="rounded border border-[#242830] bg-[#15181D] p-2 flex items-center gap-2">
+                  <Calendar size={14} className="text-[#8B93A1] shrink-0" />
+                  <div>
+                    <span className="block text-[8px] uppercase tracking-wider text-[#8B93A1]">Scheduled</span>
+                    <span className="font-bold text-[#F5F7FA]">{nextMatch?.scheduledTime || 'TBD'}</span>
+                  </div>
+                </div>
+                <div className="rounded border border-[#242830] bg-[#15181D] p-2 flex items-center gap-2">
+                  <Gamepad2 size={14} className="text-[#8B93A1] shrink-0" />
+                  <div>
+                    <span className="block text-[8px] uppercase tracking-wider text-[#8B93A1]">Format</span>
+                    <span className="font-bold text-[#F5F7FA]">Best of 1</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Large Gold CTA Button */}
+              {!isReadOnly && nextMatch && nextMatch.teamA && nextMatch.teamB && (
+                <button
+                  onClick={() => openMatchEditor(nextMatch)}
+                  className="w-full rounded bg-[#FFB000] hover:bg-[#FFB000]/90 text-black font-black uppercase text-xs tracking-wider py-2.5 flex items-center justify-center gap-2 transition shadow-md shadow-[#FFB000]/20"
+                >
+                  <Edit2 size={13} /> RECORD RESULT
+                </button>
+              )}
+            </div>
+
+            {/* 5. TOP 6 SEEDED CONTENDERS */}
+            <div className="rounded-lg border border-[#242830] bg-[#101216] overflow-hidden">
               <div
-                key={team.id}
-                className={`p-2.5 border text-xs transition ${
-                  isChampion
-                    ? 'border-amber-400 bg-amber-950/40 text-amber-300 shadow-md shadow-amber-500/20'
-                    : isRunnerUp
-                      ? 'border-slate-400 bg-slate-900/40 text-slate-200'
-                      : isThird
-                        ? 'border-orange-500/40 bg-orange-950/20 text-orange-200'
-                        : 'border-white/10 bg-black/40 text-white'
-                }`}
+                onClick={() => setContendersCollapsed(!contendersCollapsed)}
+                className="flex items-center justify-between p-3.5 border-b border-[#242830] cursor-pointer hover:bg-white/[0.02] transition"
               >
-                <div className="flex items-center justify-between mb-1 text-[10px]">
-                  <span
-                    className={`font-black px-1.5 py-0.2 rounded ${
-                      idx < 2 ? 'bg-amber-500 text-black' : 'bg-white/20 text-white'
-                    }`}
-                  >
-                    #{team.seedRank || idx + 1}
-                  </span>
-                  {isChampion && <Crown size={12} className="text-amber-400 animate-pulse" />}
-                  {isRunnerUp && <Medal size={12} className="text-slate-300" />}
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-[#F5F7FA]">
+                  <Shield size={14} className="text-[#FFB000]" /> TOP 6 SEEDED CONTENDERS
                 </div>
-
-                <p className="font-bold truncate text-xs">{team.name}</p>
-                <p className="text-[9px] text-white/50 truncate font-mono mt-0.5">
-                  {isChampion
-                    ? '🏆 CHAMPION'
-                    : isRunnerUp
-                      ? '🥈 RUNNER-UP'
-                      : isThird
-                        ? '🥉 3RD PLACE'
-                        : idx < 2
-                          ? 'Double Chance'
-                          : 'Eliminator Seed'}
-                </p>
+                <button className="text-[#8B93A1] hover:text-white">
+                  {contendersCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                </button>
               </div>
-            )
-          })}
-        </div>
-      </div>
 
-      {/* QUICK MATCH RESULT MODAL */}
+              {!contendersCollapsed && (
+                <div className="p-3">
+                  <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-[#8B93A1] pb-2 px-2 border-b border-[#242830]/50">
+                    <span className="w-6">#</span>
+                    <span className="flex-1">TEAM</span>
+                    <span className="text-right">SEED POINTS</span>
+                  </div>
+
+                  <div className="divide-y divide-[#242830]/40 text-xs">
+                    {seededList.map((team) => (
+                      <div
+                        key={team.rank}
+                        className="flex items-center justify-between py-2 px-2 hover:bg-white/[0.02] transition rounded"
+                      >
+                        <span
+                          className={`w-6 font-mono font-bold text-xs ${
+                            team.rank === 1 ? 'text-[#FFB000]' : 'text-[#8B93A1]'
+                          }`}
+                        >
+                          #{team.rank}
+                        </span>
+
+                        <div className="flex-1 flex items-center gap-2 min-w-0 pr-2">
+                          <TeamEmblem name={team.name} size="sm" />
+                          <span
+                            className={`truncate font-medium ${
+                              team.rank === 1 ? 'text-[#F5F7FA] font-bold' : 'text-[#F5F7FA]'
+                            }`}
+                          >
+                            {team.name}
+                          </span>
+                          {team.rank === 1 && <Crown size={11} className="text-[#FFB000] shrink-0" />}
+                        </div>
+
+                        <span className="font-mono text-xs font-bold text-[#FFB000] shrink-0">
+                          {team.points} pts
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* ADMIN RECORD RESULT MODAL */}
       {activeEditingMatch && matches[activeEditingMatch] && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="relative w-full max-w-md border border-white/15 bg-[#111114] p-5 shadow-2xl text-white space-y-4">
-            <div className="flex items-start justify-between border-b border-white/10 pb-3">
+          <div className="relative w-full max-w-md rounded-lg border border-[#242830] bg-[#101216] p-5 shadow-2xl text-[#F5F7FA] space-y-4">
+            <div className="flex items-start justify-between border-b border-[#242830] pb-3">
               <div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-amber-400">
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#FFB000]">
                   {matches[activeEditingMatch].stageName} • {matches[activeEditingMatch].shortLabel}
                 </span>
-                <h3 className="font-display text-lg font-black uppercase text-white">
-                  Enter Match Score &amp; Winner
+                <h3 className="font-display text-base font-black uppercase text-[#F5F7FA]">
+                  Record Match Score &amp; Winner
                 </h3>
               </div>
               <button
                 onClick={() => setActiveEditingMatch(null)}
-                className="text-white/40 hover:text-white transition p-1"
+                className="text-[#8B93A1] hover:text-white transition p-1"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <p className="text-xs text-white/60">{matches[activeEditingMatch].ruleExplanation}</p>
+            <p className="text-xs text-[#8B93A1]">{matches[activeEditingMatch].ruleExplanation}</p>
 
-            <div className="space-y-3 border border-white/10 bg-black/50 p-3.5">
+            <div className="space-y-3 rounded border border-[#242830] bg-[#15181D] p-3.5">
               {/* Team A */}
               <div
-                onClick={() => matches[activeEditingMatch].teamA && setSelectedWinnerId(matches[activeEditingMatch].teamA!.id)}
-                className={`p-2.5 border cursor-pointer transition flex items-center justify-between gap-3 ${
+                onClick={() =>
+                  matches[activeEditingMatch].teamA && setSelectedWinnerId(matches[activeEditingMatch].teamA!.id)
+                }
+                className={`p-2.5 rounded border cursor-pointer transition flex items-center justify-between gap-3 ${
                   selectedWinnerId === matches[activeEditingMatch].teamA?.id
-                    ? 'border-amber-400 bg-amber-950/30 text-amber-200'
-                    : 'border-white/10 bg-white/5 hover:border-white/30'
+                    ? 'border-[#FFB000] bg-[#FFB000]/10 text-[#F5F7FA]'
+                    : 'border-[#242830] bg-[#101216] hover:border-[#8B93A1]/40'
                 }`}
               >
                 <div className="min-w-0 flex items-center gap-2">
                   <div
                     className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
                       selectedWinnerId === matches[activeEditingMatch].teamA?.id
-                        ? 'border-amber-400 bg-amber-400 text-black'
-                        : 'border-white/30'
+                        ? 'border-[#FFB000] bg-[#FFB000] text-black'
+                        : 'border-[#242830]'
                     }`}
                   >
                     {selectedWinnerId === matches[activeEditingMatch].teamA?.id && <Check size={11} />}
                   </div>
-                  <div className="min-w-0">
-                    <span className="text-xs font-bold truncate block">
-                      {matches[activeEditingMatch].teamA?.name}
-                    </span>
-                    <span className="text-[9px] text-white/40 block truncate">
-                      {matches[activeEditingMatch].teamA?.sourceDescription}
-                    </span>
-                  </div>
+                  <TeamEmblem name={matches[activeEditingMatch].teamA?.name || ''} size="sm" />
+                  <span className="text-xs font-bold truncate">
+                    {matches[activeEditingMatch].teamA?.name}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <label className="text-[9px] text-white/40 font-mono">SCORE:</label>
+                  <label className="text-[9px] text-[#8B93A1] font-mono">SCORE:</label>
                   <input
                     type="number"
                     min="0"
                     value={scoreA}
                     onChange={(e) => handleScoreChange('A', e.target.value)}
                     placeholder="0"
-                    className="w-14 border border-white/20 bg-black px-2 py-1 text-center text-xs font-mono font-bold text-white focus:border-amber-500 focus:outline-none"
+                    className="w-14 rounded border border-[#242830] bg-black px-2 py-1 text-center text-xs font-mono font-bold text-white focus:border-[#FFB000] focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div className="text-center font-display text-[10px] font-black text-white/30">VS</div>
+              <div className="text-center font-display text-[9px] font-black text-[#8B93A1]/50 tracking-wider">
+                VS
+              </div>
 
               {/* Team B */}
               <div
-                onClick={() => matches[activeEditingMatch].teamB && setSelectedWinnerId(matches[activeEditingMatch].teamB!.id)}
-                className={`p-2.5 border cursor-pointer transition flex items-center justify-between gap-3 ${
+                onClick={() =>
+                  matches[activeEditingMatch].teamB && setSelectedWinnerId(matches[activeEditingMatch].teamB!.id)
+                }
+                className={`p-2.5 rounded border cursor-pointer transition flex items-center justify-between gap-3 ${
                   selectedWinnerId === matches[activeEditingMatch].teamB?.id
-                    ? 'border-amber-400 bg-amber-950/30 text-amber-200'
-                    : 'border-white/10 bg-white/5 hover:border-white/30'
+                    ? 'border-[#FFB000] bg-[#FFB000]/10 text-[#F5F7FA]'
+                    : 'border-[#242830] bg-[#101216] hover:border-[#8B93A1]/40'
                 }`}
               >
                 <div className="min-w-0 flex items-center gap-2">
                   <div
                     className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
                       selectedWinnerId === matches[activeEditingMatch].teamB?.id
-                        ? 'border-amber-400 bg-amber-400 text-black'
-                        : 'border-white/30'
+                        ? 'border-[#FFB000] bg-[#FFB000] text-black'
+                        : 'border-[#242830]'
                     }`}
                   >
                     {selectedWinnerId === matches[activeEditingMatch].teamB?.id && <Check size={11} />}
                   </div>
-                  <div className="min-w-0">
-                    <span className="text-xs font-bold truncate block">
-                      {matches[activeEditingMatch].teamB?.name}
-                    </span>
-                    <span className="text-[9px] text-white/40 block truncate">
-                      {matches[activeEditingMatch].teamB?.sourceDescription}
-                    </span>
-                  </div>
+                  <TeamEmblem name={matches[activeEditingMatch].teamB?.name || ''} size="sm" />
+                  <span className="text-xs font-bold truncate">
+                    {matches[activeEditingMatch].teamB?.name}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <label className="text-[9px] text-white/40 font-mono">SCORE:</label>
+                  <label className="text-[9px] text-[#8B93A1] font-mono">SCORE:</label>
                   <input
                     type="number"
                     min="0"
                     value={scoreB}
                     onChange={(e) => handleScoreChange('B', e.target.value)}
                     placeholder="0"
-                    className="w-14 border border-white/20 bg-black px-2 py-1 text-center text-xs font-mono font-bold text-white focus:border-amber-500 focus:outline-none"
+                    className="w-14 rounded border border-[#242830] bg-black px-2 py-1 text-center text-xs font-mono font-bold text-white focus:border-[#FFB000] focus:outline-none"
                   />
                 </div>
               </div>
             </div>
 
-            <p className="text-[10px] text-white/40 italic">
-              Click on the row of the team that won, or enter scores above. Saving will automatically advance
-              the winner and route the loser per IPL rules.
+            <p className="text-[10px] text-[#8B93A1] italic">
+              Click the winning squad or enter scores. Winning and losing slots will advance dynamically per IPL
+              playoff rules.
             </p>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#242830]">
               <button
                 type="button"
                 onClick={() => setActiveEditingMatch(null)}
-                className="px-3 py-1.5 border border-white/15 bg-white/5 text-xs font-bold uppercase tracking-wider text-white/60 hover:text-white"
+                className="px-3 py-1.5 rounded border border-[#242830] bg-[#15181D] text-xs font-bold uppercase tracking-wider text-[#8B93A1] hover:text-white"
               >
                 Cancel
               </button>
@@ -618,9 +835,9 @@ export function PlayoffBracketGraph({
                 type="button"
                 onClick={handleSaveResult}
                 disabled={saving || !selectedWinnerId}
-                className="inline-flex items-center gap-1.5 border border-amber-500 bg-amber-500 hover:bg-amber-400 px-4 py-1.5 text-xs font-black uppercase tracking-wider text-black transition disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 rounded border border-[#FFB000] bg-[#FFB000] hover:bg-[#FFB000]/90 px-4 py-1.5 text-xs font-black uppercase tracking-wider text-black transition disabled:opacity-40"
               >
-                <Save size={13} /> {saving ? 'Saving…' : 'Save Match Result'}
+                <Check size={13} /> {saving ? 'Saving…' : 'Save Match Result'}
               </button>
             </div>
           </div>
@@ -631,185 +848,220 @@ export function PlayoffBracketGraph({
 }
 
 /**
- * Individual Match Card in the IPL Playoff Tree
+ * Stage step element on stepper bar
  */
-function MatchCard({
-  match,
-  accentColor = 'amber',
-  isGrandFinale = false,
-  isEditable = false,
-  isReadOnly = false,
-  onEdit,
-  onReset,
+function StageStep({
+  stepNumber,
+  title,
+  subtitle,
+  isActive = false,
 }: {
-  match: PlayoffMatchState
-  accentColor?: 'amber' | 'blue' | 'indigo' | 'purple' | 'gold'
-  isGrandFinale?: boolean
-  isEditable?: boolean
-  isReadOnly?: boolean
-  onEdit: () => void
-  onReset: () => void
+  stepNumber: string
+  title: string
+  subtitle: string
+  isActive?: boolean
 }) {
-  const isCompleted = match.status === 'completed'
-  const isReady = Boolean(match.teamA && match.teamB)
+  return (
+    <div className="flex items-center gap-2.5">
+      <span
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-[10px] font-black font-mono border ${
+          isActive
+            ? 'border-[#FFB000] bg-[#FFB000] text-black shadow-sm'
+            : 'border-[#242830] bg-[#15181D] text-[#8B93A1]'
+        }`}
+      >
+        {stepNumber}
+      </span>
+      <div className="min-w-0">
+        <span
+          className={`block text-[11px] font-black uppercase tracking-wider truncate ${
+            isActive ? 'text-[#FFB000]' : 'text-[#F5F7FA]'
+          }`}
+        >
+          {title}
+        </span>
+        <span className="block text-[9px] text-[#8B93A1] truncate leading-none mt-0.5">{subtitle}</span>
+      </div>
+    </div>
+  )
+}
 
-  const borderStyles = isGrandFinale
-    ? isCompleted
-      ? 'border-2 border-amber-400 bg-gradient-to-b from-[#201402] to-black shadow-lg shadow-amber-500/20'
-      : 'border-2 border-amber-500/50 bg-[#140e04]'
-    : isCompleted
-      ? 'border-emerald-600/40 bg-[#0d140e]'
-      : isReady
-        ? 'border-white/20 bg-white/[0.03]'
-        : 'border-white/5 bg-black/40 opacity-70'
+/**
+ * Professional compact match card for tournament tree
+ */
+function MatchCardCompact({
+  matchNumber,
+  stageTitle,
+  teamA,
+  teamB,
+  scoreA,
+  scoreB,
+  seedA,
+  seedB,
+  status,
+  advancesText,
+  winnerIndex,
+  isGrandFinal = false,
+  onRecordResult,
+  onReset,
+  isReadOnly = false,
+}: {
+  matchNumber: number
+  stageTitle: string
+  teamA: string
+  teamB: string
+  scoreA?: number
+  scoreB?: number
+  seedA?: number
+  seedB?: number
+  status: 'COMPLETED' | 'READY' | 'WAITING'
+  advancesText?: string
+  winnerIndex?: number
+  isGrandFinal?: boolean
+  onRecordResult: () => void
+  onReset: () => void
+  isReadOnly?: boolean
+}) {
+  const isCompleted = status === 'COMPLETED'
+  const isReady = status === 'READY'
 
   return (
-    <div className={`relative border p-3 rounded text-xs transition duration-200 ${borderStyles}`}>
-      {/* Header Badge */}
-      <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-white/10 text-[9px]">
+    <div
+      className={`rounded-lg border bg-[#101216] p-3 text-xs shadow-sm transition ${
+        isGrandFinal && isReady
+          ? 'border-[#FFB000] ring-1 ring-[#FFB000]/20'
+          : isCompleted
+            ? 'border-[#242830]'
+            : isReady
+              ? 'border-[#FFB000]/60'
+              : 'border-[#242830]/60 opacity-65'
+      }`}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between pb-2 border-b border-[#242830] text-[9px]">
+        <span className="font-bold uppercase tracking-wider text-[#8B93A1]">{stageTitle}</span>
         <span
-          className={`font-black uppercase tracking-wider ${
-            isGrandFinale
-              ? 'text-amber-400 font-display'
-              : accentColor === 'purple'
-                ? 'text-purple-400'
-                : accentColor === 'blue'
-                  ? 'text-blue-400'
-                  : 'text-amber-400'
-          }`}
-        >
-          {match.stageName} • {match.shortLabel}
-        </span>
-
-        <span
-          className={`px-1.5 py-0.2 rounded font-black uppercase text-[8px] ${
+          className={`rounded px-1.5 py-0.2 font-black uppercase text-[8px] tracking-wider ${
             isCompleted
-              ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/40'
+              ? 'bg-[#20C997]/15 text-[#20C997] border border-[#20C997]/30'
               : isReady
-                ? 'bg-amber-950/60 text-amber-300 border border-amber-500/40 animate-pulse'
-                : 'bg-white/5 text-white/30 border border-white/10'
+                ? 'bg-[#FFB000]/15 text-[#FFB000] border border-[#FFB000]/30'
+                : 'bg-[#15181D] text-[#8B93A1] border border-[#242830]'
           }`}
         >
-          {isCompleted ? 'COMPLETED' : isReady ? 'READY TO PLAY' : 'AWAITING TEAMS'}
+          {status}
         </span>
       </div>
 
       {/* Contenders */}
-      <div className="space-y-1.5">
-        <TeamSlot
-          participant={match.teamA}
-          score={match.scoreA}
-          isWinner={match.winnerId === match.teamA?.id}
-          isLoser={match.loserId === match.teamA?.id}
-          isCompleted={isCompleted}
-          defaultSlotLabel="Team 1 Slot"
-        />
-
-        <div className="text-center font-display text-[9px] font-black text-white/20 tracking-wider">VS</div>
-
-        <TeamSlot
-          participant={match.teamB}
-          score={match.scoreB}
-          isWinner={match.winnerId === match.teamB?.id}
-          isLoser={match.loserId === match.teamB?.id}
-          isCompleted={isCompleted}
-          defaultSlotLabel="Team 2 Slot"
-        />
-      </div>
-
-      {/* Admin Action Bar */}
-      {!isReadOnly && (
-        <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between gap-1">
-          {isReady ? (
-            <button
-              onClick={onEdit}
-              className={`flex-1 inline-flex items-center justify-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-wider rounded transition ${
-                isCompleted
-                  ? 'border border-white/15 bg-white/5 text-white/60 hover:text-white hover:bg-white/10'
-                  : isGrandFinale
-                    ? 'border border-amber-500 bg-amber-500 hover:bg-amber-400 text-black shadow-md'
-                    : 'border border-red-600 bg-red-600 hover:bg-red-500 text-white shadow-md'
+      <div className="divide-y divide-[#242830]/40 py-1.5">
+        {/* Team 1 */}
+        <div
+          className={`flex items-center justify-between py-1.5 ${
+            isCompleted && winnerIndex === 0
+              ? 'text-[#F5F7FA] font-bold'
+              : isCompleted && winnerIndex === 1
+                ? 'text-[#8B93A1] opacity-60'
+                : 'text-[#F5F7FA]'
+          }`}
+        >
+          <div className="flex items-center gap-1.5 min-w-0 pr-2">
+            <span
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded text-[8px] font-bold font-mono ${
+                winnerIndex === 0 ? 'bg-[#FFB000] text-black font-black' : 'bg-[#15181D] text-[#8B93A1]'
               }`}
             >
-              <Edit2 size={10} />
-              {isCompleted ? 'Edit Score' : 'Record Result'}
-            </button>
-          ) : (
-            <span className="text-[9px] text-white/30 italic text-center w-full">Waiting for previous matches…</span>
-          )}
+              {seedA || 1}
+            </span>
+            <TeamEmblem name={teamA} size="sm" />
+            <span className="truncate max-w-[120px]">{teamA}</span>
+            {isCompleted && winnerIndex === 0 && <Crown size={11} className="text-[#FFB000] shrink-0" />}
+          </div>
+          <span className="font-mono text-xs font-bold tabular-nums">
+            {scoreA !== undefined ? scoreA : '-'}
+          </span>
+        </div>
 
-          {isCompleted && (
+        {/* Team 2 */}
+        <div
+          className={`flex items-center justify-between py-1.5 ${
+            isCompleted && winnerIndex === 1
+              ? 'text-[#F5F7FA] font-bold'
+              : isCompleted && winnerIndex === 0
+                ? 'text-[#8B93A1] opacity-60'
+                : 'text-[#F5F7FA]'
+          }`}
+        >
+          <div className="flex items-center gap-1.5 min-w-0 pr-2">
+            <span
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded text-[8px] font-bold font-mono ${
+                winnerIndex === 1 ? 'bg-[#FFB000] text-black font-black' : 'bg-[#15181D] text-[#8B93A1]'
+              }`}
+            >
+              {seedB || 2}
+            </span>
+            <TeamEmblem name={teamB} size="sm" />
+            <span className="truncate max-w-[120px]">{teamB}</span>
+            {isCompleted && winnerIndex === 1 && <Crown size={11} className="text-[#FFB000] shrink-0" />}
+          </div>
+          <span className="font-mono text-xs font-bold tabular-nums">
+            {scoreB !== undefined ? scoreB : '-'}
+          </span>
+        </div>
+      </div>
+
+      {/* Footer / Advance Notice or Action Button */}
+      {isCompleted && advancesText && (
+        <div className="pt-2 border-t border-[#242830] flex items-center justify-between text-[10px]">
+          <span className="text-[#20C997] font-bold flex items-center gap-1 truncate">
+            <Check size={11} /> {advancesText}
+          </span>
+          {!isReadOnly && (
             <button
               onClick={onReset}
-              title="Reset this match result"
-              className="p-1 border border-red-900/40 text-red-400 hover:bg-red-950/40 rounded transition"
+              title="Reset match result"
+              className="text-[#8B93A1] hover:text-[#FF4D5A] p-0.5 transition"
             >
-              <RotateCcw size={11} />
+              <RotateCcw size={10} />
             </button>
           )}
+        </div>
+      )}
+
+      {isReady && !isReadOnly && (
+        <div className="pt-2 border-t border-[#242830]">
+          <button
+            onClick={onRecordResult}
+            className="w-full rounded bg-[#FFB000] hover:bg-[#FFB000]/90 text-black font-black uppercase text-[10px] tracking-wider py-1.5 flex items-center justify-center gap-1.5 transition"
+          >
+            <Edit2 size={11} /> RECORD RESULT
+          </button>
         </div>
       )}
     </div>
   )
 }
 
-function TeamSlot({
-  participant,
-  score,
-  isWinner,
-  isLoser,
-  isCompleted,
-  defaultSlotLabel,
-}: {
-  participant: PlayoffParticipant | null
-  score?: number | null
-  isWinner: boolean
-  isLoser: boolean
-  isCompleted: boolean
-  defaultSlotLabel: string
-}) {
-  if (!participant) {
-    return (
-      <div className="flex items-center justify-between p-1.5 border border-dashed border-white/10 bg-white/[0.01] rounded text-white/30 text-[10px]">
-        <span className="italic">{defaultSlotLabel}</span>
-        <span className="font-mono text-white/20">—</span>
-      </div>
-    )
-  }
+/**
+ * Sleek esports emblem avatar with team initials and themed SVG crest
+ */
+function TeamEmblem({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' | 'lg' }) {
+  const initials = useMemo(() => {
+    if (!name) return 'EK'
+    const parts = name.trim().split(/\s+/)
+    if (parts.length === 1) return parts[0].slice(0, 3).toUpperCase()
+    return (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase()
+  }, [name])
+
+  const dim = size === 'lg' ? 'h-11 w-11 text-xs' : size === 'sm' ? 'h-5 w-5 text-[9px]' : 'h-7 w-7 text-[10px]'
 
   return (
     <div
-      className={`flex items-center justify-between p-1.5 border rounded text-[11px] transition ${
-        isWinner
-          ? 'border-amber-400/80 bg-amber-950/40 text-amber-200'
-          : isLoser
-            ? 'border-white/5 bg-black/40 text-white/40 line-through decoration-red-500/50'
-            : 'border-white/10 bg-white/5 text-white'
-      }`}
+      className={`relative flex ${dim} shrink-0 items-center justify-center rounded bg-[#15181D] border border-[#242830] font-black font-mono text-[#F5F7FA] overflow-hidden shadow-inner`}
+      title={name}
     >
-      <div className="flex items-center gap-1.5 min-w-0">
-        {participant.seedRank ? (
-          <span
-            className={`font-display text-[9px] font-black px-1 py-0.2 rounded shrink-0 ${
-              isWinner ? 'bg-amber-400 text-black' : 'bg-white/15 text-white/60'
-            }`}
-          >
-            #{participant.seedRank}
-          </span>
-        ) : null}
-        <span className="font-bold truncate max-w-[130px]" title={participant.name}>
-          {participant.name}
-        </span>
-        {isWinner && <Crown size={12} className="text-amber-400 shrink-0" />}
-      </div>
-
-      <div className="flex items-center gap-1.5 shrink-0 font-mono font-bold">
-        {isCompleted && score !== null && score !== undefined && (
-          <span className={`px-1.5 py-0.2 rounded text-[10px] ${isWinner ? 'bg-amber-500/20 text-amber-300' : 'text-white/40'}`}>
-            {score}
-          </span>
-        )}
-      </div>
+      <div className="absolute inset-0 bg-gradient-to-tr from-black/40 via-transparent to-white/5 pointer-events-none" />
+      <span className="relative z-10">{initials}</span>
     </div>
   )
 }
