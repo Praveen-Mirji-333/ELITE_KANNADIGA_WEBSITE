@@ -294,11 +294,11 @@ export default function TournamentsPage() {
         )}
 
         {/* Live Published Match Standings & Results */}
-        <div className="mt-20 border-t border-white/10 pt-16">
-          <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+        <div className="mt-14 sm:mt-20 border-t border-white/10 pt-10 sm:pt-16">
+          <div className="mb-6 sm:mb-8 flex flex-col justify-between gap-3 sm:gap-4 md:flex-row md:items-end">
             <div>
-              <p className="eyebrow mb-2">VERIFIED STANDINGS & BRACKETS</p>
-              <h2 className="font-display text-3xl font-black uppercase text-white">
+              <p className="eyebrow mb-1.5 sm:mb-2">VERIFIED STANDINGS & BRACKETS</p>
+              <h2 className="font-display text-2xl sm:text-3xl font-black uppercase text-white">
                 PUBLISHED MATCH RESULTS
               </h2>
             </div>
@@ -309,7 +309,7 @@ export default function TournamentsPage() {
                   const found = tournaments.find((t) => t.id === e.target.value)
                   if (found) loadResults(found)
                 }}
-                className="border border-white/15 bg-[#120607] px-4 py-2 text-xs font-bold text-white"
+                className="w-full md:w-auto border border-white/15 bg-[#120607] px-3 sm:px-4 py-2 text-xs font-bold text-white focus:outline-none"
               >
                 {tournaments.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -321,35 +321,37 @@ export default function TournamentsPage() {
           </div>
 
           {resultsList.length === 0 ? (
-            <div className="border border-white/10 p-12 text-center text-sm text-white/40">
+            <div className="border border-white/10 p-8 sm:p-12 text-center text-xs sm:text-sm text-white/40">
               No match results published yet for this tournament. Admin will publish verified scores after match completion.
             </div>
           ) : (
             <div className="divide-y divide-white/10 border border-white/10 bg-white/5">
               {resultsList.map((res, i) => (
-                <div key={res.id} className="p-5 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <span className="font-display text-2xl font-black text-red-500">
+                <div key={res.id} className="p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                    <span className="font-display text-xl sm:text-2xl font-black text-red-500 shrink-0 w-8 text-center">
                       #{res.placement || i + 1}
                     </span>
                     <UserAvatar
                       src={avatarMap.get((res.captain_free_fire_uid || '').trim().toLowerCase()) || avatarMap.get((res.captain_name || '').trim().toLowerCase())}
                       name={res.captain_name}
                       size="md"
-                      className="border border-red-600/50"
+                      className="border border-red-600/50 shrink-0"
                     />
-                    <div>
-                      <h4 className="font-display text-lg font-black text-white">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-display text-sm sm:text-lg font-black text-white truncate">
                         {res.team_name || res.captain_name || 'REGISTERED SQUAD'}
                       </h4>
-                      <p className="text-xs text-white/50">Captain: {res.captain_name}</p>
+                      <p className="text-[11px] sm:text-xs text-white/50 truncate">Captain: {res.captain_name}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className="font-display text-lg font-bold text-red-500">
+                  <div className="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 border-white/5 pt-2 sm:pt-0 w-full sm:w-auto shrink-0">
+                    <span className="font-display text-sm sm:text-lg font-bold text-red-500">
                       {res.kills} KILLS
                     </span>
-                    <p className="text-[10px] font-bold text-emerald-400">VERIFIED RESULT</p>
+                    <p className="text-[9px] sm:text-[10px] font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded">
+                      VERIFIED
+                    </p>
                   </div>
                 </div>
               ))}
@@ -655,74 +657,74 @@ export default function TournamentsPage() {
                         )
                       })
                       .map((r, idx) => (
-                        <div key={r.id} className="p-3.5 flex items-center justify-between hover:bg-white/5 transition">
-                          <div className="flex items-center gap-3.5">
-                            <span className="font-display text-xl font-black text-amber-400 w-8 text-center">
+                        <div key={r.id} className="p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-white/5 transition">
+                          <div className="flex items-start sm:items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                            <span className="font-display text-lg sm:text-xl font-black text-amber-400 w-7 sm:w-8 text-center shrink-0 mt-0.5 sm:mt-0">
                               #{r.placement || idx + 1}
                             </span>
-                            <div className="space-y-1.5 flex-1">
-                              <h5 className="font-display text-base font-black text-amber-400">
+                            <div className="space-y-1.5 flex-1 min-w-0">
+                              <h5 className="font-display text-sm sm:text-base font-black text-amber-400 truncate">
                                 {r.team_name || r.captain_name}
                               </h5>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] bg-black/40 p-2.5 border border-white/10 rounded">
-                                <div className="text-white/80 flex items-center gap-2">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10px] sm:text-[11px] bg-black/40 p-2 sm:p-2.5 border border-white/10 rounded">
+                                <div className="text-white/80 flex items-center gap-2 min-w-0">
                                   <UserAvatar
                                     src={avatarMap.get((r.captain_free_fire_uid || '').trim().toLowerCase()) || avatarMap.get((r.captain_name || '').trim().toLowerCase())}
                                     name={r.captain_name}
                                     size="xs"
-                                    className="h-6 w-6 border border-amber-400/60"
+                                    className="h-6 w-6 border border-amber-400/60 shrink-0"
                                   />
-                                  <div>
-                                    <span className="font-bold text-amber-300">👑 Leader: <strong className="text-white">{r.captain_name}</strong></span>
-                                    <span className="block font-mono text-[9px] text-amber-300/80">UID: {r.captain_free_fire_uid || 'N/A'}</span>
+                                  <div className="min-w-0">
+                                    <span className="font-bold text-amber-300 truncate block">👑 Leader: <strong className="text-white">{r.captain_name}</strong></span>
+                                    <span className="block font-mono text-[9px] text-amber-300/80 truncate">UID: {r.captain_free_fire_uid || 'N/A'}</span>
                                   </div>
                                 </div>
-                                <div className="text-white/80 flex items-center gap-2">
+                                <div className="text-white/80 flex items-center gap-2 min-w-0">
                                   <UserAvatar
                                     src={avatarMap.get((r.teammate_uids?.[0] || '').trim().toLowerCase()) || avatarMap.get((r.teammate_names?.[0] || '').trim().toLowerCase())}
                                     name={r.teammate_names?.[0]}
                                     size="xs"
-                                    className="h-6 w-6 border border-white/20"
+                                    className="h-6 w-6 border border-white/20 shrink-0"
                                   />
-                                  <div>
-                                    <span>🎮 2nd: <strong className="text-white">{r.teammate_names?.[0] || 'N/A'}</strong></span>
-                                    <span className="block font-mono text-[9px] text-amber-300/80">UID: {r.teammate_uids?.[0] || 'N/A'}</span>
+                                  <div className="min-w-0">
+                                    <span className="truncate block">🎮 2nd: <strong className="text-white">{r.teammate_names?.[0] || 'N/A'}</strong></span>
+                                    <span className="block font-mono text-[9px] text-amber-300/80 truncate">UID: {r.teammate_uids?.[0] || 'N/A'}</span>
                                   </div>
                                 </div>
-                                <div className="text-white/80 flex items-center gap-2">
+                                <div className="text-white/80 flex items-center gap-2 min-w-0">
                                   <UserAvatar
                                     src={avatarMap.get((r.teammate_uids?.[1] || '').trim().toLowerCase()) || avatarMap.get((r.teammate_names?.[1] || '').trim().toLowerCase())}
                                     name={r.teammate_names?.[1]}
                                     size="xs"
-                                    className="h-6 w-6 border border-white/20"
+                                    className="h-6 w-6 border border-white/20 shrink-0"
                                   />
-                                  <div>
-                                    <span>🎮 3rd: <strong className="text-white">{r.teammate_names?.[1] || 'N/A'}</strong></span>
-                                    <span className="block font-mono text-[9px] text-amber-300/80">UID: {r.teammate_uids?.[1] || 'N/A'}</span>
+                                  <div className="min-w-0">
+                                    <span className="truncate block">🎮 3rd: <strong className="text-white">{r.teammate_names?.[1] || 'N/A'}</strong></span>
+                                    <span className="block font-mono text-[9px] text-amber-300/80 truncate">UID: {r.teammate_uids?.[1] || 'N/A'}</span>
                                   </div>
                                 </div>
-                                <div className="text-white/80 flex items-center gap-2">
+                                <div className="text-white/80 flex items-center gap-2 min-w-0">
                                   <UserAvatar
                                     src={avatarMap.get((r.teammate_uids?.[2] || '').trim().toLowerCase()) || avatarMap.get((r.teammate_names?.[2] || '').trim().toLowerCase())}
                                     name={r.teammate_names?.[2]}
                                     size="xs"
-                                    className="h-6 w-6 border border-white/20"
+                                    className="h-6 w-6 border border-white/20 shrink-0"
                                   />
-                                  <div>
-                                    <span>🎮 4th: <strong className="text-white">{r.teammate_names?.[2] || 'N/A'}</strong></span>
-                                    <span className="block font-mono text-[9px] text-amber-300/80">UID: {r.teammate_uids?.[2] || 'N/A'}</span>
+                                  <div className="min-w-0">
+                                    <span className="truncate block">🎮 4th: <strong className="text-white">{r.teammate_names?.[2] || 'N/A'}</strong></span>
+                                    <span className="block font-mono text-[9px] text-amber-300/80 truncate">UID: {r.teammate_uids?.[2] || 'N/A'}</span>
                                   </div>
                                 </div>
                               </div>
                             </div>
                           </div>
-                          <div className="text-right">
+                          <div className="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 border-white/5 pt-2 sm:pt-0 w-full sm:w-auto shrink-0">
                             {r.kills && r.kills > 0 ? (
-                              <span className="font-display text-base font-black text-red-500 block">
+                              <span className="font-display text-sm sm:text-base font-black text-red-500 block">
                                 {r.kills} KILLS
                               </span>
                             ) : null}
-                            <p className="text-[10px] font-bold text-emerald-400 flex items-center justify-end gap-1">
+                            <p className="text-[9px] sm:text-[10px] font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded flex items-center gap-1">
                               <CheckCircle2 size={11} /> VERIFIED
                             </p>
                           </div>

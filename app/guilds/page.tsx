@@ -450,7 +450,7 @@ export default function GuildsPage() {
                     </div>
 
                     {/* Right: Kills, Glory Points, Admin Controls */}
-                    <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 border-white/5 pt-2 sm:pt-0">
+                    <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 w-full sm:w-auto shrink-0 border-t sm:border-t-0 border-white/5 pt-2 sm:pt-0">
                       {/* Player Kills badge */}
                       <div className="text-left sm:text-right">
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-red-950/60 border border-red-600/40 text-red-400 font-display font-black text-xs sm:text-sm tracking-wide">

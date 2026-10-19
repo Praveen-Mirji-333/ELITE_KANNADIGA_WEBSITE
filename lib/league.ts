@@ -350,6 +350,7 @@ export function computeStandings(
       wins: 0,
       losses: 0,
       points: 0,
+      roundsLost: 0,
       scoreFor: 0,
       scoreAgainst: 0,
       diff: 0,
@@ -377,6 +378,11 @@ export function computeStandings(
     teamB.scoreFor += result.team_b_score
     teamB.scoreAgainst += result.team_a_score
 
+    const aLost = result.team_a_rounds_lost ?? 0
+    const bLost = result.team_b_rounds_lost ?? 0
+    teamA.roundsLost += aLost
+    teamB.roundsLost += bLost
+
     if (result.winner_id === pairing.team_a_id) {
       teamA.wins += 1
       teamA.points += winPoints
@@ -391,9 +397,16 @@ export function computeStandings(
   const standings = Array.from(table.values())
   for (const row of standings) row.diff = row.scoreFor - row.scoreAgainst
 
+  // Priority 1: Points (descending)
+  // Priority 2: Rounds Lost (ascending - team with MORE rounds lost stays at bottom)
+  // Priority 3: Goal/Score Diff (descending)
+  // Priority 4: Score For (descending)
+  // Priority 5: Total Wins (descending)
+  // Tie-break fallback: alphabetical by team name
   standings.sort(
     (a, b) =>
       b.points - a.points ||
+      a.roundsLost - b.roundsLost ||
       b.diff - a.diff ||
       b.scoreFor - a.scoreFor ||
       b.wins - a.wins ||

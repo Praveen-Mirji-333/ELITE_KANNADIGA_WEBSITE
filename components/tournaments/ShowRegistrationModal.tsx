@@ -112,26 +112,26 @@ export function ShowRegistrationModal({
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex gap-2 mt-5">
+          <div className="flex flex-wrap sm:flex-nowrap gap-1.5 sm:gap-2 mt-4 sm:mt-5">
             <button
               onClick={() => setActiveTab('MY_TEAM')}
-              className={`flex items-center gap-2 px-4 py-2 text-xs font-black tracking-widest uppercase transition ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-black tracking-wider sm:tracking-widest uppercase transition ${
                 activeTab === 'MY_TEAM'
                   ? 'border-b-2 border-emerald-500 bg-white/5 text-emerald-400'
                   : 'text-white/50 hover:text-white'
               }`}
             >
-              <User size={14} /> YOUR REGISTERED TEAM
+              <User size={13} /> YOUR SQUAD
             </button>
             <button
               onClick={() => setActiveTab('ALL_TEAMS')}
-              className={`flex items-center gap-2 px-4 py-2 text-xs font-black tracking-widest uppercase transition ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-black tracking-wider sm:tracking-widest uppercase transition ${
                 activeTab === 'ALL_TEAMS'
                   ? 'border-b-2 border-emerald-500 bg-white/5 text-emerald-400'
                   : 'text-white/50 hover:text-white'
               }`}
             >
-              <Users size={14} /> ALL REGISTERED TEAMS ({allRegistrations.length})
+              <Users size={13} /> ALL SQUADS ({allRegistrations.length})
             </button>
           </div>
         </div>

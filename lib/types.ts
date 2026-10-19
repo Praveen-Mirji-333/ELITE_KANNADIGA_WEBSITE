@@ -291,6 +291,8 @@ export interface LeagueMatchResult {
   season_id: string
   team_a_score: number
   team_b_score: number
+  team_a_rounds_lost?: number
+  team_b_rounds_lost?: number
   winner_id: string
   created_at?: string
   updated_at?: string
@@ -303,8 +305,10 @@ export interface LeagueStanding {
   wins: number
   losses: number
   points: number
+  roundsLost: number
   scoreFor: number
   scoreAgainst: number
   diff: number
   rank: number
 }
+

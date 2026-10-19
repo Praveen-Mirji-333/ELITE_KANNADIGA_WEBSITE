@@ -27,6 +27,9 @@ export function StandingsTable({ standings, matchesPerTeam }: StandingsTableProp
             <th className="px-3 py-2.5 text-center">P</th>
             <th className="px-3 py-2.5 text-center">W</th>
             <th className="px-3 py-2.5 text-center">L</th>
+            <th className="px-3 py-2.5 text-center text-amber-300" title="Total Rounds Lost (Tie-breaker: team with more lost rounds stays at bottom)">
+              R. LOST
+            </th>
             <th className="px-3 py-2.5 text-center">PF</th>
             <th className="px-3 py-2.5 text-center">PA</th>
             <th className="px-3 py-2.5 text-center">DIFF</th>
@@ -72,6 +75,9 @@ export function StandingsTable({ standings, matchesPerTeam }: StandingsTableProp
                 <td className="px-3 py-2.5 text-center text-white/60">{row.played}</td>
                 <td className="px-3 py-2.5 text-center font-bold text-emerald-400">{row.wins}</td>
                 <td className="px-3 py-2.5 text-center text-red-400/80">{row.losses}</td>
+                <td className="px-3 py-2.5 text-center font-mono font-bold text-amber-300/90">
+                  {row.roundsLost}
+                </td>
                 <td className="px-3 py-2.5 text-center text-white/60">{row.scoreFor}</td>
                 <td className="px-3 py-2.5 text-center text-white/60">{row.scoreAgainst}</td>
                 <td className="px-3 py-2.5 text-center text-white/60">

@@ -79,6 +79,8 @@ create table if not exists public.league_match_results (
   season_id uuid not null references public.league_seasons(id) on delete cascade,
   team_a_score integer not null default 0 check (team_a_score >= 0),
   team_b_score integer not null default 0 check (team_b_score >= 0),
+  team_a_rounds_lost integer not null default 0 check (team_a_rounds_lost >= 0),
+  team_b_rounds_lost integer not null default 0 check (team_b_rounds_lost >= 0),
   winner_id uuid not null references public.tournament_registrations(id) on delete cascade,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

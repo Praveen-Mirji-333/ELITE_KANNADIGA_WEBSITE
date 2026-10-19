@@ -79,8 +79,8 @@ export function QuizModal({ isOpen, onClose, onXPClaimed }: QuizModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
-      <div className="relative w-full max-w-xl border border-red-800/60 bg-[#0c0c0e] p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-md overflow-y-auto">
+      <div className="relative my-auto w-full max-w-xl border border-red-800/60 bg-[#0c0c0e] p-4 sm:p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute right-4 top-4 text-white/60 hover:text-white"

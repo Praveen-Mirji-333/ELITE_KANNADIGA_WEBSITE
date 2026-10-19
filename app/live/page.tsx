@@ -1,8 +1,12 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Navbar } from '../../components/Navbar'
 import { Footer } from '../../components/Footer'
-import { Video, ChevronRight, Users, Radio, Play, Sparkles } from 'lucide-react'
+import { Video, ChevronRight, Users, Radio, Play, Sparkles, Trophy } from 'lucide-react'
+import { LiveTournamentSection } from '../../components/dashboard/LiveTournamentSection'
+import { getUserProfile, supabase } from '../../lib/supabase'
+import type { Profile } from '../../lib/types'
 
 const clips = [
   { title: '1V4 CLUTCH', player: 'ELITE_RAHUL', color: 'from-red-950 via-red-900 to-black', views: '14.2K' },
@@ -11,6 +15,27 @@ const clips = [
 ]
 
 export default function LivePage() {
+  const [userProfile, setUserProfile] = useState<Profile | null>(null)
+
+  const loadUser = async () => {
+    try {
+      const prof = await getUserProfile()
+      setUserProfile(prof)
+    } catch {
+      setUserProfile(null)
+    }
+  }
+
+  useEffect(() => {
+    loadUser()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      loadUser()
+    })
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
+
   return (
     <main className="min-h-screen bg-[#050505] text-[#f5f5f5]">
       <div className="noise" />
@@ -20,14 +45,46 @@ export default function LivePage() {
         {/* Page Header */}
         <div className="mb-8 sm:mb-12 border-b border-white/10 pb-6 sm:pb-8">
           <p className="eyebrow mb-2 sm:mb-3 flex items-center gap-3">
-            <span className="h-px w-8 bg-red-600" /> OFFICIAL LIVESTREAM ARENA
+            <span className="h-px w-8 bg-red-600" /> OFFICIAL LIVESTREAM &amp; TOURNAMENT ARENA
           </p>
           <h1 className="font-display text-3xl font-black uppercase text-white sm:text-5xl lg:text-6xl 2xl:text-7xl tracking-tight">
-            LIVE BROADCAST & <span className="text-metallic">INTEL</span>
+            LIVE INTEL &amp; <span className="text-metallic">STANDINGS</span>
           </h1>
           <p className="mt-3 sm:mt-4 max-w-2xl text-xs leading-relaxed text-white/60 sm:text-sm 2xl:text-base">
-            Watch live custom rooms, squad tournaments, and giveaways broadcasted live to the ELITE Kannada gaming community.
+            Watch live custom rooms, squad tournaments, and track official live points table, registered squads, and match tie-breakers in real-time.
           </p>
+        </div>
+
+        {/* 1. Official Live Tournament Points Table & Arena */}
+        <section className="mb-14 sm:mb-20">
+          <div className="mb-6 flex flex-col gap-1 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="eyebrow flex items-center gap-2">
+                <Trophy size={14} className="text-amber-500" /> TOURNAMENT LEAGUE STANDINGS
+              </p>
+              <h2 className="font-display text-2xl sm:text-3xl font-black uppercase text-white mt-1">
+                LIVE POINTS <span className="text-metallic">TABLE</span>
+              </h2>
+            </div>
+            <p className="text-xs text-white/50 max-w-sm">
+              Live points, rounds lost tie-breaker, and squad rosters for the featured tournament selected by admin.
+            </p>
+          </div>
+
+          <LiveTournamentSection
+            currentUserProfile={userProfile}
+            onProfileUpdated={loadUser}
+          />
+        </section>
+
+        {/* 2. Page Subheader for Broadcast */}
+        <div className="mb-6 border-b border-white/10 pb-4">
+          <p className="eyebrow flex items-center gap-2">
+            <Radio size={14} className="text-red-500" /> COMMUNITY BROADCAST FEED
+          </p>
+          <h2 className="font-display text-xl sm:text-2xl font-black uppercase text-white mt-1">
+            LIVESTREAM <span className="text-metallic">STREAMING</span>
+          </h2>
         </div>
 
         {/* Live Arena Grid */}

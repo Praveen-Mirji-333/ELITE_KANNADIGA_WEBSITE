@@ -73,7 +73,10 @@ import {
   findPlayerProfileByUid,
   fetchAvatarMap,
   fetchSiteSetting,
+  fetchSiteSettingText,
   updateSiteSetting,
+  fetchSiteSettingJson,
+  updateSiteSettingJson,
 } from '../../lib/supabase'
 import { UserAvatar } from '../ui/UserAvatar'
 import { AnnouncementsTab } from './announcements/AnnouncementsTab'
@@ -189,6 +192,41 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
     } else {
       showNotification('Failed to update Guild visibility setting', 'error')
       setShowGuildSection(!newValue)
+    }
+  }
+
+  // User Dashboard Live Section Visibility Toggle State
+  const [showLiveSection, setShowLiveSection] = useState<boolean>(false)
+  const [liveTourneyId, setLiveTourneyId] = useState<string>('')
+
+  const handleToggleLiveSection = async () => {
+    const newValue = !showLiveSection
+    setShowLiveSection(newValue)
+    const res = await updateSiteSetting('show_user_dashboard_live_section', newValue)
+    if (res.success) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('site_settings_updated'))
+      }
+      showNotification(
+        newValue
+          ? 'LIVE TOURNAMENT SECTION IS NOW VISIBLE IN USER DASHBOARD!'
+          : 'LIVE TOURNAMENT SECTION IS NOW HIDDEN FROM USER DASHBOARD!',
+        newValue ? 'success' : 'error'
+      )
+    } else {
+      showNotification('Failed to update Live Section visibility setting', 'error')
+      setShowLiveSection(!newValue)
+    }
+  }
+
+  const handleSetLiveTournament = async (tId: string) => {
+    setLiveTourneyId(tId)
+    const res = await updateSiteSetting('live_tournament_id', tId)
+    if (res.success) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('site_settings_updated'))
+      }
+      showNotification('Featured Live Tournament updated!')
     }
   }
 
@@ -315,6 +353,12 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
     // Load Single Guild: ELITE ARMY & Visibility Setting
     const guildSetting = await fetchSiteSetting('show_guild_section', 'true')
     setShowGuildSection(guildSetting)
+
+    // Load User Dashboard Live Section Visibility Setting
+    const liveSetting = await fetchSiteSetting('show_user_dashboard_live_section', 'false')
+    setShowLiveSection(liveSetting)
+    const savedLiveTourneyId = await fetchSiteSettingText('live_tournament_id', '')
+    setLiveTourneyId(savedLiveTourneyId)
 
     const guildRes = await fetchEliteArmyGuild()
     setGuildInfo(guildRes.guild)
@@ -880,7 +924,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
         <div className="flex overflow-x-auto no-scrollbar border-b border-white/10 bg-[#050505] px-2 sm:px-4 shrink-0">
           {[
             { id: 'HOME_CMS', label: 'HOME CMS', icon: Home },
-            { id: 'TOURNAMENTS', label: 'TOURNAMENTS', icon: Trophy },
+            { id: 'TOURNAMENTS', label: `TOURNAMENTS${showLiveSection ? ' (LIVE ON)' : ''}`, icon: Trophy },
             { id: 'ANNOUNCEMENTS', label: 'ANNOUNCEMENTS', icon: Megaphone },
             { id: 'LEADERBOARD', label: 'LEADERBOARD', icon: Layers },
             { id: 'GUILD', label: `ELITE ARMY GUILD${!showGuildSection ? ' (HIDDEN)' : ''}`, icon: ShieldCheck },
@@ -998,6 +1042,73 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
           {/* ============================================================ */}
           {activeTab === 'TOURNAMENTS' && (
             <div className="space-y-6">
+              {/* User Dashboard Live Section Toggle Banner */}
+              <div className="flex flex-wrap items-center justify-between gap-4 border border-red-900/60 bg-gradient-to-r from-red-950/60 via-[#140607] to-black p-4 sm:p-5 shadow-lg">
+                <div className="flex items-center gap-3.5">
+                  <div className="relative flex h-3.5 w-3.5 items-center justify-center">
+                    <span
+                      className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
+                        showLiveSection ? 'bg-red-400' : 'bg-gray-500'
+                      }`}
+                    />
+                    <span
+                      className={`relative inline-flex h-3 w-3 rounded-full ${
+                        showLiveSection ? 'bg-red-500' : 'bg-gray-600'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-display text-sm font-black uppercase tracking-wider text-white">
+                        User Dashboard Live Section
+                      </h4>
+                      <span
+                        className={`rounded px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
+                          showLiveSection
+                            ? 'border border-emerald-500/50 bg-emerald-950/60 text-emerald-300'
+                            : 'border border-white/10 bg-white/5 text-white/40'
+                        }`}
+                      >
+                        {showLiveSection ? '● VISIBLE TO USERS' : '○ HIDDEN FROM USERS'}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-white/60">
+                      When enabled, users will see the 🔴 LIVE ARENA tab in their dashboard displaying the real-time points table and open registrations.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {tournaments.length > 0 && (
+                    <select
+                      value={liveTourneyId}
+                      onChange={(e) => handleSetLiveTournament(e.target.value)}
+                      className="border border-white/15 bg-[#121214] px-3 py-2 text-xs font-bold text-white focus:border-red-500 focus:outline-none"
+                      title="Featured Tournament for Live Section"
+                    >
+                      <option value="">Auto-Detect Active Tournament</option>
+                      {tournaments.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title} ({t.status})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleToggleLiveSection}
+                    className={`px-4 py-2 text-xs font-black uppercase tracking-wider transition-all shadow-md ${
+                      showLiveSection
+                        ? 'bg-red-600 hover:bg-red-700 text-white border border-red-500 shadow-red-950/50'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500 shadow-emerald-950/50'
+                    }`}
+                  >
+                    {showLiveSection ? 'HIDE LIVE SECTION' : 'SHOW LIVE SECTION'}
+                  </button>
+                </div>
+              </div>
+
               {/* Create Tournament Form */}
               <form onSubmit={handleCreateTournament} className="border border-white/10 bg-white/5 p-5 space-y-4">
                 <h4 className="eyebrow flex items-center gap-2">

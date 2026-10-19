@@ -15,41 +15,41 @@ import { UserAvatar } from '../../components/ui/UserAvatar'
 function renderTierBadge(tier?: string, rank?: string) {
   if (rank === '01' || tier === 'ELITE MASTER') {
     return (
-      <span className="inline-flex items-center gap-1 rounded bg-gradient-to-r from-red-600 via-amber-500 to-red-600 px-2.5 py-0.5 text-[10px] font-black uppercase text-white shadow-[0_0_12px_rgba(239,68,68,0.6)] animate-pulse tracking-wider">
+      <span className="shrink-0 inline-flex items-center gap-1 rounded bg-gradient-to-r from-red-600 via-amber-500 to-red-600 px-1.5 sm:px-2.5 py-0.5 text-[8px] sm:text-[10px] font-black uppercase text-white shadow-[0_0_12px_rgba(239,68,68,0.6)] animate-pulse tracking-wider">
         👑 ELITE MASTER
       </span>
     )
   }
   if (rank === '02' || tier === 'ELITE HEROIC') {
     return (
-      <span className="inline-flex items-center gap-1 rounded bg-gradient-to-r from-red-700 to-rose-900 border border-red-500/60 px-2 py-0.5 text-[9px] font-black uppercase text-red-200 shadow-[0_0_8px_rgba(225,6,0,0.4)] tracking-wider">
+      <span className="shrink-0 inline-flex items-center gap-1 rounded bg-gradient-to-r from-red-700 to-rose-900 border border-red-500/60 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[9px] font-black uppercase text-red-200 shadow-[0_0_8px_rgba(225,6,0,0.4)] tracking-wider">
         ⚡ ELITE HEROIC
       </span>
     )
   }
   if (rank === '03' || tier === 'PLATINUM') {
     return (
-      <span className="inline-flex items-center gap-1 rounded bg-gradient-to-r from-cyan-800 to-blue-900 border border-cyan-400/50 px-2 py-0.5 text-[9px] font-black uppercase text-cyan-200 tracking-wider">
+      <span className="shrink-0 inline-flex items-center gap-1 rounded bg-gradient-to-r from-cyan-800 to-blue-900 border border-cyan-400/50 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[9px] font-black uppercase text-cyan-200 tracking-wider">
         💎 PLATINUM
       </span>
     )
   }
   if (rank === '04' || tier === 'GOLD') {
     return (
-      <span className="inline-flex items-center gap-1 rounded bg-gradient-to-r from-amber-700 to-yellow-900 border border-amber-400/50 px-2 py-0.5 text-[9px] font-black uppercase text-amber-200 tracking-wider">
+      <span className="shrink-0 inline-flex items-center gap-1 rounded bg-gradient-to-r from-amber-700 to-yellow-900 border border-amber-400/50 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[9px] font-black uppercase text-amber-200 tracking-wider">
         🥇 GOLD
       </span>
     )
   }
   if (rank === '05' || tier === 'SILVER') {
     return (
-      <span className="inline-flex items-center gap-1 rounded bg-gradient-to-r from-slate-700 to-neutral-800 border border-slate-400/50 px-2 py-0.5 text-[9px] font-black uppercase text-slate-200 tracking-wider">
+      <span className="shrink-0 inline-flex items-center gap-1 rounded bg-gradient-to-r from-slate-700 to-neutral-800 border border-slate-400/50 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[9px] font-black uppercase text-slate-200 tracking-wider">
         🥈 SILVER
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded bg-white/5 border border-white/10 px-2 py-0.5 text-[9px] font-bold uppercase text-white/50 tracking-wider">
+    <span className="shrink-0 inline-flex items-center gap-1 rounded bg-white/5 border border-white/10 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[9px] font-bold uppercase text-white/50 tracking-wider">
       🥉 BRONZE
     </span>
   )

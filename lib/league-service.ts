@@ -663,6 +663,8 @@ export async function saveMatchResult(input: {
   seasonId: string
   teamAScore: number
   teamBScore: number
+  teamARoundsLost?: number
+  teamBRoundsLost?: number
   winnerId: string
 }): Promise<LeagueResult> {
   try {
@@ -674,6 +676,9 @@ export async function saveMatchResult(input: {
     }
     if (!input.winnerId) return { success: false, error: 'Choose the winner of this match.' }
 
+    const aLost = Number.isFinite(input.teamARoundsLost) ? Math.max(0, Math.floor(input.teamARoundsLost!)) : 0
+    const bLost = Number.isFinite(input.teamBRoundsLost) ? Math.max(0, Math.floor(input.teamBRoundsLost!)) : 0
+
     const { data, error } = await supabase
       .from('league_match_results')
       .upsert(
@@ -683,6 +688,8 @@ export async function saveMatchResult(input: {
             season_id: input.seasonId,
             team_a_score: Math.floor(input.teamAScore),
             team_b_score: Math.floor(input.teamBScore),
+            team_a_rounds_lost: aLost,
+            team_b_rounds_lost: bLost,
             winner_id: input.winnerId,
           },
         ],

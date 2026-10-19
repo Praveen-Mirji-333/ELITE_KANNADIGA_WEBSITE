@@ -22,17 +22,6 @@ import { AdminDashboard } from './admin/AdminDashboard'
 
 const logoUrl = '/logo.png'
 
-const SHOW_LIVE_SECTION = false // Set to true to show Live section again
-
-const navItems = [
-  { name: 'HOME', path: '/' },
-  { name: 'TOURNAMENTS', path: '/tournaments' },
-  ...(SHOW_LIVE_SECTION ? [{ name: 'LIVE', path: '/live' }] : []),
-  { name: 'LEADERBOARD', path: '/leaderboard' },
-  { name: 'GUILDS', path: '/guilds' },
-  { name: 'ACHIEVEMENTS', path: '/achievements' },
-]
-
 export function Navbar() {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -40,6 +29,7 @@ export function Navbar() {
   const [authLoading, setAuthLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<Profile | null>(null)
   const [showGuildSection, setShowGuildSection] = useState(true)
+  const [showLiveSection, setShowLiveSection] = useState(false)
 
   // Modals
   const [authModalOpen, setAuthModalOpen] = useState(false)
@@ -48,8 +38,12 @@ export function Navbar() {
   const [adminOpen, setAdminOpen] = useState(false)
 
   async function loadSettings() {
-    const guildSetting = await fetchSiteSetting('show_guild_section', 'true')
+    const [guildSetting, liveSetting] = await Promise.all([
+      fetchSiteSetting('show_guild_section', 'true'),
+      fetchSiteSetting('show_user_dashboard_live_section', 'false'),
+    ])
     setShowGuildSection(guildSetting)
+    setShowLiveSection(liveSetting)
   }
 
   useEffect(() => {
@@ -162,8 +156,15 @@ export function Navbar() {
   // Strict requirement: Player must land on login until registration and login!
   const isLocked = !authLoading && !userProfile
 
-  // GUILDS is visible in navbar for both admin and regular users
-  const filteredNavItems = navItems
+  // Build nav items dynamically based on live section and guild section settings
+  const filteredNavItems = [
+    { name: 'HOME', path: '/' },
+    { name: 'TOURNAMENTS', path: '/tournaments' },
+    ...(showLiveSection ? [{ name: 'LIVE', path: '/live', isLive: true }] : []),
+    { name: 'LEADERBOARD', path: '/leaderboard' },
+    ...(showGuildSection ? [{ name: 'GUILDS', path: '/guilds' }] : []),
+    { name: 'ACHIEVEMENTS', path: '/achievements' },
+  ]
 
   return (
     <>
@@ -194,10 +195,16 @@ export function Navbar() {
                 <Link
                   key={item.name}
                   href={item.path}
-                  className={`nav-link relative py-1 text-xs 2xl:text-sm font-black tracking-widest transition ${
+                  className={`nav-link relative py-1 text-xs 2xl:text-sm font-black tracking-widest transition flex items-center gap-1.5 ${
                     isActive ? 'text-red-500 active' : 'text-white/70 hover:text-white'
                   }`}
                 >
+                  {item.isLive && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                    </span>
+                  )}
                   {item.name}
                 </Link>
               )
@@ -339,7 +346,15 @@ export function Navbar() {
                     pathname === item.path ? 'text-red-500 pl-2 border-l-2 border-l-red-500' : 'text-white/70 hover:text-white'
                   }`}
                 >
-                  <span>{item.name}</span>
+                  <span className="flex items-center gap-2">
+                    {item.isLive && (
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                      </span>
+                    )}
+                    {item.name}
+                  </span>
                   <span className="text-[10px] text-white/20">→</span>
                 </Link>
               ))}

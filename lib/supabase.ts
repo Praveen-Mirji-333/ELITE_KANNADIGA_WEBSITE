@@ -1183,6 +1183,23 @@ export async function fetchSiteSetting(key: string, defaultValue = 'true'): Prom
   }
 }
 
+export async function fetchSiteSettingText(key: string, defaultValue: string = ''): Promise<string> {
+  try {
+    const { data, error } = await supabase
+      .from('site_settings')
+      .select('setting_value')
+      .eq('setting_key', key)
+      .maybeSingle()
+
+    if (error || !data || data.setting_value === null || data.setting_value === undefined) {
+      return defaultValue
+    }
+    return String(data.setting_value)
+  } catch {
+    return defaultValue
+  }
+}
+
 export async function updateSiteSetting(key: string, value: any) {
   let strVal = 'true'
   if (typeof value === 'boolean') {

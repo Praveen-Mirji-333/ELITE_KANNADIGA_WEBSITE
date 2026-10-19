@@ -247,9 +247,17 @@ export function PairingsList({
                     <span className="min-w-0 flex-1 truncate text-right text-xs font-bold text-white">
                       {teamName(pairing.team_a_id)}
                     </span>
-                    <span className="shrink-0 font-display text-[10px] font-black text-white/30">
-                      {result ? `${result.team_a_score} – ${result.team_b_score}` : 'VS'}
-                    </span>
+                    <div className="shrink-0 flex flex-col items-center">
+                      <span className="font-display text-[10px] font-black text-white/50">
+                        {result ? `${result.team_a_score} – ${result.team_b_score}` : 'VS'}
+                      </span>
+                      {result &&
+                        ((result.team_a_rounds_lost ?? 0) > 0 || (result.team_b_rounds_lost ?? 0) > 0) && (
+                          <span className="text-[8px] font-mono text-amber-300/80">
+                            Lost: {result.team_a_rounds_lost ?? 0}–{result.team_b_rounds_lost ?? 0}
+                          </span>
+                        )}
+                    </div>
                     <span className="min-w-0 flex-1 truncate text-left text-xs font-bold text-white">
                       {teamName(pairing.team_b_id)}
                     </span>

@@ -20,6 +20,7 @@ import {
   fetchRankings,
   fetchHomeCards,
   trackPageVisit,
+  fetchSiteSetting,
 } from '../lib/supabase'
 import { HomeCard, Tournament } from '../lib/types'
 
@@ -37,10 +38,10 @@ function SectionHeading({
   actionHref?: string
 }) {
   return (
-    <div className="mb-8 flex items-end justify-between gap-4">
+    <div className="mb-6 sm:mb-8 flex items-end justify-between gap-4">
       <div>
-        <p className="eyebrow mb-2">{eyebrow}</p>
-        <h2 className="font-display text-3xl font-black uppercase tracking-tight text-white sm:text-4xl">
+        <p className="eyebrow mb-1.5 sm:mb-2">{eyebrow}</p>
+        <h2 className="font-display text-2xl font-black uppercase tracking-tight text-white sm:text-4xl">
           {title}
         </h2>
       </div>
@@ -56,27 +57,40 @@ function SectionHeading({
   )
 }
 
-const SHOW_LIVE_SECTION = false // Set to true to show Live section & watch live button again
-
 export default function Page() {
   const [tournamentsList, setTournamentsList] = useState<Tournament[]>([])
   const [rankingsList, setRankingsList] = useState<any[]>([])
   const [homeCards, setHomeCards] = useState<HomeCard[]>([])
+  const [showLiveSection, setShowLiveSection] = useState(false)
+
+  const loadData = async () => {
+    const [fetchedT, fetchedR, cards, liveActive] = await Promise.all([
+      fetchTournaments(),
+      fetchRankings(),
+      fetchHomeCards(),
+      fetchSiteSetting('show_user_dashboard_live_section', 'false'),
+    ])
+    setTournamentsList(fetchedT || [])
+    setRankingsList(fetchedR || [])
+    setHomeCards(cards || [])
+    setShowLiveSection(liveActive)
+  }
 
   useEffect(() => {
-    async function loadData() {
-      await trackPageVisit(false)
-
-      const fetchedT = await fetchTournaments()
-      setTournamentsList(fetchedT || [])
-
-      const fetchedR = await fetchRankings()
-      setRankingsList(fetchedR || [])
-
-      const cards = await fetchHomeCards()
-      setHomeCards(cards || [])
-    }
+    trackPageVisit(false)
     loadData()
+
+    const handleSettingsUpdate = () => {
+      loadData()
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('site_settings_updated', handleSettingsUpdate)
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('site_settings_updated', handleSettingsUpdate)
+      }
+    }
   }, [])
 
   return (
@@ -92,28 +106,28 @@ export default function Page() {
         <div className="hero-glow absolute right-[5%] top-[18%] h-[320px] sm:h-[520px] 2xl:h-[700px] w-[320px] sm:w-[520px] 2xl:w-[700px] rounded-full bg-red-950/40 blur-[100px] sm:blur-[140px] pointer-events-none" />
         <div className="relative z-10 site-container grid items-center gap-8 sm:gap-12 lg:grid-cols-[1.1fr_.9fr] 2xl:gap-16">
           <div className="max-w-2xl 2xl:max-w-3xl">
-            <p className="eyebrow mb-4 sm:mb-5 flex items-center gap-3">
+            <p className="eyebrow mb-3 sm:mb-5 flex items-center gap-2 sm:gap-3 text-[10px] sm:text-xs">
               <span className="h-px w-6 sm:w-8 bg-red-600" /> THE OFFICIAL GAMING COMMUNITY
             </p>
-            <h1 className="font-display text-[clamp(2.75rem,8vw,5.5rem)] lg:text-[clamp(4.5rem,6.5vw,7.5rem)] 2xl:text-[8.5rem] 3xl:text-[10rem] font-black uppercase leading-[0.88] tracking-[-0.04em] text-white">
+            <h1 className="font-display text-[clamp(2.1rem,7.5vw,5.5rem)] lg:text-[clamp(4.5rem,6.5vw,7.5rem)] 2xl:text-[8.5rem] 3xl:text-[10rem] font-black uppercase leading-[0.9] tracking-tight text-white">
               ELITE<span className="block text-metallic">ಕನ್ನಡಿಗ</span>
             </h1>
-            <p className="mt-5 sm:mt-8 max-w-lg 2xl:max-w-2xl text-sm leading-6 sm:text-base sm:leading-7 2xl:text-xl text-white/60">
+            <p className="mt-4 sm:mt-8 max-w-lg 2xl:max-w-2xl text-xs sm:text-base leading-relaxed sm:leading-7 2xl:text-xl text-white/60">
               Join the ELITE community, compete in CS & BR tournaments, climb the leaderboards, unlock achievements and dominate the arena.
             </p>
-            <div className="mt-7 sm:mt-9 flex flex-wrap items-center gap-3 2xl:gap-4">
+            <div className="mt-6 sm:mt-9 flex flex-wrap items-center gap-2.5 sm:gap-3 2xl:gap-4">
               <Link
                 href="/tournaments"
-                className="cut-button bg-red-600 px-5 py-3 sm:px-6 sm:py-4 2xl:px-8 2xl:py-5 text-xs sm:text-sm 2xl:text-base font-black tracking-[.18em] text-white transition hover:bg-red-500 shadow-lg"
+                className="w-full xs:w-auto text-center cut-button bg-red-600 px-5 py-3 sm:px-6 sm:py-4 2xl:px-8 2xl:py-5 text-xs sm:text-sm 2xl:text-base font-black tracking-[.18em] text-white transition hover:bg-red-500 shadow-lg"
               >
-                ENTER TOURNAMENTS <ArrowUpRight className="ml-2 sm:ml-3 inline" size={16} />
+                ENTER TOURNAMENTS <ArrowUpRight className="ml-1.5 sm:ml-3 inline" size={16} />
               </Link>
-              {SHOW_LIVE_SECTION && (
+              {showLiveSection && (
                 <Link
                   href="/live"
-                  className="cut-button border border-white/20 bg-white/5 px-5 py-3 sm:px-6 sm:py-4 2xl:px-8 2xl:py-5 text-xs sm:text-sm 2xl:text-base font-black tracking-[.18em] text-white transition hover:border-red-600"
+                  className="w-full xs:w-auto text-center cut-button border border-white/20 bg-white/5 px-5 py-3 sm:px-6 sm:py-4 2xl:px-8 2xl:py-5 text-xs sm:text-sm 2xl:text-base font-black tracking-[.18em] text-white transition hover:border-red-600 flex items-center justify-center gap-2"
                 >
-                  <Play className="mr-2 inline fill-current text-red-500" size={14} /> WATCH LIVE
+                  <Play className="inline fill-current text-red-500 shrink-0" size={14} /> WATCH LIVE
                 </Link>
               )}
             </div>
@@ -150,7 +164,7 @@ export default function Page() {
       </section>
 
       {/* Live Arena Preview */}
-      {SHOW_LIVE_SECTION && (
+      {showLiveSection && (
         <section className="site-container py-16 sm:py-24">
           <SectionHeading
             eyebrow="LIVE ARENA / 01"

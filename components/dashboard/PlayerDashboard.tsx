@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Flame,
   Swords,
@@ -8,6 +8,7 @@ import {
   LogOut,
   Save,
   Camera,
+  Radio,
 } from 'lucide-react'
 import {
   Profile,
@@ -19,7 +20,9 @@ import {
   fetchUserRegistrations,
   updateUserProfile,
   uploadAvatarToSupabase,
+  fetchSiteSetting,
 } from '../../lib/supabase'
+import { LiveTournamentSection } from './LiveTournamentSection'
 
 interface PlayerDashboardProps {
   isOpen: boolean
@@ -34,8 +37,35 @@ export function PlayerDashboard({
   profile,
   onProfileUpdated,
 }: PlayerDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'SETTINGS'>('OVERVIEW')
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'LIVE' | 'SETTINGS'>('OVERVIEW')
+  const [showLiveSection, setShowLiveSection] = useState(false)
   const [registrations, setRegistrations] = useState<TournamentRegistration[]>([])
+
+  const loadLiveSetting = useCallback(async () => {
+    const enabled = await fetchSiteSetting('show_user_dashboard_live_section', 'false')
+    setShowLiveSection(enabled)
+  }, [])
+
+  useEffect(() => {
+    loadLiveSetting()
+    const handleSettingsUpdate = () => {
+      loadLiveSetting()
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('site_settings_updated', handleSettingsUpdate)
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('site_settings_updated', handleSettingsUpdate)
+      }
+    }
+  }, [loadLiveSetting])
+
+  useEffect(() => {
+    if (!showLiveSection && activeTab === 'LIVE') {
+      setActiveTab('OVERVIEW')
+    }
+  }, [showLiveSection, activeTab])
 
   const [claiming, setClaiming] = useState(false)
   const [claimStatus, setClaimStatus] = useState('')
@@ -215,18 +245,35 @@ export function PlayerDashboard({
           </div>
         </div>
 
-        {/* Navigation Tabs (Only OVERVIEW and SETTINGS) */}
-        <div className="flex border-b border-white/10 bg-[#050505] px-4 sm:px-6">
-          {(['OVERVIEW', 'SETTINGS'] as const).map((tab) => (
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-white/10 bg-[#050505] px-4 sm:px-6 overflow-x-auto no-scrollbar">
+          {[
+            { id: 'OVERVIEW', label: 'OVERVIEW' },
+            ...(showLiveSection
+              ? [{ id: 'LIVE', label: 'LIVE ARENA', isLive: true }]
+              : []),
+            { id: 'SETTINGS', label: 'SETTINGS' },
+          ].map((tab) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 sm:px-5 py-2.5 sm:py-3.5 text-xs font-black tracking-widest transition ${activeTab === tab
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as 'OVERVIEW' | 'LIVE' | 'SETTINGS')}
+              className={`flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3.5 text-xs font-black tracking-widest transition whitespace-nowrap ${
+                activeTab === tab.id
                   ? 'border-b-2 border-red-600 text-white'
                   : 'text-white/40 hover:text-white'
-                }`}
+              }`}
             >
-              {tab}
+              {tab.isLive ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                  </span>
+                  <span className="text-red-400 font-black">LIVE ARENA</span>
+                </span>
+              ) : (
+                tab.label
+              )}
             </button>
           ))}
         </div>
@@ -236,51 +283,51 @@ export function PlayerDashboard({
           {activeTab === 'OVERVIEW' && (
             <div className="space-y-6">
               {/* Daily Streak Box */}
-              <div className="flex flex-col items-start justify-between gap-4 border border-red-900/60 bg-gradient-to-r from-red-950/40 via-[#120607] to-black p-5 sm:flex-row sm:items-center">
-                <div>
+              <div className="flex flex-col items-start justify-between gap-3 sm:gap-4 border border-red-900/60 bg-gradient-to-r from-red-950/40 via-[#120607] to-black p-4 sm:p-5 sm:flex-row sm:items-center">
+                <div className="w-full sm:w-auto">
                   <div className="flex items-center gap-2">
-                    <Flame className="text-amber-500" size={24} />
-                    <h4 className="font-display text-lg font-black text-white">DAILY LOGIN STREAK</h4>
+                    <Flame className="text-amber-500" size={22} />
+                    <h4 className="font-display text-base sm:text-lg font-black text-white">DAILY LOGIN STREAK</h4>
                   </div>
                   <p className="mt-1 text-xs text-white/60">
                     Current Streak: <strong className="text-amber-400">{profile.login_streak} Days</strong> (Longest: {profile.longest_login_streak} Days)
                   </p>
-                  {claimStatus && <p className="mt-2 text-xs font-bold text-emerald-400">{claimStatus}</p>}
+                  {claimStatus && <p className="mt-1.5 text-xs font-bold text-emerald-400">{claimStatus}</p>}
                 </div>
                 <button
                   onClick={handleDailyClaim}
                   disabled={claiming}
-                  className="cut-button bg-red-600 px-5 py-3 text-xs font-black tracking-widest text-white transition hover:bg-red-500 disabled:opacity-50"
+                  className="w-full sm:w-auto text-center cut-button bg-red-600 px-5 py-2.5 sm:py-3 text-xs font-black tracking-widest text-white transition hover:bg-red-500 disabled:opacity-50 shrink-0"
                 >
                   {claiming ? 'CLAIMING...' : 'CLAIM TODAY +10 XP'}
                 </button>
               </div>
 
               {/* User Specific Stats Grid */}
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div className="border border-white/10 bg-white/5 p-4">
-                  <p className="text-[10px] font-bold tracking-widest text-white/40">TOTAL XP</p>
-                  <p className="font-display mt-1 text-2xl font-black text-red-500">
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-4">
+                <div className="border border-white/10 bg-white/5 p-3 sm:p-4 min-w-0">
+                  <p className="text-[9px] sm:text-[10px] font-bold tracking-widest text-white/40 truncate">TOTAL XP</p>
+                  <p className="font-display mt-0.5 sm:mt-1 text-xl sm:text-2xl font-black text-red-500 truncate">
                     {profile.total_xp.toLocaleString()}
                   </p>
                 </div>
-                <div className="border border-white/10 bg-white/5 p-4">
-                  <p className="text-[10px] font-bold tracking-widest text-white">
+                <div className="border border-white/10 bg-white/5 p-3 sm:p-4 min-w-0">
+                  <p className="text-[9px] sm:text-[10px] font-bold tracking-widest text-white truncate">
                     PLAYER LEVEL
                   </p>
-                  <p className="font-display mt-1 text-2xl font-black text-white">
+                  <p className="font-display mt-0.5 sm:mt-1 text-xl sm:text-2xl font-black text-white truncate">
                     LVL {profile.level}
                   </p>
                 </div>
-                <div className="border border-white/10 bg-white/5 p-4">
-                  <p className="text-[10px] font-bold tracking-widest text-white/40">MY REGISTRATIONS</p>
-                  <p className="font-display mt-1 text-2xl font-black text-white">
+                <div className="border border-white/10 bg-white/5 p-3 sm:p-4 min-w-0">
+                  <p className="text-[9px] sm:text-[10px] font-bold tracking-widest text-white/40 truncate">REGISTRATIONS</p>
+                  <p className="font-display mt-0.5 sm:mt-1 text-xl sm:text-2xl font-black text-white truncate">
                     {registrations.length}
                   </p>
                 </div>
-                <div className="border border-white/10 bg-white/5 p-4">
-                  <p className="text-[10px] font-bold tracking-widest text-white/40">LOGIN STREAK</p>
-                  <p className="font-display mt-1 text-2xl font-black text-amber-400">
+                <div className="border border-white/10 bg-white/5 p-3 sm:p-4 min-w-0">
+                  <p className="text-[9px] sm:text-[10px] font-bold tracking-widest text-white/40 truncate">LOGIN STREAK</p>
+                  <p className="font-display mt-0.5 sm:mt-1 text-xl sm:text-2xl font-black text-amber-400 truncate">
                     {profile.login_streak} DAYS
                   </p>
                 </div>
@@ -361,6 +408,16 @@ export function PlayerDashboard({
                 </div>
               )}
             </div>
+          )}
+
+          {activeTab === 'LIVE' && showLiveSection && (
+            <LiveTournamentSection
+              currentUserProfile={profile}
+              onProfileUpdated={() => {
+                onProfileUpdated()
+                loadUserData()
+              }}
+            />
           )}
 
           {activeTab === 'SETTINGS' && (
