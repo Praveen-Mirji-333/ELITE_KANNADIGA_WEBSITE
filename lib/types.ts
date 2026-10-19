@@ -239,3 +239,72 @@ export interface AuditLog {
   metadata?: Record<string, any>
   created_at: string
 }
+
+// ==========================================
+// LEAGUE / SEASON SYSTEM
+// ==========================================
+
+export type LeagueSeasonStatus = 'draft' | 'active' | 'completed' | 'archived'
+export type LeagueTeamStatus = 'active' | 'excluded' | 'withdrawn'
+export type LeaguePairingStatus = 'scheduled' | 'locked' | 'completed' | 'cancelled'
+
+export interface LeagueSeason {
+  id: string
+  tournament_id: string
+  season_number: number
+  name: string
+  matches_per_team: number
+  win_points: number
+  current_round: number
+  status: LeagueSeasonStatus
+  created_at: string
+  updated_at?: string
+}
+
+export interface LeagueSeasonTeam {
+  id: string
+  season_id: string
+  registration_id: string
+  status: LeagueTeamStatus
+  team_name: string
+  captain_name?: string | null
+  created_at?: string
+}
+
+export interface LeaguePairing {
+  id: string
+  season_id: string
+  round_number: number
+  match_number: number
+  team_a_id: string
+  team_b_id: string
+  status: LeaguePairingStatus
+  label?: string | null
+  locked_at?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface LeagueMatchResult {
+  id: string
+  pairing_id: string
+  season_id: string
+  team_a_score: number
+  team_b_score: number
+  winner_id: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface LeagueStanding {
+  teamId: string
+  teamName: string
+  played: number
+  wins: number
+  losses: number
+  points: number
+  scoreFor: number
+  scoreAgainst: number
+  diff: number
+  rank: number
+}

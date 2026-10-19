@@ -24,6 +24,7 @@ import {
   FileText,
   Calendar,
   Clock,
+  Megaphone,
 } from 'lucide-react'
 import {
   HomeCard,
@@ -33,6 +34,7 @@ import {
   Achievement,
   CommunityClip,
   TopTeamDetail,
+  Profile,
 } from '../../lib/types'
 import {
   supabase,
@@ -74,13 +76,14 @@ import {
   updateSiteSetting,
 } from '../../lib/supabase'
 import { UserAvatar } from '../ui/UserAvatar'
+import { AnnouncementsTab } from './announcements/AnnouncementsTab'
 
 interface AdminDashboardProps {
   isOpen: boolean
   onClose: () => void
 }
 
-type TabType = 'HOME_CMS' | 'TOURNAMENTS' | 'LEADERBOARD' | 'GUILD' | 'ACHIEVEMENTS' | 'CLIPS'
+type TabType = 'HOME_CMS' | 'TOURNAMENTS' | 'LEADERBOARD' | 'GUILD' | 'ACHIEVEMENTS' | 'CLIPS' | 'ANNOUNCEMENTS'
 
 export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabType>('HOME_CMS')
@@ -878,6 +881,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
           {[
             { id: 'HOME_CMS', label: 'HOME CMS', icon: Home },
             { id: 'TOURNAMENTS', label: 'TOURNAMENTS', icon: Trophy },
+            { id: 'ANNOUNCEMENTS', label: 'ANNOUNCEMENTS', icon: Megaphone },
             { id: 'LEADERBOARD', label: 'LEADERBOARD', icon: Layers },
             { id: 'GUILD', label: `ELITE ARMY GUILD${!showGuildSection ? ' (HIDDEN)' : ''}`, icon: ShieldCheck },
             { id: 'ACHIEVEMENTS', label: 'ACHIEVEMENTS', icon: Award },
@@ -1761,7 +1765,12 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
           )}
 
           {/* ============================================================ */}
-          {/* 6. COMMUNITY CLIPS MODERATION TAB */}
+          {/* 6. ANNOUNCEMENTS — SEASON DRAW & RESULTS */}
+          {/* ============================================================ */}
+          {activeTab === 'ANNOUNCEMENTS' && <AnnouncementsTab showNotification={showNotification} />}
+
+          {/* ============================================================ */}
+          {/* 7. COMMUNITY CLIPS MODERATION TAB */}
           {/* ============================================================ */}
           {activeTab === 'CLIPS' && (
             <div className="space-y-4">
