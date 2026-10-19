@@ -1,0 +1,984 @@
+Act as a Senior Product Designer, Design System Architect, and UX Engineer.
+
+I have an existing ELITE KANNADIGA ADMIN CONTROL CENTER web application.
+
+I want to redesign the ENTIRE APPLICATION so that every page, section, component, modal, table, card, form, dashboard, navigation, and interaction follows ONE consistent professional visual design system.
+
+IMPORTANT:
+
+Do NOT redesign each page with a different visual style.
+
+Create ONE unified design language and apply it consistently across the entire application.
+
+The application should feel like a premium professional esports tournament management platform, not a gaming-themed website.
+
+The attached/reference UI represents the visual direction I want.
+
+========================================================
+1. DESIGN PHILOSOPHY
+========================================================
+
+The application should combine:
+
+- Professional SaaS dashboard
+- Esports tournament management platform
+- Modern admin control center
+- Clean enterprise UI
+- Premium dark gaming identity
+
+Think:
+
+Linear + Vercel + modern esports operations dashboard
+
+NOT:
+
+- Neon gaming website
+- Cyberpunk UI
+- Overly colorful gaming dashboard
+- Generic Bootstrap admin panel
+- Excessive glassmorphism
+- Excessive gradients
+- Over-designed gaming interface
+
+The UI should prioritize:
+
+1. Information hierarchy
+2. Readability
+3. Fast navigation
+4. Clear actions
+5. Consistency
+6. Visual hierarchy
+7. Professionalism
+
+The gaming identity should come from the branding, typography, iconography and restrained gold accents — NOT from excessive visual effects.
+
+========================================================
+2. GLOBAL COLOR SYSTEM
+========================================================
+
+Create ONE global color system and use it throughout the entire application.
+
+PRIMARY BACKGROUND:
+
+#08090B
+
+Secondary background:
+
+#0D0F12
+
+Card / Surface:
+
+#101216
+
+Elevated Surface:
+
+#15181D
+
+Hover Surface:
+
+#1A1E24
+
+Border:
+
+#242830
+
+Subtle Border:
+
+#1B1F25
+
+Primary Text:
+
+#F5F7FA
+
+Secondary Text:
+
+#A0A7B3
+
+Muted Text:
+
+#6F7785
+
+
+PRIMARY BRAND COLOR:
+
+Gold / Warm Yellow
+
+#FFB000
+
+Use this as the PRIMARY BRAND ACCENT.
+
+It should represent:
+
+- active navigation
+- primary buttons
+- important actions
+- selected items
+- current tournament stage
+- highlighted statistics
+- important information
+- brand identity
+
+
+SUCCESS:
+
+#20C997
+
+Use ONLY for:
+
+- completed
+- successful
+- verified
+- winner
+- positive state
+
+
+ERROR:
+
+#FF4D5A
+
+Use ONLY for:
+
+- errors
+- failed actions
+- destructive actions
+- invalid states
+
+
+WARNING:
+
+#F5A623
+
+Use sparingly for:
+
+- warnings
+- attention required
+
+
+INFO:
+
+Use a muted neutral tone instead of introducing another bright accent whenever possible.
+
+
+IMPORTANT:
+
+DO NOT introduce random colors on different pages.
+
+DO NOT use purple for one section and blue for another.
+
+DO NOT assign a different color to every feature.
+
+The entire application must use the same color language.
+
+========================================================
+3. COLOR USAGE RATIO
+========================================================
+
+Follow approximately:
+
+70% near-black / dark surfaces
+
+20% neutral gray / white typography
+
+10% gold and semantic status colors
+
+Gold must remain an accent.
+
+Do NOT turn the entire application gold.
+
+Do NOT use glowing gold borders everywhere.
+
+The interface should remain mostly dark and neutral.
+
+========================================================
+4. SEMANTIC COLOR SYSTEM
+========================================================
+
+Create global semantic tokens.
+
+Example:
+
+--background
+--surface
+--surface-elevated
+--surface-hover
+
+--border
+--border-subtle
+
+--text-primary
+--text-secondary
+--text-muted
+
+--brand
+--brand-hover
+--brand-muted
+
+--success
+--success-muted
+
+--warning
+--warning-muted
+
+--danger
+--danger-muted
+
+Every component must consume these tokens.
+
+Never hardcode random colors inside individual components.
+
+========================================================
+5. NAVIGATION SYSTEM
+========================================================
+
+Create one universal navigation style for the entire application.
+
+Navigation should contain:
+
+HOME CMS
+TOURNAMENTS
+ANNOUNCEMENTS
+LEADERBOARD
+ELITE ARMY GUILD
+ACHIEVEMENTS
+CLIPS
+
+Use the same:
+
+- icon size
+- spacing
+- typography
+- active state
+- hover state
+- padding
+- height
+- border treatment
+
+on every page.
+
+ACTIVE NAVIGATION:
+
+Use a subtle gold accent.
+
+Example:
+
+TOURNAMENTS
+───────────
+
+or a small gold indicator.
+
+Do NOT use a giant colorful active background.
+
+========================================================
+6. HEADER SYSTEM
+========================================================
+
+Create one consistent application header.
+
+Left:
+
+ELITE KANNADIGA
+ADMIN CONTROL CENTER
+
+Right:
+
+Admin profile
+Notifications
+Settings
+Account menu
+
+Every page must use the same header structure.
+
+Do not create different headers for different sections.
+
+========================================================
+7. TYPOGRAPHY SYSTEM
+========================================================
+
+Use ONE primary font family throughout the application.
+
+Preferred:
+
+Inter
+or
+Geist
+or
+Manrope
+
+Do not mix multiple unrelated fonts.
+
+Create a typography scale:
+
+Display
+Page Heading
+Section Heading
+Card Heading
+Body
+Small
+Caption
+
+Use consistent font weights.
+
+Suggested:
+
+Regular = 400
+Medium = 500
+Semibold = 600
+Bold = 700
+
+Avoid using extremely bold typography everywhere.
+
+Large headings should be reserved for page titles.
+
+========================================================
+8. SPACING SYSTEM
+========================================================
+
+Use an 8px spacing system.
+
+Allowed spacing:
+
+4
+8
+12
+16
+24
+32
+40
+48
+64
+
+All pages should follow the same spacing rhythm.
+
+Do not randomly use:
+
+13px
+19px
+27px
+37px
+
+unless technically necessary.
+
+Consistency is more important than decoration.
+
+========================================================
+9. BORDER RADIUS SYSTEM
+========================================================
+
+Use a consistent radius system.
+
+Small:
+
+6px
+
+Medium:
+
+8px
+
+Large:
+
+12px
+
+Do not mix:
+
+2px
+5px
+9px
+14px
+20px
+
+randomly throughout the application.
+
+Cards should generally use 8–12px.
+
+Buttons should generally use 6–8px.
+
+========================================================
+10. CARD SYSTEM
+========================================================
+
+Create a reusable global card component.
+
+All cards throughout the application should share the same:
+
+- background
+- border
+- radius
+- padding
+- title hierarchy
+- header structure
+- hover behavior
+
+Example:
+
+CARD
+
+background:
+#101216
+
+border:
+1px solid #242830
+
+radius:
+10px
+
+padding:
+20–24px
+
+Cards should NOT automatically have glowing borders.
+
+Use visual hierarchy through:
+
+surface contrast
+spacing
+typography
+
+rather than excessive borders.
+
+========================================================
+11. BUTTON SYSTEM
+========================================================
+
+Create a global button system.
+
+PRIMARY:
+
+Gold background
+Dark text
+
+Example:
+
+[ RECORD RESULT ]
+
+SECONDARY:
+
+Dark surface
+Light text
+Subtle border
+
+Example:
+
+[ EDIT ]
+
+TERTIARY:
+
+Transparent
+Muted text
+
+Example:
+
+Cancel
+
+DANGER:
+
+Dark/red semantic styling.
+
+Every page must use the same button system.
+
+Do not create custom button styles for individual sections.
+
+========================================================
+12. STATUS SYSTEM
+========================================================
+
+Create global status badges.
+
+COMPLETED
+
+Green
+
+READY
+
+Gold
+
+WAITING
+
+Gray
+
+FAILED
+
+Red
+
+PENDING
+
+Muted gold/gray
+
+Every feature in the application must use these same status semantics.
+
+For example:
+
+Tournament:
+COMPLETED
+
+Announcement:
+PUBLISHED
+
+Guild member:
+ACTIVE
+
+Clip:
+PROCESSING
+
+Achievement:
+LOCKED
+
+All should visually follow the same status system.
+
+========================================================
+13. TABLE SYSTEM
+========================================================
+
+Create ONE global table design.
+
+Use:
+
+Dark surface
+
+Subtle horizontal separators
+
+Compact row height
+
+Clear column hierarchy
+
+Gold only for important values.
+
+Example:
+
+SEED | TEAM | POINTS | STATUS | ACTION
+
+Avoid excessive vertical borders.
+
+Hover:
+
+subtle surface change
+
+Selected row:
+
+very subtle gold indicator
+
+========================================================
+14. FORM SYSTEM
+========================================================
+
+All inputs should follow the same design.
+
+Input:
+
+#101216
+
+Border:
+
+#242830
+
+Focus:
+
+Gold border / subtle gold glow
+
+Placeholder:
+
+#6F7785
+
+Text:
+
+#F5F7FA
+
+Use the same:
+
+- input height
+- radius
+- label typography
+- spacing
+- error message style
+
+throughout the application.
+
+========================================================
+15. MODALS / DRAWERS
+========================================================
+
+All modals and drawers must use the same visual language.
+
+Dark surface.
+
+Subtle border.
+
+8–12px radius.
+
+Clear title.
+
+Secondary description.
+
+Primary gold action.
+
+Secondary neutral action.
+
+Do not make individual modals look like completely different products.
+
+========================================================
+16. DASHBOARD DESIGN
+========================================================
+
+Dashboard pages should prioritize information hierarchy.
+
+Example:
+
+PAGE TITLE
+
+Short description
+
+Important metrics
+
+Primary content
+
+Secondary content
+
+Do NOT fill every available space with cards.
+
+Whitespace is important.
+
+Avoid dashboard layouts where every component has equal visual weight.
+
+========================================================
+17. TOURNAMENT DESIGN
+========================================================
+
+Tournament pages should use the same global system.
+
+Tournament-specific elements can have specialized layouts, but must inherit:
+
+- global colors
+- global typography
+- global cards
+- global buttons
+- global status system
+- global spacing
+- global navigation
+
+Tournament bracket:
+
+Gold = current/active
+
+Green = completed
+
+Gray = waiting
+
+Do not assign different colors to each tournament stage.
+
+========================================================
+18. LEADERBOARD
+========================================================
+
+Leaderboard should use:
+
+Dark table/card surfaces.
+
+Gold:
+
+Top rank / important ranking
+
+Green:
+
+positive movement
+
+Neutral:
+
+normal ranking
+
+Use clear ranking hierarchy.
+
+Example:
+
+#1
+CJP
+124 PTS
+
+#2
+DEVARY BOYS
+118 PTS
+
+Do not make every rank brightly colored.
+
+========================================================
+19. GUILD / ELITE ARMY
+========================================================
+
+Guild management should inherit exactly the same design system.
+
+For roles such as:
+
+Leader
+Commander
+Co-Leader
+Senior Officer
+Officer
+Elder
+Junior Officer
+Member
+
+Use icons and hierarchy rather than assigning completely different colors.
+
+Gold can represent the highest authority.
+
+Other roles should remain mostly neutral.
+
+========================================================
+20. ANNOUNCEMENTS
+========================================================
+
+Announcements should use the same card and typography system.
+
+Example:
+
+ANNOUNCEMENT
+
+Title
+
+Description
+
+Published:
+2 hours ago
+
+Status:
+PUBLISHED
+
+Actions:
+
+Edit
+Delete
+
+Do not introduce a new visual theme.
+
+========================================================
+21. ACHIEVEMENTS
+========================================================
+
+Achievements should use the same dark card system.
+
+Locked:
+
+Muted gray
+
+Unlocked:
+
+Gold accent
+
+Completed:
+
+Green semantic state
+
+Again, avoid creating a completely different colorful design.
+
+========================================================
+22. CLIPS / MEDIA
+========================================================
+
+Media cards should follow the same surface, border, radius and typography system.
+
+Thumbnails can naturally contain many colors because they are content.
+
+IMPORTANT:
+
+Content imagery may be colorful.
+
+THE UI surrounding the content must remain within the global design system.
+
+========================================================
+23. ICONOGRAPHY
+========================================================
+
+Use one icon library consistently.
+
+Preferred:
+
+Lucide Icons
+
+Use consistent:
+
+stroke width
+size
+alignment
+
+Do not mix random icon styles.
+
+Icons should generally be:
+
+16px
+18px
+20px
+
+depending on context.
+
+========================================================
+24. SHADOWS AND GLOW
+========================================================
+
+Use shadows extremely sparingly.
+
+Do NOT create:
+
+huge neon glows
+strong gold shadows
+glowing borders everywhere
+
+Use subtle elevation.
+
+Example:
+
+0 8px 30px rgba(0,0,0,0.25)
+
+Gold glow should only appear on:
+
+- primary active element
+- focused control
+- very important CTA
+
+========================================================
+25. RESPONSIVE DESIGN
+========================================================
+
+The entire application must be responsive.
+
+Desktop:
+
+1440px+
+full admin layout
+
+Tablet:
+
+collapse navigation
+reduce columns
+
+Mobile:
+
+drawer navigation
+stack cards
+horizontal scrolling where appropriate
+prioritize primary actions
+
+Do not simply shrink the desktop UI.
+
+Actually restructure the layout for smaller screens.
+
+========================================================
+26. COMPONENT REUSABILITY
+========================================================
+
+Create reusable components and design tokens.
+
+For example:
+
+AppShell
+TopNavigation
+Sidebar
+PageHeader
+SectionHeader
+Card
+Button
+Badge
+StatusBadge
+Input
+Select
+Modal
+Drawer
+Table
+Tabs
+Dropdown
+Tooltip
+EmptyState
+LoadingState
+Pagination
+
+All components must use the SAME design tokens.
+
+If a component is used on 10 pages, it should look identical on all 10 pages.
+
+========================================================
+27. IMPORTANT: DO NOT OVER-DESIGN
+========================================================
+
+The biggest goal is PROFESSIONALISM.
+
+Avoid:
+
+❌ excessive gradients
+❌ excessive gold
+❌ rainbow colors
+❌ excessive glow
+❌ huge typography
+❌ unnecessary animations
+❌ oversized cards
+❌ excessive borders
+❌ random colors
+❌ inconsistent spacing
+❌ inconsistent buttons
+❌ different design language on different pages
+
+Instead use:
+
+✓ dark neutral surfaces
+✓ restrained gold branding
+✓ strong typography hierarchy
+✓ consistent spacing
+✓ subtle borders
+✓ clear semantic states
+✓ predictable interactions
+✓ generous whitespace
+✓ clean information architecture
+
+========================================================
+28. GLOBAL DESIGN RULE
+========================================================
+
+Before designing ANY page or component, ask:
+
+"Does this component belong to the ELITE KANNADIGA global design system?"
+
+If not, redesign it.
+
+Every page must feel like it belongs to the SAME APPLICATION.
+
+The following pages must visually feel like they were designed by the SAME designer:
+
+Dashboard
+Tournament
+Tournament Bracket
+Announcements
+Leaderboard
+Elite Army Guild
+Achievements
+Clips
+Settings
+Forms
+Modals
+Tables
+User management
+
+========================================================
+29. FINAL DESIGN TARGET
+========================================================
+
+The final application should feel like:
+
+A premium professional esports operations platform.
+
+Dark.
+Minimal.
+Sharp.
+Organized.
+Fast to scan.
+Gold-accented.
+Professional.
+
+The UI should not scream "gaming".
+
+It should subtly communicate:
+
+"Professional esports infrastructure."
+
+Maintain the ELITE KANNADIGA branding while transforming the entire application into a cohesive production-quality admin platform.
+
+IMPORTANT:
+Do not redesign individual pages independently.
+
+FIRST establish the GLOBAL DESIGN SYSTEM.
+
+THEN apply that design system consistently to every section of the application.
