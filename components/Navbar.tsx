@@ -37,6 +37,7 @@ export function Navbar() {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
   const [dbConnected, setDbConnected] = useState<boolean | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<Profile | null>(null)
   const [showGuildSection, setShowGuildSection] = useState(true)
 
@@ -52,11 +53,21 @@ export function Navbar() {
   }
 
   useEffect(() => {
+    let isMounted = true
+
     async function init() {
-      const res = await checkSupabaseConnection()
-      setDbConnected(res.connected)
-      await loadSettings()
-      loadUser()
+      try {
+        const res = await checkSupabaseConnection()
+        if (isMounted) setDbConnected(res.connected)
+        await loadSettings()
+        const prof = await getUserProfile()
+        if (isMounted) {
+          setUserProfile(prof)
+          setAuthLoading(false)
+        }
+      } catch {
+        if (isMounted) setAuthLoading(false)
+      }
     }
     init()
 
@@ -64,20 +75,39 @@ export function Navbar() {
       loadSettings()
     }
 
+    const handleOpenDashboard = (e: any) => {
+      const role = e?.detail?.role
+      loadUser()
+      if (role === 'admin') {
+        setAdminOpen(true)
+        setDashboardOpen(false)
+      } else {
+        setDashboardOpen(true)
+        setAdminOpen(false)
+      }
+    }
+
     if (typeof window !== 'undefined') {
       window.addEventListener('site_settings_updated', handleSettingsUpdate)
+      window.addEventListener('open_player_dashboard', handleOpenDashboard)
     }
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      loadUser()
+    } = supabase.auth.onAuthStateChange(async () => {
+      const prof = await getUserProfile()
+      if (isMounted) {
+        setUserProfile(prof)
+        setAuthLoading(false)
+      }
     })
 
     return () => {
+      isMounted = false
       subscription.unsubscribe()
       if (typeof window !== 'undefined') {
         window.removeEventListener('site_settings_updated', handleSettingsUpdate)
+        window.removeEventListener('open_player_dashboard', handleOpenDashboard)
       }
     }
   }, [])
@@ -89,10 +119,13 @@ export function Navbar() {
   async function loadUser() {
     const prof = await getUserProfile()
     setUserProfile(prof)
+    return prof
   }
 
-  const handleAuthSuccess = (role: 'admin' | 'user') => {
-    loadUser()
+  const handleAuthSuccess = async (role: 'admin' | 'user') => {
+    const prof = await loadUser()
+    setAuthLoading(false)
+    setAuthModalOpen(false)
     if (role === 'admin') {
       setAdminOpen(true)
       setDashboardOpen(false)
@@ -123,9 +156,14 @@ export function Navbar() {
     setUserProfile(null)
     setAdminOpen(false)
     setDashboardOpen(false)
+    setAuthLoading(false)
   }
 
-  const filteredNavItems = navItems.filter((item) => item.path !== '/guilds' || showGuildSection)
+  // Strict requirement: Player must land on login until registration and login!
+  const isLocked = !authLoading && !userProfile
+
+  // GUILDS is visible in navbar for both admin and regular users
+  const filteredNavItems = navItems
 
   return (
     <>
@@ -338,6 +376,7 @@ export function Navbar() {
         onClose={() => setAuthModalOpen(false)}
         onSuccess={handleAuthSuccess}
       />
+
       <PlayerDashboard
         isOpen={dashboardOpen}
         onClose={() => setDashboardOpen(false)}

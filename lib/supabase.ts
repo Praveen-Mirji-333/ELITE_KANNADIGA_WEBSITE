@@ -491,7 +491,7 @@ export async function fetchTournaments(): Promise<Tournament[]> {
   }
 }
 
-// Team Registration RPC call with Duplicate Free Fire UID Prevention
+// Team Registration with Strict Duplicate Free Fire UID Prevention & Field Validations
 export async function registerTournamentTeam(regData: {
   tournamentId: string
   captainName: string
@@ -502,80 +502,132 @@ export async function registerTournamentTeam(regData: {
   teammateNames?: string[]
 }) {
   try {
+    const cleanCaptainName = regData.captainName?.trim() || ''
+    const cleanCaptainUid = regData.captainUid?.trim() || ''
+    const cleanPhone = regData.phone?.trim() || ''
+    const cleanTeamName = regData.teamName?.trim() || cleanCaptainName
+
+    // 1. All required fields must be non-empty
+    if (!cleanCaptainName) {
+      return { success: false, error: 'Captain Gamer Name (IGN) cannot be empty.' }
+    }
+    if (!cleanCaptainUid) {
+      return { success: false, error: 'Captain Free Fire UID cannot be empty.' }
+    }
+    if (!cleanPhone) {
+      return { success: false, error: 'Phone number / WhatsApp cannot be empty.' }
+    }
+    if (!cleanTeamName) {
+      return { success: false, error: 'Team / Squad name cannot be empty.' }
+    }
+
+    // 2. UID must contain numbers only
+    if (!/^\d+$/.test(cleanCaptainUid)) {
+      return { success: false, error: 'Captain Free Fire UID must contain numbers only (digits 0-9).' }
+    }
+
+    // Process teammates
+    const rawTmUids = regData.teammateUids || []
+    const rawTmNames = regData.teammateNames || []
+    const cleanTeammateUids: string[] = []
+    const cleanTeammateNames: string[] = []
+
+    for (let i = 0; i < rawTmUids.length; i++) {
+      const tUid = (rawTmUids[i] || '').trim()
+      const tName = (rawTmNames[i] || '').trim()
+
+      if (!tName || !tUid) {
+        return { success: false, error: `Teammate ${i + 1} details cannot be empty. Both Name and UID are required.` }
+      }
+      if (!/^\d+$/.test(tUid)) {
+        return { success: false, error: `Teammate ${i + 1} UID ("${tUid}") must contain numbers only (digits 0-9).` }
+      }
+      cleanTeammateUids.push(tUid)
+      cleanTeammateNames.push(tName)
+    }
+
+    // 3. Internal duplicate check within this team
+    const allSubmittedUids = [cleanCaptainUid, ...cleanTeammateUids]
+    const seenUids = new Set<string>()
+    for (const uid of allSubmittedUids) {
+      if (seenUids.has(uid)) {
+        return {
+          success: false,
+          error: `Duplicate Free Fire UID (${uid}) detected within your team. Each player must have a unique UID.`,
+        }
+      }
+      seenUids.add(uid)
+    }
+
+    // 4. Cross-team check: If a player is already registered in any team for this tournament, reject
+    const { data: existingRegs, error: fetchErr } = await supabase
+      .from('tournament_registrations')
+      .select('id, team_name, captain_name, captain_free_fire_uid, teammate_names, teammate_uids, user_id')
+      .eq('tournament_id', regData.tournamentId)
+
+    if (fetchErr) {
+      console.warn('Error fetching existing registrations for duplicate check:', fetchErr.message)
+    }
+
     const u = await getCurrentUser()
     const userId = u ? u.id : null
 
-    const { data, error } = await supabase.rpc('register_tournament_team', {
-      p_tournament_id: regData.tournamentId,
-      p_user_id: userId,
-      p_captain_name: regData.captainName,
-      p_captain_uid: regData.captainUid,
-      p_phone: regData.phone || '+91 9000000000',
-      p_team_name: regData.teamName || regData.captainName,
-      p_teammate_uids: regData.teammateUids || [],
-      p_teammate_names: regData.teammateNames || [],
-    })
+    if (existingRegs && existingRegs.length > 0) {
+      for (const reg of existingRegs) {
+        const teamLabel = reg.team_name || reg.captain_name || 'an existing team'
+        const existingUidsInReg = [
+          reg.captain_free_fire_uid?.trim(),
+          ...(Array.isArray(reg.teammate_uids) ? reg.teammate_uids.map((t: any) => String(t).trim()) : []),
+        ].filter(Boolean) as string[]
 
-    if (!error && data) {
-      if (typeof data === 'object' && data.success === false) {
-        // Fallback: Direct table insertion
-        const { data: directData, error: directError } = await supabase
-          .from('tournament_registrations')
-          .insert([
-            {
-              tournament_id: regData.tournamentId,
-              user_id: userId,
-              team_name: regData.teamName || regData.captainName,
-              captain_name: regData.captainName,
-              captain_free_fire_uid: regData.captainUid?.trim() || 'N/A',
-              phone_number: regData.phone || '+91 9000000000',
-              teammate_names: regData.teammateNames || [],
-              teammate_uids: regData.teammateUids || [],
-              registration_status: 'confirmed',
-              result_verified: true,
-            },
-          ])
-          .select()
-
-        if (!directError && directData && directData.length > 0) {
-          return { success: true, message: 'Team registered successfully!' }
+        for (const submittedUid of allSubmittedUids) {
+          if (existingUidsInReg.includes(submittedUid)) {
+            return {
+              success: false,
+              error: `Player with Free Fire UID "${submittedUid}" is already registered in team "${teamLabel}" for this tournament! A player cannot register in a second team.`,
+            }
+          }
         }
 
-        return { success: false, error: data.error || directError?.message || 'Failed to register team' }
+        if (userId && reg.user_id === userId) {
+          return {
+            success: false,
+            error: `You are already registered for this tournament under team "${teamLabel}". A player cannot register in a second team!`,
+          }
+        }
       }
-      return data
     }
 
-    if (error) {
-      // Direct table insert fallback
-      const { data: directData, error: directError } = await supabase
-        .from('tournament_registrations')
-        .insert([
-          {
-            tournament_id: regData.tournamentId,
-            user_id: userId,
-            team_name: regData.teamName || regData.captainName,
-            captain_name: regData.captainName,
-            captain_free_fire_uid: regData.captainUid?.trim() || 'N/A',
-            phone_number: regData.phone || '+91 9000000000',
-            teammate_names: regData.teammateNames || [],
-            teammate_uids: regData.teammateUids || [],
-            registration_status: 'confirmed',
-            result_verified: true,
-          },
-        ])
-        .select()
+    // 5. Direct table insertion
+    const { data: directData, error: directError } = await supabase
+      .from('tournament_registrations')
+      .insert([
+        {
+          tournament_id: regData.tournamentId,
+          user_id: userId,
+          team_name: cleanTeamName,
+          captain_name: cleanCaptainName,
+          captain_free_fire_uid: cleanCaptainUid,
+          phone_number: cleanPhone,
+          teammate_names: cleanTeammateNames,
+          teammate_uids: cleanTeammateUids,
+          registration_status: 'confirmed',
+          result_verified: false,
+        },
+      ])
+      .select()
 
-      if (!directError && directData && directData.length > 0) {
-        return { success: true, message: 'Team registered successfully!' }
-      }
-
-      return { success: false, error: error.message || directError?.message || 'Failed to register team' }
+    if (directError) {
+      return { success: false, error: directError.message || 'Failed to register team' }
     }
 
-    return { success: true }
+    return {
+      success: true,
+      message: `Team "${cleanTeamName}" registered successfully for this tournament!`,
+      data: directData?.[0],
+    }
   } catch (err: any) {
-    return { success: false, error: err.message }
+    return { success: false, error: err.message || 'An error occurred during registration.' }
   }
 }
 
@@ -648,6 +700,39 @@ export async function deleteTournamentRegistration(registrationId: string) {
   }
 }
 
+export async function fetchUserTournamentRegistrations(userId?: string, freeFireUid?: string): Promise<TournamentRegistration[]> {
+  try {
+    let uid = userId
+    let ffUid = freeFireUid?.trim()
+    if (!uid) {
+      const u = await getCurrentUser()
+      if (u) uid = u.id
+    }
+    if (!ffUid && uid) {
+      const prof = await getUserProfile(uid)
+      if (prof?.free_fire_uid) ffUid = prof.free_fire_uid.trim()
+    }
+
+    const { data, error } = await supabase
+      .from('tournament_registrations')
+      .select('*, tournaments(*)')
+
+    if (error || !data) return []
+    if (!uid && !ffUid) return []
+
+    return data.filter((r: any) => {
+      if (uid && r.user_id === uid) return true
+      if (ffUid) {
+        if (r.captain_free_fire_uid && r.captain_free_fire_uid.trim() === ffUid) return true
+        if (Array.isArray(r.teammate_uids) && r.teammate_uids.some((t: any) => String(t).trim() === ffUid)) return true
+      }
+      return false
+    })
+  } catch {
+    return []
+  }
+}
+
 export async function fetchUserRegistrations(userId?: string): Promise<TournamentRegistration[]> {
   try {
     let uid = userId
@@ -656,13 +741,7 @@ export async function fetchUserRegistrations(userId?: string): Promise<Tournamen
       if (!u) return []
       uid = u.id
     }
-    const { data, error } = await supabase
-      .from('tournament_registrations')
-      .select('*, tournaments(*)')
-      .eq('user_id', uid)
-
-    if (error || !data) return []
-    return data
+    return fetchUserTournamentRegistrations(uid)
   } catch {
     return []
   }
@@ -906,7 +985,7 @@ export interface PlayerHonor {
   created_at?: string
   rank?: string
   tier?: string
-  avatar_url?: string
+  avatar_url?: string | null
 }
 
 export async function fetchPlayerHonors(category: 'gun_gods' | 'movement_gods'): Promise<PlayerHonor[]> {
@@ -1039,7 +1118,7 @@ export async function fetchAvatarMap(): Promise<Map<string, string>> {
   return avatarMap
 }
 
-export async function findPlayerProfileByUid(uid: string): Promise<{ ign: string; avatar_url: string; level: number; player_id: string } | null> {
+export async function findPlayerProfileByUid(uid: string): Promise<{ ign: string; avatar_url: string | null; level: number; player_id: string } | null> {
   const cleanUid = uid.trim()
   if (!cleanUid) return null
 
@@ -1104,8 +1183,16 @@ export async function fetchSiteSetting(key: string, defaultValue = 'true'): Prom
   }
 }
 
-export async function updateSiteSetting(key: string, value: boolean) {
-  const strVal = value ? 'true' : 'false'
+export async function updateSiteSetting(key: string, value: any) {
+  let strVal = 'true'
+  if (typeof value === 'boolean') {
+    strVal = value ? 'true' : 'false'
+  } else if (typeof value === 'object') {
+    strVal = JSON.stringify(value)
+  } else {
+    strVal = String(value)
+  }
+
   try {
     const { data, error } = await supabase
       .from('site_settings')
@@ -1122,9 +1209,93 @@ export async function updateSiteSetting(key: string, value: boolean) {
   }
 }
 
+export async function fetchSiteSettingJson<T = any>(key: string, defaultValue: T): Promise<T> {
+  try {
+    const { data, error } = await supabase
+      .from('site_settings')
+      .select('setting_value')
+      .eq('setting_key', key)
+      .maybeSingle()
+
+    if (error || !data || !data.setting_value) {
+      return defaultValue
+    }
+    if (data.setting_value === 'true' || data.setting_value === 'false') {
+      return defaultValue
+    }
+    try {
+      const parsed = typeof data.setting_value === 'string' ? JSON.parse(data.setting_value) : data.setting_value
+      if (parsed && typeof parsed === 'object') {
+        return parsed as T
+      }
+      return defaultValue
+    } catch {
+      return defaultValue
+    }
+  } catch {
+    return defaultValue
+  }
+}
+
+export async function updateSiteSettingJson(key: string, value: any): Promise<{ success: boolean; error?: string }> {
+  try {
+    const strVal = typeof value === 'string' ? value : JSON.stringify(value)
+    const { error } = await supabase
+      .from('site_settings')
+      .upsert(
+        [{ setting_key: key, setting_value: strVal, updated_at: new Date().toISOString() }],
+        { onConflict: 'setting_key' }
+      )
+
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+}
+
 // ==========================================
 // 5. ELITE ARMY SINGLE GUILD SERVICES
 // ==========================================
+
+export async function fetchRegisteredPlayers(): Promise<Profile[]> {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, player_id, username, ign, free_fire_uid, avatar_url, level')
+      .order('ign', { ascending: true })
+
+    if (error || !data) return []
+    return data as Profile[]
+  } catch {
+    return []
+  }
+}
+
+export const GUILD_ROLES = [
+  { rank: 1, name: '👑 Leader' },
+  { rank: 2, name: '🎖️ Co-Leader' },
+  { rank: 3, name: '⭐⭐⭐ Commander' },
+  { rank: 4, name: '⭐⭐ Senior Officer' },
+  { rank: 5, name: '⭐ Officer' },
+  { rank: 6, name: '🔰 Junior Officer' },
+  { rank: 7, name: '🛡️ Elder' },
+  { rank: 8, name: '👤 Member' },
+] as const
+
+export function normalizeGuildRole(role?: string): string {
+  if (!role) return '👤 Member'
+  if (role === 'leader') return '👑 Leader'
+  if (role === 'officer') return '⭐ Officer'
+  if (role === 'member') return '👤 Member'
+  return role
+}
+
+export function mapToDbGuildRole(role: string): 'leader' | 'officer' | 'member' {
+  if (role.includes('Leader')) return 'leader'
+  if (role.includes('Commander') || role.includes('Officer')) return 'officer'
+  return 'member'
+}
 
 export async function fetchEliteArmyGuild() {
   try {
@@ -1132,22 +1303,51 @@ export async function fetchEliteArmyGuild() {
       .from('guilds')
       .select('*')
       .eq('name', 'ELITE ARMY')
-      .single()
+      .maybeSingle()
 
     if (error || !guild) {
-      return { guild: null, members: [] }
+      // Try to find any guild or create default
+      const { data: anyGuild } = await supabase.from('guilds').select('*').limit(1).maybeSingle()
+      guild = anyGuild
+      if (!guild) {
+        return { guild: null, members: [] }
+      }
     }
 
-    // Fetch members sorted by glory_contributed DESC
-    const { data: members } = await supabase
+    // Fetch members with associated profile details
+    const { data: members, error: mError } = await supabase
       .from('guild_members')
-      .select('*, profiles(ign, player_id, avatar_url, level)')
+      .select('*, profiles(id, ign, username, player_id, avatar_url, level, free_fire_uid)')
       .eq('guild_id', guild.id)
       .order('glory_contributed', { ascending: false })
 
+    // Fetch ranking, kills and role metadata from site_settings
+    const rawMeta = await fetchSiteSettingJson<Record<string, { ranking?: number; kills?: number; guild_role?: string }>>('guild_member_meta', {})
+    const memberMeta: Record<string, { ranking?: number; kills?: number; guild_role?: string }> =
+      rawMeta && typeof rawMeta === 'object' && !Array.isArray(rawMeta) ? rawMeta : {}
+
+    const mappedMembers: GuildMember[] = (members || []).map((m: any, idx: number) => {
+      const meta = memberMeta[m.id] || memberMeta[m.user_id] || {}
+      return {
+        ...m,
+        guild_role: normalizeGuildRole(meta.guild_role || m.guild_role),
+        player_name: m.profiles?.ign || m.profiles?.username || m.player_name || 'ELITE PLAYER',
+        ranking: typeof meta.ranking === 'number' ? meta.ranking : (idx + 1),
+        kills: typeof meta.kills === 'number' ? meta.kills : 0,
+      }
+    })
+
+    // Sort by admin assigned ranking ascending (rank 1 first), then glory_contributed descending
+    mappedMembers.sort((a, b) => {
+      const rankA = typeof a.ranking === 'number' ? a.ranking : 9999
+      const rankB = typeof b.ranking === 'number' ? b.ranking : 9999
+      if (rankA !== rankB) return rankA - rankB
+      return (b.glory_contributed || 0) - (a.glory_contributed || 0)
+    })
+
     return {
       guild,
-      members: members || [],
+      members: mappedMembers,
     }
   } catch {
     return {
@@ -1157,19 +1357,157 @@ export async function fetchEliteArmyGuild() {
   }
 }
 
-export async function updateGuildMemberGlory(memberId: string, glory: number) {
+export async function addGuildMember(params: {
+  guildId: string
+  userId: string
+  role: string
+  glory: number
+  ranking?: number
+  kills?: number
+}) {
   try {
-    const { data, error } = await supabase
-      .from('guild_members')
-      .update({ glory_contributed: glory })
-      .eq('id', memberId)
-      .select()
+    const dbRole = mapToDbGuildRole(params.role)
 
-    if (error) return { success: false, error: error.message }
-    return { success: true, data: data[0] }
+    // 1. Check if user already exists in guild
+    const { data: existing } = await supabase
+      .from('guild_members')
+      .select('id')
+      .eq('guild_id', params.guildId)
+      .eq('user_id', params.userId)
+      .maybeSingle()
+
+    let memberId: string
+    if (existing) {
+      memberId = existing.id
+      await supabase
+        .from('guild_members')
+        .update({
+          guild_role: dbRole,
+          glory_contributed: params.glory,
+          status: 'active',
+        })
+        .eq('id', memberId)
+    } else {
+      const { data, error } = await supabase
+        .from('guild_members')
+        .insert([
+          {
+            guild_id: params.guildId,
+            user_id: params.userId,
+            guild_role: dbRole,
+            glory_contributed: params.glory,
+            status: 'active',
+          },
+        ])
+        .select()
+
+      if (error || !data || data.length === 0) {
+        return { success: false, error: error?.message || 'Failed to add member to guild' }
+      }
+      memberId = data[0].id
+    }
+
+    // 2. Persist ranking, kills and custom role with emojis in site_settings
+    const rawMeta = await fetchSiteSettingJson<Record<string, { ranking?: number; kills?: number; guild_role?: string }>>('guild_member_meta', {})
+    const memberMeta: Record<string, { ranking?: number; kills?: number; guild_role?: string }> =
+      rawMeta && typeof rawMeta === 'object' && !Array.isArray(rawMeta) ? { ...rawMeta } : {}
+
+    const rankingVal = typeof params.ranking === 'number' && !isNaN(params.ranking) ? params.ranking : 1
+    const killsVal = typeof params.kills === 'number' && !isNaN(params.kills) ? params.kills : 0
+
+    const record = { ranking: rankingVal, kills: killsVal, guild_role: params.role }
+    memberMeta[memberId] = record
+    if (params.userId) {
+      memberMeta[params.userId] = record
+    }
+
+    await updateSiteSettingJson('guild_member_meta', memberMeta)
+
+    return { success: true, memberId }
   } catch (err: any) {
     return { success: false, error: err.message }
   }
+}
+
+export async function updateGuildMemberDetails(
+  memberId: string,
+  updates: {
+    role?: string
+    glory?: number
+    ranking?: number
+    kills?: number
+    userId?: string
+  }
+) {
+  try {
+    // 1. Update guild_members row with mapped valid role
+    const gmUpdates: any = {}
+    if (updates.role) {
+      gmUpdates.guild_role = mapToDbGuildRole(updates.role)
+    }
+    if (typeof updates.glory === 'number' && !isNaN(updates.glory)) {
+      gmUpdates.glory_contributed = updates.glory
+    }
+
+    if (Object.keys(gmUpdates).length > 0) {
+      await supabase.from('guild_members').update(gmUpdates).eq('id', memberId)
+    }
+
+    // 2. Update ranking, kills and custom role in site_settings
+    const rawMeta = await fetchSiteSettingJson<Record<string, { ranking?: number; kills?: number; guild_role?: string }>>('guild_member_meta', {})
+    const memberMeta: Record<string, { ranking?: number; kills?: number; guild_role?: string }> =
+      rawMeta && typeof rawMeta === 'object' && !Array.isArray(rawMeta) ? { ...rawMeta } : {}
+
+    const existing = memberMeta[memberId] || (updates.userId ? memberMeta[updates.userId] : {}) || {}
+    const updatedMeta = {
+      ranking: typeof updates.ranking === 'number' && !isNaN(updates.ranking) ? updates.ranking : (existing.ranking ?? 1),
+      kills: typeof updates.kills === 'number' && !isNaN(updates.kills) ? updates.kills : (existing.kills ?? 0),
+      guild_role: updates.role || existing.guild_role || '👤 Member',
+    }
+
+    memberMeta[memberId] = updatedMeta
+    if (updates.userId) {
+      memberMeta[updates.userId] = updatedMeta
+    }
+
+    await updateSiteSettingJson('guild_member_meta', memberMeta)
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+}
+
+export async function deleteGuildMember(memberId: string, userId?: string) {
+  try {
+    const { error } = await supabase.from('guild_members').delete().eq('id', memberId)
+    if (error) return { success: false, error: error.message }
+
+    const rawMeta = await fetchSiteSettingJson<Record<string, any>>('guild_member_meta', {})
+    const memberMeta: Record<string, any> =
+      rawMeta && typeof rawMeta === 'object' && !Array.isArray(rawMeta) ? { ...rawMeta } : {}
+
+    delete memberMeta[memberId]
+    if (userId) delete memberMeta[userId]
+    await updateSiteSettingJson('guild_member_meta', memberMeta)
+
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+}
+
+export async function updateGuildMemberGlory(memberId: string, glory: number) {
+  return updateGuildMemberDetails(memberId, { glory })
+}
+
+export async function updateGuildMember(memberId: string, updates: Partial<GuildMember>) {
+  return updateGuildMemberDetails(memberId, {
+    role: updates.guild_role,
+    glory: updates.glory_contributed,
+    ranking: updates.ranking,
+    kills: updates.kills,
+    userId: updates.user_id,
+  })
 }
 
 export async function updateTournament(tourneyId: string, updates: Partial<Tournament>) {
@@ -1193,21 +1531,6 @@ export async function updateLeaderboardSection(sectionId: string, updates: Parti
       .from('leaderboard_sections')
       .update(updates)
       .eq('id', sectionId)
-      .select()
-
-    if (error) return { success: false, error: error.message }
-    return { success: true, data: data[0] }
-  } catch (err: any) {
-    return { success: false, error: err.message }
-  }
-}
-
-export async function updateGuildMember(memberId: string, updates: Partial<GuildMember>) {
-  try {
-    const { data, error } = await supabase
-      .from('guild_members')
-      .update(updates)
-      .eq('id', memberId)
       .select()
 
     if (error) return { success: false, error: error.message }
@@ -1494,10 +1817,10 @@ export const MOCK_ELITE_ARMY_GUILD: Guild = {
 }
 
 export const MOCK_ELITE_ARMY_MEMBERS: any[] = [
-  { id: 'm1', user_id: 'u1', glory_contributed: 45200, guild_role: 'leader', profile: { ign: 'ELITE_RAHUL', player_id: 'ELITE-10482', level: 42 } },
-  { id: 'm2', user_id: 'u2', glory_contributed: 38400, guild_role: 'officer', profile: { ign: 'KANNADA_KING', player_id: 'ELITE-10892', level: 39 } },
-  { id: 'm3', user_id: 'u3', glory_contributed: 32100, guild_role: 'member', profile: { ign: 'SHADOW_77', player_id: 'ELITE-10234', level: 36 } },
-  { id: 'm4', user_id: 'u4', glory_contributed: 28900, guild_role: 'member', profile: { ign: 'BL4CK_HAWK', player_id: 'ELITE-10771', level: 34 } },
+  { id: 'm1', user_id: 'u1', glory_contributed: 45200, guild_role: '👑 Leader', profile: { ign: 'ELITE_RAHUL', player_id: 'ELITE-10482', level: 42 }, ranking: 1, kills: 520 },
+  { id: 'm2', user_id: 'u2', glory_contributed: 38400, guild_role: '🎖️ Co-Leader', profile: { ign: 'KANNADA_KING', player_id: 'ELITE-10892', level: 39 }, ranking: 2, kills: 480 },
+  { id: 'm3', user_id: 'u3', glory_contributed: 32100, guild_role: '⭐⭐⭐ Commander', profile: { ign: 'SHADOW_77', player_id: 'ELITE-10234', level: 36 }, ranking: 3, kills: 390 },
+  { id: 'm4', user_id: 'u4', glory_contributed: 28900, guild_role: '👤 Member', profile: { ign: 'BL4CK_HAWK', player_id: 'ELITE-10771', level: 34 }, ranking: 4, kills: 260 },
 ]
 
 export const MOCK_ACHIEVEMENTS: Achievement[] = [

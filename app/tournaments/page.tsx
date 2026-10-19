@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Navbar } from '../../components/Navbar'
 import { Footer } from '../../components/Footer'
 import { TournamentRegisterModal } from '../../components/tournaments/TournamentRegisterModal'
+import { ShowRegistrationModal } from '../../components/tournaments/ShowRegistrationModal'
 import {
   Crosshair,
   ChevronRight,
@@ -17,8 +18,15 @@ import {
   X,
   Users,
 } from 'lucide-react'
-import { fetchTournaments, fetchTournamentRegistrationsForAdmin, fetchAvatarMap } from '../../lib/supabase'
-import { Tournament, TournamentRegistration } from '../../lib/types'
+import {
+  fetchTournaments,
+  fetchTournamentRegistrationsForAdmin,
+  fetchAvatarMap,
+  getUserProfile,
+  fetchUserTournamentRegistrations,
+  supabase,
+} from '../../lib/supabase'
+import { Tournament, TournamentRegistration, Profile } from '../../lib/types'
 import { UserAvatar } from '../../components/ui/UserAvatar'
 
 export default function TournamentsPage() {
@@ -27,9 +35,17 @@ export default function TournamentsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [avatarMap, setAvatarMap] = useState<Map<string, string>>(new Map())
 
+  // Current User & User Registrations State
+  const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null)
+  const [userRegistrationsMap, setUserRegistrationsMap] = useState<Map<string, TournamentRegistration>>(new Map())
+
   // Modal State
   const [registerModalOpen, setRegisterModalOpen] = useState(false)
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null)
+
+  // Show Registration Modal for Registered Users
+  const [showRegTournament, setShowRegTournament] = useState<Tournament | null>(null)
+  const [showRegUserRegistration, setShowRegUserRegistration] = useState<TournamentRegistration | null>(null)
 
   // Rules Modal State
   const [rulesTournament, setRulesTournament] = useState<Tournament | null>(null)
@@ -43,6 +59,23 @@ export default function TournamentsPage() {
   const [viewResultsRegs, setViewResultsRegs] = useState<TournamentRegistration[]>([])
   const [resultsSearchQuery, setResultsSearchQuery] = useState('')
 
+  async function loadUserData() {
+    const prof = await getUserProfile()
+    setCurrentUserProfile(prof)
+    if (prof) {
+      const userRegs = await fetchUserTournamentRegistrations(prof.id, prof.free_fire_uid)
+      const map = new Map<string, TournamentRegistration>()
+      for (const r of userRegs) {
+        if (r.tournament_id) {
+          map.set(r.tournament_id, r)
+        }
+      }
+      setUserRegistrationsMap(map)
+    } else {
+      setUserRegistrationsMap(new Map())
+    }
+  }
+
   useEffect(() => {
     async function load() {
       const [data, avMap] = await Promise.all([
@@ -54,8 +87,19 @@ export default function TournamentsPage() {
       if (data.length > 0) {
         loadResults(data[0])
       }
+      await loadUserData()
     }
     load()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      loadUserData()
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
   async function loadResults(t: Tournament) {
@@ -223,12 +267,24 @@ export default function TournamentsPage() {
                     )}
 
                     {t.status !== 'completed' && (
-                      <button
-                        onClick={() => handleRegisterClick(t)}
-                        className="border border-red-700 bg-red-950/40 px-3 py-1.5 sm:px-3.5 sm:py-2 text-[10px] 2xl:text-xs font-black tracking-widest text-red-400 transition hover:bg-red-600 hover:text-white"
-                      >
-                        REGISTER <ChevronRight className="ml-1 inline" size={13} />
-                      </button>
+                      userRegistrationsMap.has(t.id) ? (
+                        <button
+                          onClick={() => {
+                            setShowRegTournament(t)
+                            setShowRegUserRegistration(userRegistrationsMap.get(t.id) || null)
+                          }}
+                          className="flex items-center gap-1.5 border border-emerald-500 bg-emerald-950/70 px-3 py-1.5 sm:px-3.5 sm:py-2 text-[10px] 2xl:text-xs font-black tracking-widest text-emerald-400 transition hover:bg-emerald-500 hover:text-black shadow-[0_0_15px_rgba(16,185,129,0.25)]"
+                        >
+                          <CheckCircle2 size={13} /> SHOW REGISTRATION
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleRegisterClick(t)}
+                          className="border border-red-700 bg-red-950/40 px-3 py-1.5 sm:px-3.5 sm:py-2 text-[10px] 2xl:text-xs font-black tracking-widest text-red-400 transition hover:bg-red-600 hover:text-white"
+                        >
+                          REGISTER <ChevronRight className="ml-1 inline" size={13} />
+                        </button>
+                      )
                     )}
                   </div>
                 </div>
@@ -309,9 +365,25 @@ export default function TournamentsPage() {
         isOpen={registerModalOpen}
         onClose={() => setRegisterModalOpen(false)}
         tournament={selectedTournament}
-        onSuccess={() => {
+        currentUserProfile={currentUserProfile}
+        onSuccess={async () => {
+          await loadUserData()
+          const refreshedT = await fetchTournaments()
+          setTournaments(refreshedT)
           if (selectedTournament) loadResults(selectedTournament)
         }}
+      />
+
+      {/* Show Registration Modal for Registered Users */}
+      <ShowRegistrationModal
+        isOpen={!!showRegTournament}
+        onClose={() => {
+          setShowRegTournament(null)
+          setShowRegUserRegistration(null)
+        }}
+        tournament={showRegTournament}
+        userRegistration={showRegUserRegistration}
+        avatarMap={avatarMap}
       />
 
       {/* Rules Modal Overlay */}

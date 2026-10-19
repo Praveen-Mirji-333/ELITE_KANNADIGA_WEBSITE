@@ -52,6 +52,12 @@ import {
   fetchEliteArmyGuild,
   updateGuildMemberGlory,
   updateGuildMember,
+  fetchRegisteredPlayers,
+  addGuildMember,
+  updateGuildMemberDetails,
+  deleteGuildMember,
+  GUILD_ROLES,
+  normalizeGuildRole,
   fetchAchievements,
   upsertAchievement,
   deleteAchievement,
@@ -150,9 +156,14 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
   // 4. Single Guild (ELITE ARMY) State & Edit State
   const [guildInfo, setGuildInfo] = useState<any>(null)
   const [guildMembers, setGuildMembers] = useState<any[]>([])
+  const [registeredPlayers, setRegisteredPlayers] = useState<Profile[]>([])
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>('')
+  const [playerSearchQuery, setPlayerSearchQuery] = useState<string>('')
+  const [newMemberRanking, setNewMemberRanking] = useState<string>('1')
+  const [newMemberKills, setNewMemberKills] = useState<string>('0')
   const [newMemberName, setNewMemberName] = useState('')
   const [newMemberGlory, setNewMemberGlory] = useState('1000')
-  const [newMemberRank, setNewMemberRank] = useState('member')
+  const [newMemberRank, setNewMemberRank] = useState('👤 Member')
   const [editingMember, setEditingMember] = useState<any | null>(null)
 
   // Guild Visibility Toggle State
@@ -212,7 +223,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
       const prof = await findPlayerProfileByUid(uid)
       if (prof) {
         setHonorPlayerName(prof.ign)
-        setHonorPlayerAvatar(prof.avatar_url)
+        setHonorPlayerAvatar(prof.avatar_url || '')
       } else {
         setHonorPlayerAvatar('')
       }
@@ -228,7 +239,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
       const prof = await findPlayerProfileByUid(uid)
       if (prof) {
         setAchPlayerName(prof.ign)
-        setAchPlayerAvatar(prof.avatar_url)
+        setAchPlayerAvatar(prof.avatar_url || '')
       } else {
         setAchPlayerAvatar('')
       }
@@ -305,6 +316,11 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
     const guildRes = await fetchEliteArmyGuild()
     setGuildInfo(guildRes.guild)
     setGuildMembers(guildRes.members)
+    setNewMemberRanking(String((guildRes.members?.length || 0) + 1))
+
+    // Load Registered Players
+    const regPlayers = await fetchRegisteredPlayers()
+    setRegisteredPlayers(regPlayers)
 
     // Load Achievements
     const achs = await fetchAchievements()
@@ -497,38 +513,44 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
   const handleAdminRegisterTeamSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!adminRegTourneyId || !adminRegCaptainName || !adminRegCaptainUid) {
+    if (!adminRegTourneyId || !adminRegCaptainName.trim() || !adminRegCaptainUid.trim()) {
       showNotification('Please select a tournament and enter Captain Name & UID', 'error')
       return
     }
 
+    const cleanCapUid = adminRegCaptainUid.trim().replace(/\D/g, '')
+    if (!cleanCapUid) {
+      showNotification('Captain Free Fire UID must contain numbers only.', 'error')
+      return
+    }
+
     const p2Name = adminRegP2Name.trim()
-    const p2Uid = adminRegP2Uid.trim() || 'N/A'
+    const p2Uid = adminRegP2Uid.trim().replace(/\D/g, '')
     const p3Name = adminRegP3Name.trim()
-    const p3Uid = adminRegP3Uid.trim() || 'N/A'
+    const p3Uid = adminRegP3Uid.trim().replace(/\D/g, '')
     const p4Name = adminRegP4Name.trim()
-    const p4Uid = adminRegP4Uid.trim() || 'N/A'
+    const p4Uid = adminRegP4Uid.trim().replace(/\D/g, '')
 
     const teammateNames: string[] = []
     const teammateUids: string[] = []
 
-    if (p2Name || p2Uid !== 'N/A') {
-      teammateNames.push(p2Name || 'Teammate 2')
+    if (p2Name && p2Uid) {
+      teammateNames.push(p2Name)
       teammateUids.push(p2Uid)
     }
-    if (p3Name || p3Uid !== 'N/A') {
-      teammateNames.push(p3Name || 'Teammate 3')
+    if (p3Name && p3Uid) {
+      teammateNames.push(p3Name)
       teammateUids.push(p3Uid)
     }
-    if (p4Name || p4Uid !== 'N/A') {
-      teammateNames.push(p4Name || 'Teammate 4')
+    if (p4Name && p4Uid) {
+      teammateNames.push(p4Name)
       teammateUids.push(p4Uid)
     }
 
     const res = await registerTournamentTeam({
       tournamentId: adminRegTourneyId,
       captainName: adminRegCaptainName.trim(),
-      captainUid: adminRegCaptainUid.trim(),
+      captainUid: cleanCapUid,
       phone: adminRegPhone.trim() || '+91 9000000000',
       teamName: adminRegTeamName.trim() || adminRegCaptainName.trim(),
       teammateNames,
@@ -673,22 +695,30 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
   // ==========================================
   const handleAddGuildPlayer = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMemberName || !guildInfo) return
+    if (!selectedPlayerId || !guildInfo) {
+      showNotification('Please select a registered player from the list!', 'error')
+      return
+    }
 
-    const { error } = await supabase.from('guild_members').insert([
-      {
-        guild_id: guildInfo.id,
-        player_name: newMemberName,
-        guild_role: newMemberRank,
-        glory_contributed: parseInt(newMemberGlory) || 1000,
-      },
-    ])
+    const selectedPlayer = registeredPlayers.find((p) => p.id === selectedPlayerId)
+    const res = await addGuildMember({
+      guildId: guildInfo.id,
+      userId: selectedPlayerId,
+      role: newMemberRank as any,
+      glory: parseInt(newMemberGlory) || 1000,
+      ranking: parseInt(newMemberRanking) || (guildMembers.length + 1),
+      kills: parseInt(newMemberKills) || 0,
+    })
 
-    if (!error) {
-      showNotification(`Player ${newMemberName} added to ELITE ARMY!`)
-      setNewMemberName('')
+    if (res.success) {
+      showNotification(`Player ${selectedPlayer?.ign || selectedPlayer?.username || 'Member'} added to ELITE ARMY!`)
+      setSelectedPlayerId('')
+      setPlayerSearchQuery('')
       setNewMemberGlory('1000')
+      setNewMemberKills('0')
       loadAllAdminData()
+    } else {
+      showNotification(res.error || 'Failed to add player to guild', 'error')
     }
   }
 
@@ -696,24 +726,31 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
     e.preventDefault()
     if (!editingMember) return
 
-    const res = await updateGuildMember(editingMember.id, {
-      player_name: editingMember.player_name,
-      guild_role: editingMember.guild_role,
-      glory_contributed: editingMember.glory_contributed,
+    const res = await updateGuildMemberDetails(editingMember.id, {
+      role: editingMember.guild_role,
+      glory: parseInt(String(editingMember.glory_contributed)) || 0,
+      ranking: parseInt(String(editingMember.ranking)) || 1,
+      kills: parseInt(String(editingMember.kills)) || 0,
+      userId: editingMember.user_id,
     })
 
     if (res.success) {
       showNotification('Guild player details updated!')
       setEditingMember(null)
       loadAllAdminData()
+    } else {
+      showNotification(res.error || 'Failed to update member', 'error')
     }
   }
 
-  const handleDeleteGuildPlayer = async (memberId: string) => {
-    const { error } = await supabase.from('guild_members').delete().eq('id', memberId)
-    if (!error) {
+  const handleDeleteGuildPlayer = async (memberId: string, userId?: string) => {
+    if (!confirm('Are you sure you want to remove this player from ELITE ARMY?')) return
+    const res = await deleteGuildMember(memberId, userId)
+    if (res.success) {
       showNotification('Player removed from ELITE ARMY.')
       loadAllAdminData()
+    } else {
+      showNotification(res.error || 'Failed to remove player', 'error')
     }
   }
 
@@ -1365,22 +1402,110 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
               {/* Add Guild Member */}
               <form onSubmit={handleAddGuildPlayer} className="border border-white/10 bg-white/5 p-5 space-y-4">
                 <h4 className="eyebrow flex items-center gap-2">
-                  <Plus size={14} /> ADD PLAYER TO ELITE ARMY
+                  <Plus size={14} /> ADD REGISTERED PLAYER TO ELITE ARMY
                 </h4>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">PLAYER IGN *</label>
+
+                {/* Registered Player Selection */}
+                <div className="space-y-2 border border-white/10 bg-black/40 p-4 rounded">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                      1. SELECT REGISTERED PLAYER *
+                    </label>
+                    <span className="text-[10px] text-white/50">
+                      Total Registered: {registeredPlayers.length} Players
+                    </span>
+                  </div>
+
+                  <div className="relative">
                     <input
                       type="text"
-                      required
-                      placeholder="e.g. ELITE_VIKRAM"
-                      value={newMemberName}
-                      onChange={(e) => setNewMemberName(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      placeholder="Search registered player by IGN, UID, or ID..."
+                      value={playerSearchQuery}
+                      onChange={(e) => setPlayerSearchQuery(e.target.value)}
+                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white placeholder-white/40 focus:border-red-500 focus:outline-none"
                     />
                   </div>
+
+                  <select
+                    required
+                    value={selectedPlayerId}
+                    onChange={(e) => setSelectedPlayerId(e.target.value)}
+                    className="w-full border border-white/20 bg-[#121214] px-3 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none"
+                  >
+                    <option value="">-- Choose from Registered Players List --</option>
+                    {registeredPlayers
+                      .filter((p) => {
+                        if (!playerSearchQuery.trim()) return true
+                        const q = playerSearchQuery.toLowerCase()
+                        return (
+                          (p.ign && p.ign.toLowerCase().includes(q)) ||
+                          (p.username && p.username.toLowerCase().includes(q)) ||
+                          (p.player_id && p.player_id.toLowerCase().includes(q)) ||
+                          (p.free_fire_uid && p.free_fire_uid.toLowerCase().includes(q))
+                        )
+                      })
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.ign || p.username} ({p.player_id || 'ID N/A'} • UID: {p.free_fire_uid || 'N/A'})
+                        </option>
+                      ))}
+                  </select>
+
+                  {/* Selected Player Preview */}
+                  {selectedPlayerId && (() => {
+                    const sel = registeredPlayers.find((p) => p.id === selectedPlayerId)
+                    if (!sel) return null
+                    return (
+                      <div className="flex items-center gap-3 pt-2 border-t border-white/10 mt-2">
+                        <UserAvatar src={sel.avatar_url} name={sel.ign || sel.username} size="sm" />
+                        <div>
+                          <p className="text-xs font-bold text-white">{sel.ign || sel.username}</p>
+                          <p className="text-[10px] text-white/50">
+                            ID: {sel.player_id || 'N/A'} • Free Fire UID: {sel.free_fire_uid || 'N/A'} • Level: {sel.level || 1}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">INITIAL GLORY POINTS *</label>
+                    <label className="mb-1 block text-[10px] font-bold text-amber-400 uppercase">
+                      2. ASSIGN RANKING *
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      placeholder="e.g. 1"
+                      value={newMemberRanking}
+                      onChange={(e) => setNewMemberRanking(e.target.value)}
+                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-amber-400 font-bold focus:outline-none"
+                    />
+                    <span className="text-[9px] text-white/40">Roster position (#1, #2...)</span>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold text-red-400 uppercase">
+                      3. PLAYER KILLS *
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      placeholder="e.g. 250"
+                      value={newMemberKills}
+                      onChange={(e) => setNewMemberKills(e.target.value)}
+                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-red-400 font-bold focus:outline-none"
+                    />
+                    <span className="text-[9px] text-white/40">Total verified kills</span>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold text-white/60 uppercase">
+                      4. INITIAL GLORY POINTS *
+                    </label>
                     <input
                       type="number"
                       required
@@ -1388,69 +1513,123 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                       onChange={(e) => setNewMemberGlory(e.target.value)}
                       className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
                     />
+                    <span className="text-[9px] text-white/40">Guild glory points</span>
                   </div>
+
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">GUILD ROLE</label>
+                    <label className="mb-1 block text-[10px] font-bold text-white/60 uppercase">
+                      5. GUILD ROLE
+                    </label>
                     <select
                       value={newMemberRank}
                       onChange={(e) => setNewMemberRank(e.target.value)}
                       className="w-full border border-white/15 bg-[#121214] px-3 py-2 text-xs text-white focus:outline-none"
                     >
-                      <option value="leader">leader</option>
-                      <option value="officer">officer</option>
-                      <option value="member">member</option>
+                      {GUILD_ROLES.map((r) => (
+                        <option key={r.rank} value={r.name}>
+                          {r.name}
+                        </option>
+                      ))}
                     </select>
+                    <span className="text-[9px] text-white/40">Member squad rank</span>
                   </div>
                 </div>
+
                 <button
                   type="submit"
-                  className="bg-red-600 px-5 py-2 text-xs font-black tracking-widest text-white hover:bg-red-500"
+                  className="bg-red-600 px-6 py-2.5 text-xs font-black tracking-widest text-white uppercase hover:bg-red-500 transition shadow-lg"
                 >
-                  ADD TO ELITE ARMY
+                  ADD PLAYER TO ELITE ARMY
                 </button>
               </form>
 
-              {/* Members List sorted by Glory with Edit Button */}
+              {/* Members List sorted by Ranking & Glory with Edit and Delete */}
               <div className="space-y-3">
-                <h4 className="eyebrow">GUILD ROSTER (ORDERED BY GLORY RANKING)</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="eyebrow">GUILD ROSTER (ORDERED BY ASSIGNED RANKING)</h4>
+                  <span className="text-xs text-white/50">{guildMembers.length} Members Active</span>
+                </div>
+
                 <div className="space-y-2">
-                  {guildMembers.map((m, idx) => (
-                    <div
-                      key={m.id || idx}
-                      className="flex items-center justify-between border border-white/10 bg-white/5 px-4 py-3"
-                    >
-                      <div className="flex items-center gap-4">
-                        <span className="font-display text-lg font-black text-amber-400">
-                          #{String(idx + 1).padStart(2, '0')}
-                        </span>
-                        <div>
-                          <p className="font-display text-base font-black text-white">
-                            {m.player_name || m.profiles?.ign || 'ELITE_PLAYER'}
-                          </p>
-                          <p className="text-[10px] font-bold text-white/50 uppercase">
-                            Role: {m.guild_role || 'member'} • Glory: {m.glory_contributed || 1000} GP
-                          </p>
+                  {guildMembers.length === 0 ? (
+                    <div className="p-8 text-center border border-white/10 bg-white/5 text-white/50 text-xs">
+                      No members added to ELITE ARMY yet. Use the form above to add registered players!
+                    </div>
+                  ) : (
+                    guildMembers.map((m, idx) => (
+                      <div
+                        key={m.id || idx}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-white/10 bg-white/5 px-4 py-3 hover:border-white/20 transition"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="font-display text-lg font-black text-amber-400 w-8 shrink-0">
+                            #{String(m.ranking || idx + 1).padStart(2, '0')}
+                          </span>
+                          <UserAvatar
+                            src={m.profiles?.avatar_url}
+                            name={m.player_name || m.profiles?.ign}
+                            size="md"
+                            className="border border-white/20 h-10 w-10 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-display text-base font-black text-white truncate">
+                                {m.player_name || m.profiles?.ign || 'ELITE_PLAYER'}
+                              </p>
+                              <span className={`border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded ${
+                                (m.guild_role || '').includes('Leader')
+                                  ? 'border-amber-500/50 bg-amber-500/15 text-amber-300'
+                                  : (m.guild_role || '').includes('Commander')
+                                  ? 'border-purple-500/50 bg-purple-500/15 text-purple-300'
+                                  : (m.guild_role || '').includes('Officer')
+                                  ? 'border-blue-500/50 bg-blue-500/15 text-blue-300'
+                                  : (m.guild_role || '').includes('Elder')
+                                  ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
+                                  : 'border-white/10 bg-white/10 text-white/70'
+                              }`}>
+                                {normalizeGuildRole(m.guild_role)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap text-[10px] font-bold text-white/50 mt-0.5">
+                              <span>ID: {m.profiles?.player_id || 'N/A'}</span>
+                              <span>•</span>
+                              <span>UID: {m.profiles?.free_fire_uid || 'N/A'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 border-white/5 pt-2 sm:pt-0">
+                          <div className="text-left sm:text-right">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-red-950/60 border border-red-600/40 text-red-400 font-display font-black text-xs">
+                              ⚔️ {(m.kills || 0).toLocaleString()} KILLS
+                            </span>
+                            <p className="text-[10px] font-bold text-amber-400 mt-0.5">
+                              {(m.glory_contributed || 1000).toLocaleString()} GP
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setEditingMember(m)}
+                              className="text-white/50 hover:text-amber-400 p-2 rounded hover:bg-white/5 transition"
+                              title="Edit Member Ranking, Kills & Role"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteGuildPlayer(m.id, m.user_id)}
+                              className="text-white/50 hover:text-red-500 p-2 rounded hover:bg-white/5 transition"
+                              title="Remove Player from Guild"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setEditingMember(m)}
-                          className="text-white/40 hover:text-amber-400 p-2"
-                          title="Edit Player Details"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteGuildPlayer(m.id)}
-                          className="text-white/40 hover:text-red-500 p-2"
-                          title="Remove Member"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -2471,7 +2650,109 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
         </div>
       )}
 
-      {/* 6. Edit Achievement Card Modal */}
+      {/* 7. Edit Guild Member Modal */}
+      {editingMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
+          <div className="relative w-full max-w-md border border-red-600/80 bg-[#0c0c0e] p-6 shadow-2xl space-y-4 text-white">
+            <button
+              onClick={() => setEditingMember(null)}
+              className="absolute right-4 top-4 text-white/60 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+            <div className="border-b border-white/10 pb-2">
+              <h3 className="font-display text-xl font-black uppercase text-red-500">
+                EDIT GUILD MEMBER
+              </h3>
+              <p className="text-xs text-white/60">
+                {editingMember.player_name || editingMember.profiles?.ign || 'ELITE PLAYER'}
+              </p>
+            </div>
+            <form onSubmit={handleSaveEditedMember} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold uppercase text-amber-400">
+                    ASSIGN RANKING *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={editingMember.ranking ?? 1}
+                    onChange={(e) =>
+                      setEditingMember({ ...editingMember, ranking: parseInt(e.target.value) || 1 })
+                    }
+                    className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-amber-400 font-bold focus:outline-none"
+                  />
+                  <span className="text-[9px] text-white/40">Roster position</span>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold uppercase text-red-400">
+                    PLAYER KILLS *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={editingMember.kills ?? 0}
+                    onChange={(e) =>
+                      setEditingMember({ ...editingMember, kills: parseInt(e.target.value) || 0 })
+                    }
+                    className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-red-400 font-bold focus:outline-none"
+                  />
+                  <span className="text-[9px] text-white/40">Total kills</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold uppercase text-white/60">
+                    GLORY POINTS
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={editingMember.glory_contributed ?? 1000}
+                    onChange={(e) =>
+                      setEditingMember({
+                        ...editingMember,
+                        glory_contributed: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold uppercase text-white/60">
+                    GUILD ROLE
+                  </label>
+                  <select
+                    value={normalizeGuildRole(editingMember.guild_role)}
+                    onChange={(e) =>
+                      setEditingMember({ ...editingMember, guild_role: e.target.value })
+                    }
+                    className="w-full border border-white/15 bg-[#121214] px-3 py-2 text-xs text-white focus:outline-none"
+                  >
+                    {GUILD_ROLES.map((r) => (
+                      <option key={r.rank} value={r.name}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-red-600 py-3 text-xs font-black tracking-widest text-white uppercase hover:bg-red-500 transition shadow-lg"
+              >
+                SAVE MEMBER DETAILS
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {editingAch && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
           <div className="relative w-full max-w-md border border-amber-500/80 bg-[#0c0c0e] p-6 shadow-2xl space-y-4 text-white">

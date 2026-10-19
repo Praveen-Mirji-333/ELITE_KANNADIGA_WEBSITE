@@ -33,6 +33,8 @@ export const viewport: Viewport = {
   ],
 }
 
+import { GlobalAuthGate } from '../components/auth/GlobalAuthGate'
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -41,7 +43,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        {children}
+        <GlobalAuthGate>
+          {children}
+        </GlobalAuthGate>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

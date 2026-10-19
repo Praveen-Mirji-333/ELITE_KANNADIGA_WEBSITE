@@ -112,16 +112,30 @@ export interface Guild {
   created_at: string
 }
 
+export type GuildRole =
+  | '👑 Leader'
+  | '🎖️ Co-Leader'
+  | '⭐⭐⭐ Commander'
+  | '⭐⭐ Senior Officer'
+  | '⭐ Officer'
+  | '🔰 Junior Officer'
+  | '🛡️ Elder'
+  | '👤 Member'
+  | string
+
 export interface GuildMember {
   id: string
   guild_id: string
   user_id: string
-  guild_role: 'leader' | 'officer' | 'member'
+  guild_role: GuildRole
   glory_contributed: number
   joined_at: string
   status: 'pending' | 'active' | 'declined'
   profile?: Profile
+  profiles?: Profile
   player_name?: string
+  ranking?: number
+  kills?: number
 }
 
 export interface XPTransaction {
