@@ -17,6 +17,9 @@ import { computeStandings, usedRounds } from '../../../lib/league'
 import { deleteMatchResult, saveMatchResult } from '../../../lib/league-service'
 import { StandingsTable } from './StandingsTable'
 import { LeagueCharts } from './LeagueCharts'
+import { FinalizePlayoffModal } from './FinalizePlayoffModal'
+import type { PlayoffBracketData } from '../../../lib/playoff-types'
+import { initPlayoffBracketFromStandings, savePlayoffData } from '../../../lib/playoff-service'
 
 interface ResultsPanelProps {
   season: LeagueSeason
@@ -26,11 +29,27 @@ interface ResultsPanelProps {
   busy?: boolean
   onRefresh: () => Promise<void> | void
   notify: (text: string, type?: 'success' | 'error') => void
+  onOpenPlayoffs?: () => void
+  playoffBracket?: PlayoffBracketData | null
+  onPlayoffFinalized?: (bracket: PlayoffBracketData) => void
 }
 
-export function ResultsPanel({ season, teams, pairings, results, busy, onRefresh, notify }: ResultsPanelProps) {
+export function ResultsPanel({
+  season,
+  teams,
+  pairings,
+  results,
+  busy,
+  onRefresh,
+  notify,
+  onOpenPlayoffs,
+  playoffBracket,
+  onPlayoffFinalized,
+}: ResultsPanelProps) {
   const [roundFilter, setRoundFilter] = useState<'all' | string>('all')
   const [search, setSearch] = useState('')
+  const [finalizeModalOpen, setFinalizeModalOpen] = useState(false)
+  const [isFinalizing, setIsFinalizing] = useState(false)
 
   const activeTeams = teams.filter((team) => team.status === 'active')
   const resultByPairing = useMemo(
@@ -139,6 +158,28 @@ export function ResultsPanel({ season, teams, pairings, results, busy, onRefresh
     await onRefresh()
   }
 
+  const handleConfirmFinalize = async () => {
+    try {
+      setIsFinalizing(true)
+      const bracket = initPlayoffBracketFromStandings(standings, season.id, season.tournament_id)
+      const res = await savePlayoffData(season.id, bracket)
+      setIsFinalizing(false)
+      setFinalizeModalOpen(false)
+
+      if (!res.success) {
+        notify(res.error || 'Failed to save playoff bracket.', 'error')
+        return
+      }
+
+      onPlayoffFinalized?.(bracket)
+      notify('Tournament Finalized! Top 6 teams locked into the IPL Playoff Bracket.')
+      onOpenPlayoffs?.()
+    } catch (err: any) {
+      setIsFinalizing(false)
+      notify(err?.message || 'Error finalizing tournament.', 'error')
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -160,7 +201,106 @@ export function ResultsPanel({ season, teams, pairings, results, busy, onRefresh
         </div>
 
         <StandingsTable standings={standings} matchesPerTeam={season.matches_per_team} />
+
+        {/* Finalize Button - Displayed when all spins and rounds finish or if already finalized */}
+        {totalMatches > 0 && completedMatches >= totalMatches ? (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border border-amber-500/50 bg-gradient-to-r from-amber-950/40 via-black to-[#140e04] p-4 rounded shadow-lg shadow-amber-950/30">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-400">
+                <Trophy size={22} />
+              </div>
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-2">
+                  All Spins &amp; Tournament Rounds Finished ({completedMatches}/{totalMatches} Complete)
+                </h4>
+                <p className="text-[11px] text-white/60">
+                  {playoffBracket
+                    ? 'Playoff bracket generated. Top 6 teams are competing in the IPL-style knockout.'
+                    : 'All matches have been played. Click Finalize to select the Top 6 teams and launch the IPL Playoff Bracket.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+              {playoffBracket ? (
+                <>
+                  <button
+                    onClick={() => setFinalizeModalOpen(true)}
+                    className="flex-1 sm:flex-initial px-3 py-2 border border-white/20 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-[10px] font-bold uppercase tracking-wider transition rounded"
+                  >
+                    Re-Finalize Top 6
+                  </button>
+                  <button
+                    onClick={onOpenPlayoffs}
+                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 border border-amber-500 bg-amber-500 hover:bg-amber-400 text-black px-5 py-2 text-xs font-black uppercase tracking-widest transition rounded shadow-lg shadow-amber-950/50"
+                  >
+                    <Trophy size={13} /> View Playoff Graph →
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setFinalizeModalOpen(true)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-amber-500 bg-amber-500 hover:bg-amber-400 text-black px-6 py-2.5 text-xs font-black uppercase tracking-widest transition rounded shadow-lg shadow-amber-950/50 animate-pulse hover:animate-none"
+                >
+                  <Trophy size={14} /> Finalize
+                </button>
+              )}
+            </div>
+          </div>
+        ) : playoffBracket ? (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border border-emerald-500/40 bg-emerald-950/20 p-4 rounded">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-emerald-300">
+                  Playoffs Active ({completedMatches}/{totalMatches} matches finished)
+                </h4>
+                <p className="text-[11px] text-white/60">
+                  Top 6 teams have already been finalized into the IPL Playoff Tree.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+              <button
+                onClick={() => setFinalizeModalOpen(true)}
+                className="flex-1 sm:flex-initial px-3 py-2 border border-white/20 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-[10px] font-bold uppercase tracking-wider transition rounded"
+              >
+                Re-Finalize
+              </button>
+              <button
+                onClick={onOpenPlayoffs}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 border border-amber-500 bg-amber-500 hover:bg-amber-400 text-black px-4 py-2 text-xs font-black uppercase tracking-widest transition rounded"
+              >
+                <Trophy size={13} /> View Playoff Graph →
+              </button>
+            </div>
+          </div>
+        ) : totalMatches > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border border-white/10 bg-white/[0.02] p-3 text-xs text-white/50 rounded">
+            <span>
+              Tournament in progress: <strong className="text-white">{completedMatches} / {totalMatches}</strong> matches finished.
+              The <strong className="text-amber-400">Finalize</strong> button will appear once all spins and rounds finish.
+            </span>
+            {standings.length >= 2 && (
+              <button
+                onClick={() => setFinalizeModalOpen(true)}
+                className="text-[10px] font-mono text-amber-400/80 hover:text-amber-300 underline"
+                title="Early Finalize preview for testing"
+              >
+                [Admin Test: Finalize Early]
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
+      <FinalizePlayoffModal
+        isOpen={finalizeModalOpen}
+        standings={standings}
+        onClose={() => setFinalizeModalOpen(false)}
+        onConfirm={handleConfirmFinalize}
+        isSubmitting={isFinalizing}
+      />
 
       {/* 2. Visual Charts */}
       <LeagueCharts

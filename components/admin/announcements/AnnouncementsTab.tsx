@@ -31,12 +31,16 @@ import { TeamPool } from './TeamPool'
 import { SpinWheelPanel } from './SpinWheelPanel'
 import { PairingsList } from './PairingsList'
 import { ResultsPanel } from './ResultsPanel'
+import { PlayoffBracketGraph } from './PlayoffBracketGraph'
+import type { PlayoffBracketData } from '../../../lib/playoff-types'
+import { fetchPlayoffData } from '../../../lib/playoff-service'
+import { computeStandings } from '../../../lib/league'
 
 interface AnnouncementsTabProps {
   showNotification: (text: string, type?: 'success' | 'error') => void
 }
 
-type SubTab = 'WHEEL' | 'RESULTS'
+type SubTab = 'WHEEL' | 'RESULTS' | 'PLAYOFFS'
 
 export function AnnouncementsTab({ showNotification }: AnnouncementsTabProps) {
   const [tournaments, setTournaments] = useState<Tournament[]>([])
@@ -44,6 +48,7 @@ export function AnnouncementsTab({ showNotification }: AnnouncementsTabProps) {
   const [seasons, setSeasons] = useState<LeagueSeason[]>([])
   const [seasonId, setSeasonId] = useState('')
   const [data, setData] = useState<LeagueData | null>(null)
+  const [playoffData, setPlayoffData] = useState<PlayoffBracketData | null>(null)
   const [subTab, setSubTab] = useState<SubTab>('WHEEL')
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -112,7 +117,10 @@ export function AnnouncementsTab({ showNotification }: AnnouncementsTabProps) {
 
       requestRef.current = selectedSeasonId
       setLoading(true)
-      const result = await fetchLeagueData(selectedSeasonId)
+      const [result, playoffs] = await Promise.all([
+        fetchLeagueData(selectedSeasonId),
+        fetchPlayoffData(selectedSeasonId),
+      ])
 
       // A newer season was selected while this request was in flight.
       if (requestRef.current !== selectedSeasonId) return
@@ -121,23 +129,30 @@ export function AnnouncementsTab({ showNotification }: AnnouncementsTabProps) {
 
       if (!result.success || !result.data) {
         setData(null)
+        setPlayoffData(null)
         setError(result.error || 'Could not load this season.')
         return
       }
 
       setError('')
       setData(result.data)
+      setPlayoffData(playoffs)
     },
     []
   )
 
   useEffect(() => {
     setData(null)
+    setPlayoffData(null)
     loadData(seasonId)
   }, [seasonId, loadData])
 
   const refresh = useCallback(async () => {
-    if (seasonId) await loadData(seasonId)
+    if (seasonId) {
+      await loadData(seasonId)
+      const playoffs = await fetchPlayoffData(seasonId)
+      setPlayoffData(playoffs)
+    }
   }, [seasonId, loadData])
 
   const tournament = tournaments.find((item) => item.id === tournamentId) || null
@@ -146,6 +161,20 @@ export function AnnouncementsTab({ showNotification }: AnnouncementsTabProps) {
     () => Math.max(0, ...seasons.map((item) => item.season_number)) + 1,
     [seasons]
   )
+
+  const standings = useMemo(() => {
+    if (!data) return []
+    const completedTeamIds = new Set<string>()
+    for (const pairing of data.pairings) {
+      if (pairing.status !== 'completed') continue
+      completedTeamIds.add(pairing.team_a_id)
+      completedTeamIds.add(pairing.team_b_id)
+    }
+    const rankedTeams = data.teams.filter(
+      (team) => team.status === 'active' || completedTeamIds.has(team.registration_id)
+    )
+    return computeStandings(rankedTeams, data.pairings, data.results, (data.season || season)?.win_points || 3)
+  }, [data, season])
 
   const notify = (text: string, type: 'success' | 'error' = 'success') => showNotification(text, type)
 
@@ -428,6 +457,23 @@ export function AnnouncementsTab({ showNotification }: AnnouncementsTabProps) {
           >
             <BarChart3 size={13} /> Results &amp; Standings
           </button>
+          <button
+            onClick={() => setSubTab('PLAYOFFS')}
+            className={`flex flex-1 items-center justify-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest transition ${
+              subTab === 'PLAYOFFS'
+                ? 'bg-amber-500 text-black shadow-md'
+                : playoffData
+                  ? 'text-amber-400 hover:text-amber-300'
+                  : 'text-white/50 hover:text-white'
+            }`}
+          >
+            <Trophy size={13} /> IPL Playoffs (Top 6)
+            {playoffData?.champion && (
+              <span className="ml-1 text-[8px] bg-black/40 text-amber-300 px-1.5 py-0.2 rounded uppercase font-black">
+                Won
+              </span>
+            )}
+          </button>
         </div>
       )}
 
@@ -507,7 +553,41 @@ export function AnnouncementsTab({ showNotification }: AnnouncementsTabProps) {
               busy={busy || loading}
               onRefresh={refresh}
               notify={notify}
+              onOpenPlayoffs={() => setSubTab('PLAYOFFS')}
+              playoffBracket={playoffData}
+              onPlayoffFinalized={(bracket) => setPlayoffData(bracket)}
             />
+          )}
+
+          {subTab === 'PLAYOFFS' && (
+            playoffData ? (
+              <PlayoffBracketGraph
+                bracket={playoffData}
+                standings={standings}
+                seasonName={season.name}
+                onUpdate={(updated) => setPlayoffData(updated)}
+                notify={notify}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center border border-white/10 bg-white/[0.02] p-12 text-center space-y-3">
+                <Trophy size={42} className="text-amber-500/40" />
+                <h3 className="font-display text-base font-black uppercase tracking-wider text-white">
+                  Playoffs Not Finalized Yet
+                </h3>
+                <p className="text-xs text-white/50 max-w-md leading-relaxed">
+                  Once all tournament wheel spins and round matches are complete, go to the{' '}
+                  <strong className="text-white">Results &amp; Standings</strong> tab and click the{' '}
+                  <strong className="text-amber-400">Finalize</strong> button below the Points Table to select and lock
+                  in the Top 6 teams.
+                </p>
+                <button
+                  onClick={() => setSubTab('RESULTS')}
+                  className="mt-2 inline-flex items-center gap-2 border border-amber-500/50 bg-amber-500/20 hover:bg-amber-500 hover:text-black px-4 py-2 text-[10px] font-black uppercase tracking-widest text-amber-300 transition"
+                >
+                  <BarChart3 size={13} /> View Points Table &amp; Results
+                </button>
+              </div>
+            )
           )}
         </>
       )}

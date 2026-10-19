@@ -22,6 +22,9 @@ import { fetchTournaments, fetchSiteSettingText, supabase } from '../../lib/supa
 import { fetchLeagueSeasons, fetchLeagueData, type LeagueData } from '../../lib/league-service'
 import { computeStandings } from '../../lib/league'
 import { TournamentRegisterModal } from '../tournaments/TournamentRegisterModal'
+import { fetchPlayoffData } from '../../lib/playoff-service'
+import type { PlayoffBracketData } from '../../lib/playoff-types'
+import { PlayoffBracketGraph } from '../admin/announcements/PlayoffBracketGraph'
 
 interface LiveTournamentSectionProps {
   currentUserProfile: Profile | null
@@ -37,6 +40,8 @@ export function LiveTournamentSection({
   const [seasons, setSeasons] = useState<any[]>([])
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>('')
   const [leagueData, setLeagueData] = useState<LeagueData | null>(null)
+  const [playoffData, setPlayoffData] = useState<PlayoffBracketData | null>(null)
+  const [viewMode, setViewMode] = useState<'standings' | 'playoffs'>('standings')
   const [registeredTeams, setRegisteredTeams] = useState<TournamentRegistration[]>([])
 
   const [loading, setLoading] = useState(true)
@@ -130,16 +135,21 @@ export function LiveTournamentSection({
   const loadSeasonLeagueData = useCallback(async (seasonId: string) => {
     if (!seasonId) {
       setLeagueData(null)
+      setPlayoffData(null)
       return
     }
     setRefreshing(true)
     try {
-      const res = await fetchLeagueData(seasonId)
+      const [res, playoffs] = await Promise.all([
+        fetchLeagueData(seasonId),
+        fetchPlayoffData(seasonId),
+      ])
       if (res.success && res.data) {
         setLeagueData(res.data)
       } else {
         setLeagueData(null)
       }
+      setPlayoffData(playoffs)
     } catch (err) {
       console.error('Error fetching league data:', err)
     } finally {
@@ -353,8 +363,46 @@ export function LiveTournamentSection({
         </div>
       )}
 
-      {/* 3. Live Points Table (Standings) */}
-      <div className="space-y-3">
+      {/* Playoff / Points Table View Selector */}
+      {playoffData && (
+        <div className="flex border border-white/10 bg-white/5 p-1">
+          <button
+            onClick={() => setViewMode('standings')}
+            className={`flex-1 py-2 text-xs font-black uppercase tracking-wider transition rounded ${
+              viewMode === 'standings' ? 'bg-red-600 text-white' : 'text-white/50 hover:text-white'
+            }`}
+          >
+            📊 Points Table &amp; Results
+          </button>
+          <button
+            onClick={() => setViewMode('playoffs')}
+            className={`flex-1 py-2 text-xs font-black uppercase tracking-wider transition rounded flex items-center justify-center gap-1.5 ${
+              viewMode === 'playoffs'
+                ? 'bg-amber-500 text-black shadow-md'
+                : 'text-amber-400 hover:text-amber-300'
+            }`}
+          >
+            <Trophy size={13} /> IPL Playoff Tree (Top 6)
+            {playoffData.champion && (
+              <span className="ml-1 text-[8px] bg-black/40 text-amber-300 px-1 py-0.2 rounded uppercase font-black">
+                Won
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Render Playoff Graph if in playoff view */}
+      {viewMode === 'playoffs' && playoffData ? (
+        <PlayoffBracketGraph
+          bracket={playoffData}
+          seasonName={activeSeason?.name || 'Playoffs'}
+          isReadOnly={true}
+        />
+      ) : (
+        <>
+          {/* 3. Live Points Table (Standings) */}
+          <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="eyebrow flex items-center gap-2">
             <Trophy size={14} className="text-amber-500" /> LIVE POINTS TABLE
@@ -675,6 +723,8 @@ export function LiveTournamentSection({
           </div>
         )}
       </div>
+    </>
+  )}
 
       {/* 4. Recent Live Matches Feed (if pairings exist) */}
       {recentPairings.length > 0 && (
