@@ -109,41 +109,41 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto ${
-        forceLock ? 'bg-[#050505]/95 backdrop-blur-2xl' : 'bg-black/85 backdrop-blur-md'
+      className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto neu-theme ${
+        forceLock ? 'bg-canvas/95 backdrop-blur-2xl' : 'bg-black/40 backdrop-blur-md'
       }`}
     >
       {/* Background Ambience */}
       {forceLock && (
         <>
-          <div className="absolute top-[10%] left-[20%] h-80 w-80 rounded-full bg-red-600/10 blur-[130px] pointer-events-none" />
-          <div className="absolute bottom-[10%] right-[20%] h-80 w-80 rounded-full bg-red-900/15 blur-[130px] pointer-events-none" />
+          <div className="absolute top-[10%] left-[20%] h-80 w-80 rounded-full bg-brand/10 blur-[130px] pointer-events-none" />
+          <div className="absolute bottom-[10%] right-[20%] h-80 w-80 rounded-full bg-brand-muted blur-[130px] pointer-events-none" />
         </>
       )}
 
-      <div className="relative my-auto w-full max-w-md border border-red-800/60 bg-[#0c0c0e] p-5 sm:p-7 shadow-2xl max-h-[94vh] overflow-y-auto no-scrollbar rounded-none">
+      <div className="relative my-auto w-full max-w-md modal-panel p-5 sm:p-7 max-h-[94vh] overflow-y-auto no-scrollbar">
         {!forceLock && (
           <button
             onClick={onClose}
-            className="absolute right-4 top-4 text-white/60 hover:text-white transition"
+            className="neu-circle absolute right-4 top-4 h-8 w-8 text-ink-muted hover:text-ink transition"
           >
-            <X size={20} />
+            <X size={16} />
           </button>
         )}
 
         {/* Branding Header */}
         <div className="mb-5 sm:mb-6 text-center">
-          <div className="mx-auto mb-3 h-14 w-14 sm:h-16 sm:w-16 rounded-full border-2 border-red-600/60 p-1 shadow-lg bg-black flex items-center justify-center">
+          <div className="mx-auto mb-3 h-14 w-14 sm:h-16 sm:w-16 rounded-full neu-circle p-1 shadow-md bg-canvas flex items-center justify-center">
             <img src="/logo.png" alt="ELITE Kannada" className="h-full w-full rounded-full object-cover" />
           </div>
 
-          <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-red-500 flex items-center justify-center gap-1.5">
+          <p className="text-[11px] sm:text-xs font-extrabold uppercase tracking-widest text-brand-bright flex items-center justify-center gap-1.5">
             <Shield size={13} /> {forceLock ? 'ACCESS RESTRICTED • LOGIN REQUIRED' : 'ELITE KANNADA ARENA'}
           </p>
-          <h2 className="font-display text-2xl sm:text-3xl font-black uppercase text-white tracking-tight mt-1">
-            ELITE <span className="text-metallic">ಕನ್ನಡಿಗ</span>
+          <h2 className="font-display text-2xl sm:text-3xl font-extrabold uppercase text-ink tracking-tight mt-1">
+            ELITE <span className="text-brand">ಕನ್ನಡಿಗ</span>
           </h2>
-          <p className="mt-1 text-xs text-white/60 max-w-xs mx-auto">
+          <p className="mt-1 text-xs text-ink-muted max-w-xs mx-auto">
             {forceLock
               ? 'Please log in or register your player account to enter the arena and view your User Dashboard.'
               : 'Join the premier Free Fire competitive community in Karnataka.'}
@@ -151,7 +151,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
         </div>
 
         {/* Mode Switcher Tabs */}
-        <div className="mb-5 grid grid-cols-3 border border-white/10 bg-white/5 p-1 gap-1">
+        <div className="mb-5 grid grid-cols-3 neu-tabs w-full p-1 gap-1">
           <button
             type="button"
             onClick={() => {
@@ -159,10 +159,10 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
               setErrorMsg('')
               setSuccessMsg('')
             }}
-            className={`py-2 text-[10px] sm:text-[11px] font-black tracking-wider uppercase transition ${
+            className={`py-2 text-[11px] sm:text-xs font-bold tracking-wider uppercase rounded-full transition ${
               authMode === 'register'
-                ? 'bg-red-600 text-white shadow-md'
-                : 'text-white/60 hover:text-white'
+                ? 'neu-tab-btn active text-white'
+                : 'neu-tab-btn text-ink-muted hover:text-ink'
             }`}
           >
             REGISTER
@@ -174,10 +174,10 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
               setErrorMsg('')
               setSuccessMsg('')
             }}
-            className={`py-2 text-[10px] sm:text-[11px] font-black tracking-wider uppercase transition ${
+            className={`py-2 text-[11px] sm:text-xs font-bold tracking-wider uppercase rounded-full transition ${
               authMode === 'player_login'
-                ? 'bg-red-600 text-white shadow-md'
-                : 'text-white/60 hover:text-white'
+                ? 'neu-tab-btn active text-white'
+                : 'neu-tab-btn text-ink-muted hover:text-ink'
             }`}
           >
             LOGIN (UID)
@@ -189,10 +189,10 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
               setErrorMsg('')
               setSuccessMsg('')
             }}
-            className={`py-2 text-[10px] sm:text-[11px] font-black tracking-wider uppercase transition ${
+            className={`py-2 text-[11px] sm:text-xs font-bold tracking-wider uppercase rounded-full transition ${
               authMode === 'admin_login'
-                ? 'bg-red-600 text-white shadow-md'
-                : 'text-white/60 hover:text-white'
+                ? 'neu-tab-btn active text-white'
+                : 'neu-tab-btn text-ink-muted hover:text-ink'
             }`}
           >
             ADMIN
@@ -200,13 +200,13 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
         </div>
 
         {errorMsg && (
-          <div className="mb-4 border border-red-600/40 bg-red-950/40 p-3 text-xs text-red-400">
+          <div className="mb-4 border border-brand bg-brand-muted p-3 text-xs text-brand-bright">
             {errorMsg}
           </div>
         )}
 
         {successMsg && (
-          <div className="mb-4 flex items-center gap-2 border border-emerald-500/40 bg-emerald-950/40 p-3 text-xs text-emerald-400">
+          <div className="mb-4 flex items-center gap-2 border border-line-strong bg-surface-3 p-3 text-xs text-ink">
             <CheckCircle2 size={16} />
             {successMsg}
           </div>
@@ -217,41 +217,41 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
           {authMode === 'register' && (
             <>
               <div>
-                <label className="mb-1 block text-[10px] font-bold tracking-widest text-white/60">
+                <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
                   FREE FIRE GAME UID *
                 </label>
                 <div className="relative">
-                  <Gamepad className="absolute left-3 top-3 text-white/40" size={16} />
+                  <Gamepad className="absolute left-3 top-3 text-ink-subtle" size={16} />
                   <input
                     type="text"
                     required
                     value={freeFireUid}
                     onChange={(e) => setFreeFireUid(e.target.value)}
                     placeholder="e.g. 1928374650"
-                    className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-base sm:text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
+                    className="w-full border border-line bg-surface-2 py-2.5 pl-10 pr-4 text-base sm:text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
                   />
                 </div>
-                <p className="mt-1 text-[9px] text-white/40">
+                <p className="mt-1 text-xs text-ink-subtle">
                   Your Free Fire in-game UID is used as your unique player login key.
                 </p>
               </div>
 
               <div>
-                <label className="mb-1 block text-[10px] font-bold tracking-widest text-white/60">
+                <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
                   PLAYER NAME (IGN) *
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-3 text-white/40" size={16} />
+                  <User className="absolute left-3 top-3 text-ink-subtle" size={16} />
                   <input
                     type="text"
                     required
                     value={ign}
                     onChange={(e) => setIgn(e.target.value)}
                     placeholder="e.g. ELITE_RAHUL"
-                    className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-base sm:text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
+                    className="w-full border border-line bg-surface-2 py-2.5 pl-10 pr-4 text-base sm:text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
                   />
                 </div>
-                <p className="mt-1 text-[9px] text-white/40">
+                <p className="mt-1 text-xs text-ink-subtle">
                   Your official In-Game Name as shown in Free Fire.
                 </p>
               </div>
@@ -261,21 +261,21 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
           {/* PLAYER LOGIN VIEW (UID ONLY) */}
           {authMode === 'player_login' && (
             <div>
-              <label className="mb-1 block text-[10px] font-bold tracking-widest text-white/60">
+              <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
                 ENTER YOUR FREE FIRE GAME UID *
               </label>
               <div className="relative">
-                <Gamepad className="absolute left-3 top-3 text-white/40" size={16} />
+                <Gamepad className="absolute left-3 top-3 text-ink-subtle" size={16} />
                 <input
                   type="text"
                   required
                   value={freeFireUid}
                   onChange={(e) => setFreeFireUid(e.target.value)}
                   placeholder="e.g. 1928374650"
-                  className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-base sm:text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
+                  className="w-full border border-line bg-surface-2 py-2.5 pl-10 pr-4 text-base sm:text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
                 />
               </div>
-              <p className="mt-1.5 text-[10px] text-white/40">
+              <p className="mt-1.5 text-xs text-ink-subtle">
                 Enter your registered Free Fire UID to open your User Dashboard immediately.
               </p>
             </div>
@@ -285,28 +285,28 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
           {authMode === 'admin_login' && (
             <>
               <div>
-                <label className="mb-1 block text-[10px] font-bold tracking-widest text-white/60">
+                <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
                   ADMIN EMAIL ADDRESS *
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 text-white/40" size={16} />
+                  <Mail className="absolute left-3 top-3 text-ink-subtle" size={16} />
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="admin@elitekannadiga.com"
-                    className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-base sm:text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
+                    className="w-full border border-line bg-surface-2 py-2.5 pl-10 pr-4 text-base sm:text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-[10px] font-bold tracking-widest text-white/60">
+                <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
                   PASSWORD *
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 text-white/40" size={16} />
+                  <Lock className="absolute left-3 top-3 text-ink-subtle" size={16} />
                   <input
                     type="password"
                     required
@@ -314,7 +314,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-base sm:text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
+                    className="w-full border border-line bg-surface-2 py-2.5 pl-10 pr-4 text-base sm:text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
                   />
                 </div>
               </div>
@@ -324,7 +324,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
           <button
             type="submit"
             disabled={loading}
-            className="mt-6 w-full bg-red-600 py-3.5 font-display text-xs font-black tracking-widest text-white transition hover:bg-red-500 disabled:opacity-50 uppercase shadow-lg shadow-red-900/40"
+            className="mt-6 w-full bg-brand py-3.5 font-display text-xs font-extrabold tracking-widest text-ink transition hover:bg-brand disabled:opacity-50 uppercase shadow-lg shadow-brand/20"
           >
             {loading
               ? 'VERIFYING CREDENTIALS...'
@@ -336,7 +336,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
           </button>
         </form>
 
-        <div className="mt-5 border-t border-white/10 pt-4 text-center">
+        <div className="mt-5 border-t border-line-subtle pt-4 text-center">
           {authMode === 'register' ? (
             <button
               type="button"
@@ -345,9 +345,9 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
                 setErrorMsg('')
                 setSuccessMsg('')
               }}
-              className="text-xs font-bold tracking-wider text-white/60 hover:text-red-400 transition"
+              className="text-xs font-bold tracking-wider text-ink-muted hover:text-brand-bright transition"
             >
-              ALREADY REGISTERED? <span className="text-red-500 underline">LOGIN WITH UID</span>
+              ALREADY REGISTERED? <span className="text-brand-bright underline">LOGIN WITH UID</span>
             </button>
           ) : authMode === 'player_login' ? (
             <button
@@ -357,9 +357,9 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
                 setErrorMsg('')
                 setSuccessMsg('')
               }}
-              className="text-xs font-bold tracking-wider text-white/60 hover:text-red-400 transition"
+              className="text-xs font-bold tracking-wider text-ink-muted hover:text-brand-bright transition"
             >
-              NEW PLAYER? <span className="text-red-500 underline">CREATE PLAYER ACCOUNT</span>
+              NEW PLAYER? <span className="text-brand-bright underline">CREATE PLAYER ACCOUNT</span>
             </button>
           ) : (
             <button
@@ -369,9 +369,9 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
                 setErrorMsg('')
                 setSuccessMsg('')
               }}
-              className="text-xs font-bold tracking-wider text-white/60 hover:text-red-400 transition"
+              className="text-xs font-bold tracking-wider text-ink-muted hover:text-brand-bright transition"
             >
-              RETURN TO <span className="text-red-500 underline">PLAYER LOGIN</span>
+              RETURN TO <span className="text-brand-bright underline">PLAYER LOGIN</span>
             </button>
           )}
         </div>

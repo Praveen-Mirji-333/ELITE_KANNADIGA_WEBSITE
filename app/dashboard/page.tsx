@@ -1,13 +1,42 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { User, LogIn, Sparkles } from 'lucide-react'
-import { Navbar } from '../../components/Navbar'
-import { Footer } from '../../components/Footer'
+import {
+  ArrowRight,
+  BarChart3,
+  LogIn,
+  Shield,
+  Sparkles,
+  Trophy,
+  User,
+} from 'lucide-react'
+import { SitePage } from '../../components/layout/SitePage'
+import { PageHeader } from '../../components/layout/PageHeader'
 import { PlayerDashboard } from '../../components/dashboard/PlayerDashboard'
 import { getUserProfile } from '../../lib/supabase'
 import type { Profile } from '../../lib/types'
+
+const quickLinks = [
+  {
+    label: 'Browse tournaments',
+    description: 'Register your squad for the next event.',
+    href: '/tournaments',
+    icon: Trophy,
+  },
+  {
+    label: 'Community leaderboard',
+    description: 'See where you rank across the state.',
+    href: '/leaderboard',
+    icon: BarChart3,
+  },
+  {
+    label: 'Achievements',
+    description: 'Review unlocked badges and XP rewards.',
+    href: '/achievements',
+    icon: Shield,
+  },
+]
 
 export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -16,8 +45,7 @@ export default function DashboardPage() {
 
   async function loadUser() {
     try {
-      const prof = await getUserProfile()
-      setProfile(prof)
+      setProfile(await getUserProfile())
     } finally {
       setLoading(false)
     }
@@ -29,78 +57,137 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#050505] text-[#f5f5f5] flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <p className="font-display text-sm uppercase tracking-widest text-amber-400 animate-pulse">
-            LOADING ARENA DASHBOARD...
-          </p>
+      <SitePage>
+        <div className="site-container flex min-h-[60vh] items-center justify-center py-24">
+          <div className="w-full max-w-sm space-y-3">
+            <div className="h-4 w-28 animate-pulse rounded bg-surface-2" />
+            <div className="h-10 w-3/4 animate-pulse rounded bg-surface-2" />
+            <div className="h-4 w-1/2 animate-pulse rounded bg-surface-2" />
+          </div>
         </div>
-      </main>
+      </SitePage>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <SitePage>
+        <div className="site-container flex min-h-[65vh] flex-col items-center justify-center py-24 text-center">
+          <div className="card max-w-md p-8">
+            <span className="mx-auto grid h-12 w-12 place-items-center rounded-lg border border-line bg-surface-2 text-ink-subtle">
+              <User size={22} />
+            </span>
+            <h1 className="mt-4 text-2xl font-bold tracking-tight text-ink">
+              Player login required
+            </h1>
+            <p className="mt-2 text-sm text-ink-muted">
+              Sign in with your Free Fire IGN or UID to open your player dashboard,
+              manage registrations, and follow live standings.
+            </p>
+            <div className="mt-6 flex flex-col gap-2">
+              <Link href="/login" className="btn-primary w-full">
+                <LogIn size={15} />
+                Sign in / Register
+              </Link>
+              <Link href="/" className="btn-secondary w-full">
+                Return home
+              </Link>
+            </div>
+          </div>
+        </div>
+      </SitePage>
     )
   }
 
   return (
-    <main className="min-h-screen bg-[#050505] text-[#f5f5f5]">
-      <div className="noise" />
-      <Navbar />
+    <SitePage>
+      <div className="site-container pb-20 pt-16 sm:pt-20 lg:pb-28">
+        <PageHeader
+          kicker="Player HQ"
+          title={
+            <>
+              {profile.ign || profile.username}
+              <span className="text-brand-bright">’s dashboard</span>
+            </>
+          }
+          description="Manage your tournament registrations, review your profile, and keep track of everything happening in the arena."
+          meta={
+            <>
+              <span className="badge badge-brand">
+                <Sparkles size={12} />
+                {profile.role === 'admin' ? 'Administrator' : 'Elite player'}
+              </span>
+              {profile.level && <span className="badge">Level {profile.level}</span>}
+            </>
+          }
+          actions={
+            <button
+              type="button"
+              onClick={() => setDashboardOpen(true)}
+              className="btn-primary"
+            >
+              Open dashboard
+              <ArrowRight size={15} />
+            </button>
+          }
+        />
 
-      {!profile ? (
-        <div className="site-container pt-32 pb-24 flex flex-col items-center justify-center text-center">
-          <div className="border border-red-900/60 bg-gradient-to-b from-red-950/40 to-black p-8 sm:p-12 max-w-md w-full shadow-2xl">
-            <User className="mx-auto text-red-500 mb-4" size={48} />
-            <h1 className="font-display text-2xl font-black uppercase text-white tracking-tight">
-              PLAYER LOGIN REQUIRED
-            </h1>
-            <p className="mt-2 text-xs text-white/60 leading-relaxed">
-              Sign in with your Free Fire IGN / UID to access your player dashboard, manage registrations, and view the live tournament points table.
-            </p>
-            <div className="mt-6 flex flex-col gap-2">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {quickLinks.map((link) => {
+            const Icon = link.icon
+            return (
               <Link
-                href="/login"
-                className="bg-red-600 hover:bg-red-500 px-6 py-3 text-xs font-black uppercase tracking-widest text-white transition flex items-center justify-center gap-2"
+                key={link.href}
+                href={link.href}
+                className="card card-hover group flex flex-col p-5"
               >
-                <LogIn size={15} /> Sign In / Register
+                <span className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface-2 text-brand-bright">
+                  <Icon size={19} />
+                </span>
+                <h2 className="mt-4 text-sm font-semibold text-ink">
+                  {link.label}
+                </h2>
+                <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+                  {link.description}
+                </p>
+                <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-ink-subtle transition-colors group-hover:text-brand-bright">
+                  Open
+                  <ArrowRight size={13} />
+                </span>
               </Link>
-              <Link
-                href="/"
-                className="border border-white/10 hover:border-white/30 px-6 py-2.5 text-xs font-bold text-white/50 hover:text-white transition"
-              >
-                Return to Home
-              </Link>
+            )
+          })}
+        </div>
+
+        <div className="card mt-8 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-ink">
+                Your full player dashboard is open
+              </p>
+              <p className="mt-1 text-xs text-ink-subtle">
+                Edit your profile, review registrations, and manage your teams in
+                the dashboard window.
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setDashboardOpen(true)}
+              className="btn-secondary btn-sm shrink-0"
+            >
+              <User size={14} />
+              Open profile
+            </button>
           </div>
         </div>
-      ) : (
-        <>
-          <div className="site-container pt-28 pb-12">
-            <div className="flex items-center justify-between border-b border-white/10 pb-6">
-              <div>
-                <p className="eyebrow flex items-center gap-2 mb-1">
-                  <Sparkles size={12} className="text-amber-400" /> ELITE WARRIOR HQ
-                </p>
-                <h1 className="font-display text-2xl sm:text-4xl font-black uppercase text-white">
-                  {profile.ign}’S ARENA DASHBOARD
-                </h1>
-              </div>
-              <button
-                onClick={() => setDashboardOpen(true)}
-                className="bg-red-600 hover:bg-red-500 px-4 py-2 text-xs font-black uppercase tracking-wider text-white transition"
-              >
-                Open Dashboard Modal
-              </button>
-            </div>
-          </div>
 
-          <PlayerDashboard
-            isOpen={dashboardOpen}
-            onClose={() => setDashboardOpen(false)}
-            profile={profile}
-            onProfileUpdated={loadUser}
-          />
-        </>
-      )}
-
-      <Footer />
-    </main>
+        <PlayerDashboard
+          isOpen={dashboardOpen}
+          onClose={() => setDashboardOpen(false)}
+          profile={profile}
+          onProfileUpdated={loadUser}
+        />
+      </div>
+    </SitePage>
   )
 }

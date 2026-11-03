@@ -1,62 +1,80 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Navbar } from '../../components/Navbar'
-import { Footer } from '../../components/Footer'
-import { Trophy, Search, ChevronRight, Flame, Crosshair, Zap } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import {
+  ArrowRight,
+  ChevronRight,
+  Crosshair,
+  Flame,
+  Search,
+  Trophy,
+  X,
+  Zap,
+} from 'lucide-react'
+import { SitePage } from '../../components/layout/SitePage'
+import { PageHeader } from '../../components/layout/PageHeader'
 import {
   fetchRankings,
-  LeaderboardPlayer,
   fetchPlayerHonors,
-  PlayerHonor,
+  type LeaderboardPlayer,
+  type PlayerHonor,
 } from '../../lib/supabase'
 import { UserAvatar } from '../../components/ui/UserAvatar'
 
-function renderTierBadge(tier?: string, rank?: string) {
-  if (rank === '01' || tier === 'ELITE MASTER') {
-    return (
-      <span className="shrink-0 inline-flex items-center gap-1 rounded bg-gradient-to-r from-red-600 via-amber-500 to-red-600 px-1.5 sm:px-2.5 py-0.5 text-[8px] sm:text-[10px] font-black uppercase text-white shadow-[0_0_12px_rgba(239,68,68,0.6)] animate-pulse tracking-wider">
-        👑 ELITE MASTER
-      </span>
-    )
-  }
-  if (rank === '02' || tier === 'ELITE HEROIC') {
-    return (
-      <span className="shrink-0 inline-flex items-center gap-1 rounded bg-gradient-to-r from-red-700 to-rose-900 border border-red-500/60 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[9px] font-black uppercase text-red-200 shadow-[0_0_8px_rgba(225,6,0,0.4)] tracking-wider">
-        ⚡ ELITE HEROIC
-      </span>
-    )
-  }
-  if (rank === '03' || tier === 'PLATINUM') {
-    return (
-      <span className="shrink-0 inline-flex items-center gap-1 rounded bg-gradient-to-r from-cyan-800 to-blue-900 border border-cyan-400/50 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[9px] font-black uppercase text-cyan-200 tracking-wider">
-        💎 PLATINUM
-      </span>
-    )
-  }
-  if (rank === '04' || tier === 'GOLD') {
-    return (
-      <span className="shrink-0 inline-flex items-center gap-1 rounded bg-gradient-to-r from-amber-700 to-yellow-900 border border-amber-400/50 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[9px] font-black uppercase text-amber-200 tracking-wider">
-        🥇 GOLD
-      </span>
-    )
-  }
-  if (rank === '05' || tier === 'SILVER') {
-    return (
-      <span className="shrink-0 inline-flex items-center gap-1 rounded bg-gradient-to-r from-slate-700 to-neutral-800 border border-slate-400/50 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[9px] font-black uppercase text-slate-200 tracking-wider">
-        🥈 SILVER
-      </span>
-    )
-  }
+type LeaderboardTab = 'LOGIN STREAK' | 'GUN GODS' | 'MOVEMENT GODS'
+
+const tabs: { name: LeaderboardTab; short: string; icon: typeof Flame }[] = [
+  { name: 'LOGIN STREAK', short: 'Streak', icon: Flame },
+  { name: 'GUN GODS', short: 'Gun Gods', icon: Crosshair },
+  { name: 'MOVEMENT GODS', short: 'Movement', icon: Zap },
+]
+
+function TierBadge({ tier, rank }: { tier?: string; rank?: string }) {
+  const label =
+    rank === '01' || tier === 'ELITE MASTER'
+      ? 'Elite Master'
+      : rank === '02' || tier === 'ELITE HEROIC'
+        ? 'Elite Heroic'
+        : rank === '03' || tier === 'PLATINUM'
+          ? 'Platinum'
+          : rank === '04' || tier === 'GOLD'
+            ? 'Gold'
+            : rank === '05' || tier === 'SILVER'
+              ? 'Silver'
+              : 'Bronze'
+
+  const isTop = label === 'Elite Master'
+  const isSecond = label === 'Elite Heroic'
+
   return (
-    <span className="shrink-0 inline-flex items-center gap-1 rounded bg-white/5 border border-white/10 px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[9px] font-bold uppercase text-white/50 tracking-wider">
-      🥉 BRONZE
+    <span
+      className={`badge ${
+        isTop
+          ? 'badge-brand'
+          : isSecond
+            ? 'border-brand-border bg-brand-muted text-brand-bright'
+            : ''
+      }`}
+    >
+      {label}
     </span>
   )
 }
 
+function EmptyChampion({ label }: { label: string }) {
+  return (
+    <div className="card flex min-h-[280px] flex-col items-center justify-center p-6 text-center">
+      <span className="grid h-12 w-12 place-items-center rounded-lg border border-line bg-surface-2 text-ink-subtle">
+        <Trophy size={22} />
+      </span>
+      <p className="mt-4 text-sm font-semibold text-ink">No champion yet</p>
+      <p className="mt-1 max-w-xs text-xs text-ink-subtle">{label}</p>
+    </div>
+  )
+}
+
 export default function LeaderboardPage() {
-  const [activeTab, setActiveTab] = useState<'LOGIN STREAK' | 'GUN GODS' | 'MOVEMENT GODS'>('LOGIN STREAK')
+  const [activeTab, setActiveTab] = useState<LeaderboardTab>('LOGIN STREAK')
   const [rankings, setRankings] = useState<LeaderboardPlayer[]>([])
   const [honors, setHonors] = useState<PlayerHonor[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -64,363 +82,466 @@ export default function LeaderboardPage() {
   useEffect(() => {
     async function load() {
       if (activeTab === 'LOGIN STREAK') {
-        const data = await fetchRankings()
-        console.log('[LeaderboardPage] fetchRankings result:', data?.map(p => ({ name: p.name, avatar_url: p.avatar_url })))
-        setRankings(data)
+        setRankings(await fetchRankings())
       } else if (activeTab === 'GUN GODS') {
-        const data = await fetchPlayerHonors('gun_gods')
-        setHonors(data)
-      } else if (activeTab === 'MOVEMENT GODS') {
-        const data = await fetchPlayerHonors('movement_gods')
-        setHonors(data)
+        setHonors(await fetchPlayerHonors('gun_gods'))
+      } else {
+        setHonors(await fetchPlayerHonors('movement_gods'))
       }
     }
     load()
   }, [activeTab])
 
-  // Filter Rankings for Login Streak tab
+  const query = searchQuery.trim().toLowerCase()
+
   const filteredRankings = rankings.filter((player) => {
-    if (!searchQuery) return true
-    const q = searchQuery.toLowerCase()
+    if (!query) return true
     return (
-      player.name.toLowerCase().includes(q) ||
-      player.uid.toLowerCase().includes(q) ||
-      player.guild.toLowerCase().includes(q)
+      player.name.toLowerCase().includes(query) ||
+      player.uid.toLowerCase().includes(query) ||
+      player.guild.toLowerCase().includes(query)
     )
   })
 
-  // Filter Honors for Gun Gods or Movement Gods tab
-  const filteredHonors = honors.filter((h) => {
-    if (!searchQuery) return true
-    const q = searchQuery.toLowerCase()
+  const filteredHonors = honors.filter((honor) => {
+    if (!query) return true
     return (
-      h.player_name.toLowerCase().includes(q) ||
-      h.player_uid.toLowerCase().includes(q) ||
-      h.title_name.toLowerCase().includes(q) ||
-      (h.description || '').toLowerCase().includes(q)
+      honor.player_name.toLowerCase().includes(query) ||
+      honor.player_uid.toLowerCase().includes(query) ||
+      honor.title_name.toLowerCase().includes(query) ||
+      (honor.description || '').toLowerCase().includes(query)
     )
   })
 
-  const streakChampion = filteredRankings[0] || {
-    rank: '01',
-    name: 'ELITE_RAHUL',
-    uid: '1928374650',
-    guild: 'ELITE ARMY',
-    logins: 48,
-    xp: 24920,
-    level: 42,
-    tier: 'ELITE MASTER',
-  }
+  const streakChampion = filteredRankings[0] || null
+  const honorChampion = filteredHonors[0] || null
+  const totalPlayers =
+    activeTab === 'LOGIN STREAK' ? rankings.length : honors.length
 
-  const honorChampion = filteredHonors[0] || {
-    rank: '01',
-    player_name: 'ELITE_RAHUL',
-    player_uid: '1928374650',
-    title_name: activeTab === 'GUN GODS' ? 'M1887 One-Tap King' : '360 Gloo Wall Fast Dash',
-    description: activeTab === 'GUN GODS' ? 'Dominates 1v1 custom rooms with devastating close-range headshot accuracy.' : 'Lightning fast gloo wall placement and unpredictable zig-zag rush movements.',
-    tier: 'ELITE MASTER',
-  }
+  const description =
+    activeTab === 'LOGIN STREAK'
+      ? 'Maintain active login streaks and continuous visits to climb the community rankings.'
+      : activeTab === 'GUN GODS'
+        ? 'Official Gun Gods rankings for players with lethal weapon mastery and elite gunplay.'
+        : 'Official Movement Gods rankings for players with elite speed, reflexes, and gloo-wall control.'
 
   return (
-    <main className="min-h-screen bg-[#050505] text-[#f5f5f5]">
-      <div className="noise" />
-      <Navbar />
+    <SitePage>
+      <div className="site-container pb-20 pt-16 sm:pt-20 lg:pb-28">
+        <PageHeader
+          kicker="Elite standings"
+          title={
+            <>
+              Community <span className="text-brand-bright">leaderboard</span>
+            </>
+          }
+          description={description}
+          meta={
+            <>
+              <span className="badge">{totalPlayers} ranked players</span>
+              <span className="badge">Updated live</span>
+            </>
+          }
+        />
 
-      <div className="site-container pt-24 sm:pt-32 pb-20 sm:pb-28">
-        {/* Page Header */}
-        <div className="mb-8 sm:mb-12 border-b border-white/10 pb-6 sm:pb-8">
-          <p className="eyebrow mb-2 sm:mb-3 flex items-center gap-3">
-            <span className="h-px w-8 bg-red-600" /> ELITE STANDINGS ({activeTab === 'LOGIN STREAK' ? rankings.length : honors.length} PLAYERS)
-          </p>
-          <h1 className="font-display text-3xl font-black uppercase text-white sm:text-5xl lg:text-6xl 2xl:text-7xl tracking-tight">
-            COMMUNITY <span className="text-metallic">LEADERBOARD</span>
-          </h1>
-          <p className="mt-3 sm:mt-4 max-w-2xl text-xs leading-relaxed text-white/60 sm:text-sm 2xl:text-base">
-            {activeTab === 'LOGIN STREAK'
-              ? 'Maintain active login streaks and continuous website visits to dominate the top rankings.'
-              : activeTab === 'GUN GODS'
-              ? 'Official Gun Gods rankings recognizing players with lethal weapon mastery and supreme gunplay skills.'
-              : 'Official Movement Gods rankings honoring players with supreme speed, reflex dodges, and gloo wall mastery.'}
-          </p>
-        </div>
-
-        {/* Tab & Search Controls */}
-        <div className="mb-6 sm:mb-8 flex flex-col items-stretch justify-between gap-3 sm:gap-4 md:flex-row md:items-center">
-          <div className="flex overflow-x-auto no-scrollbar gap-2 border-b border-white/10 pb-3 md:border-b-0 -mx-4 px-4 sm:mx-0 sm:px-0">
-            {(['LOGIN STREAK', 'GUN GODS', 'MOVEMENT GODS'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => {
-                  setActiveTab(tab)
-                  setSearchQuery('')
-                }}
-                className={`shrink-0 whitespace-nowrap px-3.5 sm:px-5 py-2.5 sm:py-3 text-[11px] sm:text-xs font-black tracking-wider sm:tracking-widest transition flex items-center gap-2 ${
-                  activeTab === tab
-                    ? 'bg-red-600 text-white shadow-lg'
-                    : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                {tab === 'LOGIN STREAK' && <Flame size={14} className={activeTab === tab ? 'fill-white' : 'text-red-500'} />}
-                {tab === 'GUN GODS' && <Crosshair size={14} className="text-amber-400" />}
-                {tab === 'MOVEMENT GODS' && <Zap size={14} className="text-cyan-400" />}
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative w-full md:w-72 lg:w-80 shrink-0">
-            <Search className="absolute left-3.5 top-3 text-white/40" size={15} />
-            <input
-              type="text"
-              placeholder="SEARCH PLAYER OR UID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full border border-white/15 bg-white/5 py-2 sm:py-2.5 pl-10 pr-4 text-xs text-white placeholder-white/40 focus:border-red-500 focus:outline-none"
-            />
-          </div>
-        </div>
-
-        {/* SECTION 1: LOGIN STREAK LEADERBOARD */}
-        {activeTab === 'LOGIN STREAK' && (
-          <div className="grid gap-6 lg:grid-cols-[.9fr_1.1fr] 2xl:grid-cols-[1fr_1.3fr]">
-            {/* Champion Highlight (#1 Ranked Player by Logins) */}
-            <div className="rank-feature angular-panel relative overflow-hidden p-5 sm:p-8 border border-red-600/40 bg-gradient-to-br from-red-950/40 via-black to-black flex flex-col justify-between">
-              <div className="absolute -right-12 -top-12 h-56 w-56 rounded-full border border-red-600/20 pointer-events-none" />
-              <div>
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <p className="eyebrow text-red-500">RANK #1 ARENA CHAMPION</p>
-                  {renderTierBadge(streakChampion.tier, streakChampion.rank)}
-                </div>
-
-                <div className="mt-6 sm:mt-8 flex items-center gap-4 sm:gap-6">
-                  <UserAvatar
-                    src={streakChampion.avatar_url}
-                    name={streakChampion.name}
-                    size="xl"
-                    className="border-2 border-red-500 shadow-[0_0_20px_rgba(225,6,0,0.6)] shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <h3 className="font-display text-2xl sm:text-3xl 2xl:text-4xl font-black text-white truncate">
-                      {streakChampion.name}
-                    </h3>
-                    <p className="mt-1 font-mono text-xs font-bold tracking-widest text-amber-400">
-                      UID: {streakChampion.uid}
-                    </p>
-                    <p className="mt-0.5 text-[10px] font-bold tracking-widest text-white/40 truncate">
-                      {streakChampion.guild} / LVL {streakChampion.level}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-8 sm:mt-12 grid grid-cols-2 gap-3 sm:gap-4 border-t border-white/10 pt-5 sm:pt-6">
-                <div>
-                  <p className="label text-[10px] sm:text-xs text-amber-400">TOTAL LOGINS</p>
-                  <p className="font-display text-xl sm:text-2xl 2xl:text-3xl font-black text-white flex items-center gap-1.5 sm:gap-2">
-                    <Flame className="text-red-500 inline shrink-0" size={20} />
-                    {streakChampion.logins} Times
-                  </p>
-                </div>
-                <div>
-                  <p className="label text-[10px] sm:text-xs">TOTAL XP</p>
-                  <p className="font-display text-xl sm:text-2xl 2xl:text-3xl font-black text-metallic truncate">
-                    {streakChampion.xp.toLocaleString()} XP
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Leaderboard Table List (Shows ALL database registrations) */}
-            <div className="angular-panel divide-y divide-white/10 max-h-[640px] sm:max-h-[720px] 2xl:max-h-[820px] overflow-y-auto">
-              {filteredRankings.map((player) => (
-                <div
-                  key={player.rank + player.id + player.uid}
-                  className={`flex items-center gap-2.5 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 transition hover:bg-white/5 ${
-                    player.rank === '01' ? 'bg-red-950/20 border-l-2 border-red-500' : ''
+        {/* Tabs + search */}
+        <div className="surface mb-6 flex flex-col gap-2 p-2 md:flex-row md:items-center md:justify-between">
+          <div
+            className="grid min-w-0 grid-cols-3 gap-1 sm:flex sm:gap-1"
+            role="tablist"
+          >
+            {tabs.map((tab) => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.name
+              return (
+                <button
+                  key={tab.name}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => {
+                    setActiveTab(tab.name)
+                    setSearchQuery('')
+                  }}
+                  className={`flex min-h-9 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-bold tracking-[0.05em] uppercase transition-all sm:shrink-0 sm:justify-start sm:gap-2 sm:px-3.5 ${
+                    isActive
+                      ? 'neu-btn-crimson !min-h-9 !py-0 text-white'
+                      : 'neu-btn-dark !min-h-9 !py-0 text-ink-muted hover:text-ink'
                   }`}
                 >
-                  <span
-                    className={`font-display w-6 sm:w-8 text-base sm:text-xl font-black text-center shrink-0 ${
-                      player.rank === '01'
-                        ? 'text-red-500'
-                        : player.rank === '02'
-                        ? 'text-amber-400'
-                        : player.rank === '03'
-                        ? 'text-cyan-400'
-                        : player.rank === '04'
-                        ? 'text-yellow-400'
-                        : player.rank === '05'
-                        ? 'text-slate-300'
-                        : 'text-white/40'
-                    }`}
-                  >
-                    {player.rank}
-                  </span>
-
-                  <div className="shrink-0">
-                    <UserAvatar
-                      src={player.avatar_url}
-                      name={player.name}
-                      size="md"
-                      className="border border-white/20 h-9 w-9 sm:h-11 sm:w-11"
-                    />
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                      <p className="truncate text-xs sm:text-sm font-black text-white">{player.name}</p>
-                      {renderTierBadge(player.tier, player.rank)}
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-3 mt-0.5 sm:mt-1 flex-wrap">
-                      <span className="font-mono text-[9px] sm:text-[10px] text-amber-400">
-                        UID: {player.uid}
-                      </span>
-                      <span className="text-[10px] font-bold text-white/30 hidden xs:inline">•</span>
-                      <span className="truncate text-[9px] sm:text-[10px] font-bold tracking-widest text-white/40 max-w-[120px] sm:max-w-none">
-                        {player.guild}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <p className="font-display text-xs sm:text-sm font-bold text-amber-400 flex items-center justify-end gap-1">
-                      <Flame size={12} className="text-red-500 fill-red-500 shrink-0" />
-                      <span>{player.logins}</span>
-                      <span className="hidden sm:inline">Logins</span>
-                    </p>
-                    <p className="text-[9px] sm:text-[10px] font-bold text-white/50">
-                      {player.xp.toLocaleString()} XP
-                    </p>
-                  </div>
-
-                  <ChevronRight size={15} className="text-white/20 shrink-0 hidden sm:block" />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* SECTION 2 & 3: GUN GODS AND MOVEMENT GODS LEADERBOARD */}
-        {(activeTab === 'GUN GODS' || activeTab === 'MOVEMENT GODS') && (
-          <div className="grid gap-6 lg:grid-cols-[.9fr_1.1fr] 2xl:grid-cols-[1fr_1.3fr]">
-            {/* Champion Highlight for Gun/Movement Gods */}
-            <div className="rank-feature angular-panel relative overflow-hidden p-5 sm:p-8 border border-amber-600/40 bg-gradient-to-br from-amber-950/30 via-black to-black flex flex-col justify-between">
-              <div className="absolute -right-12 -top-12 h-56 w-56 rounded-full border border-amber-600/20 pointer-events-none" />
-              <div>
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <p className="eyebrow text-amber-400">
-                    {activeTab === 'GUN GODS' ? 'RANK #1 GUN GOD' : 'RANK #1 MOVEMENT GOD'}
-                  </p>
-                  {renderTierBadge(honorChampion.tier, honorChampion.rank || '01')}
-                </div>
-
-                <div className="mt-6 sm:mt-8 flex items-center gap-4 sm:gap-6">
-                  <UserAvatar
-                    src={honorChampion.avatar_url}
-                    name={honorChampion.player_name}
-                    size="xl"
-                    className="border-2 border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.6)] shrink-0"
+                  <Icon
+                    size={14}
+                    className={`hidden shrink-0 sm:block ${isActive ? 'text-white' : 'text-ink-subtle'}`}
                   />
-                  <div className="min-w-0">
-                    <h3 className="font-display text-2xl sm:text-3xl 2xl:text-4xl font-black text-white truncate">
-                      {honorChampion.player_name}
-                    </h3>
-                    <p className="mt-1 font-mono text-xs font-bold tracking-widest text-amber-400">
-                      UID: {honorChampion.player_uid}
-                    </p>
+                  <span className="truncate text-[12px] sm:hidden">{tab.short}</span>
+                  <span className="hidden sm:inline">{tab.name}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="relative w-full shrink-0 md:max-w-xs">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle"
+              size={16}
+            />
+            <input
+              type="text"
+              placeholder="Search player or UID..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="field h-10 pl-9 pr-9 text-sm"
+              aria-label="Search players"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded text-ink-subtle transition-colors hover:bg-surface-2 hover:text-ink"
+                aria-label="Clear search"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="grid items-start gap-5 lg:grid-cols-[0.85fr_1.15fr] 2xl:grid-cols-[0.8fr_1.2fr]">
+          {activeTab === 'LOGIN STREAK' ? (
+            <>
+              {streakChampion ? (
+                <div className="space-y-5 self-start lg:sticky lg:top-24">
+                  <div className="card relative overflow-hidden p-5 sm:p-6 lg:p-7">
+                  <div
+                    className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-brand/10 blur-3xl"
+                    aria-hidden="true"
+                  />
+                  <div className="relative">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="badge badge-brand">
+                        <Trophy size={12} />
+                        Rank #1
+                      </span>
+                      <TierBadge tier={streakChampion.tier} rank={streakChampion.rank} />
+                    </div>
+
+                    <div className="mt-6 flex items-center gap-4">
+                      <UserAvatar
+                        src={streakChampion.avatar_url}
+                        name={streakChampion.name}
+                        size="xl"
+                        className="h-16 w-16 shrink-0 border-2 border-brand-border"
+                      />
+                      <div className="min-w-0">
+                        <h2 className="truncate text-2xl font-bold tracking-tight text-ink">
+                          {streakChampion.name}
+                        </h2>
+                        <p className="mt-1 truncate font-mono text-xs text-brand-bright">
+                          UID: {streakChampion.uid}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-ink-subtle">
+                          {streakChampion.guild} · Level {streakChampion.level}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-7 grid grid-cols-2 gap-4 border-t border-line-subtle pt-5">
+                      <div>
+                        <p className="label">Total logins</p>
+                        <p className="mt-1 flex items-center gap-1.5 text-xl font-bold tracking-tight text-ink">
+                          <Flame size={17} className="text-brand-bright" />
+                          {streakChampion.logins}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="label">Total XP</p>
+                        <p className="mt-1 text-xl font-bold tracking-tight text-ink">
+                          {streakChampion.xp.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                  </div>
 
-              <div className="mt-8 sm:mt-10 border-t border-white/10 pt-5 sm:pt-6">
-                <p className="label text-[10px] sm:text-xs text-amber-400 mb-1">
-                  {activeTab === 'GUN GODS' ? 'GUN SPECIALTY / TITLE' : 'MOVEMENT STYLE / TITLE'}
-                </p>
-                <h4 className="font-display text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-                  {activeTab === 'GUN GODS' ? (
-                    <Crosshair className="text-amber-400 inline shrink-0" size={20} />
-                  ) : (
-                    <Zap className="text-cyan-400 inline shrink-0" size={20} />
-                  )}
-                  <span className="truncate">{honorChampion.title_name}</span>
-                </h4>
-                <p className="mt-2.5 sm:mt-3 text-xs leading-relaxed text-white/70 italic bg-white/5 border border-white/10 p-3 sm:p-3.5 rounded">
-                  "{honorChampion.description}"
-                </p>
-              </div>
-            </div>
-
-            {/* List of Gun Gods / Movement Gods */}
-            <div className="angular-panel divide-y divide-white/10 max-h-[640px] sm:max-h-[720px] 2xl:max-h-[820px] overflow-y-auto">
-              {filteredHonors.length === 0 ? (
-                <div className="p-8 sm:p-12 text-center text-xs sm:text-sm text-white/40">
-                  No {activeTab} awarded yet. Admin can assign titles by searching Player UIDs in Control Center.
+                  <div className="card p-5">
+                    <p className="label">How streaks work</p>
+                    <ul className="mt-3 space-y-2.5 text-xs leading-relaxed text-ink-muted">
+                      <li className="flex gap-2.5">
+                        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-brand bg-brand-muted text-[10px] font-bold text-brand-bright">
+                          1
+                        </span>
+                        Visit the arena each day to keep your login streak active.
+                      </li>
+                      <li className="flex gap-2.5">
+                        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-line bg-surface-2 text-[10px] font-bold text-ink-subtle">
+                          2
+                        </span>
+                        Compete in verified tournaments and earn XP along the way.
+                      </li>
+                      <li className="flex gap-2.5">
+                        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-line bg-surface-2 text-[10px] font-bold text-ink-subtle">
+                          3
+                        </span>
+                        The longest active streak holds the top community ranking.
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               ) : (
-                filteredHonors.map((h, idx) => {
-                  const rankStr = h.rank || String(idx + 1).padStart(2, '0')
-                  return (
-                    <div
-                      key={h.id || h.player_uid + idx}
-                      className={`flex items-start gap-2.5 sm:gap-4 px-3 sm:px-6 py-3.5 sm:py-4.5 transition hover:bg-white/5 ${
-                        rankStr === '01' ? 'bg-amber-950/20 border-l-2 border-amber-500' : ''
-                      }`}
-                    >
-                      <span
-                        className={`font-display w-6 sm:w-8 text-base sm:text-xl font-black mt-1 text-center shrink-0 ${
-                          rankStr === '01'
-                            ? 'text-amber-400'
-                            : rankStr === '02'
-                            ? 'text-red-500'
-                            : rankStr === '03'
-                            ? 'text-cyan-400'
-                            : rankStr === '04'
-                            ? 'text-yellow-400'
-                            : 'text-slate-300'
+                <EmptyChampion label="Login streak data will appear when players start visiting." />
+              )}
+
+              <div className="card overflow-hidden">
+                <div className="flex items-center justify-between border-b border-line px-4 py-3 sm:px-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink-subtle">
+                    Login streak rankings
+                  </p>
+                  <span className="text-xs text-ink-subtle">{filteredRankings.length}</span>
+                </div>
+
+                {filteredRankings.length === 0 ? (
+                  <div className="px-5 py-12 text-center">
+                    <p className="text-sm font-medium text-ink">No players found</p>
+                    <p className="mt-1 text-xs text-ink-subtle">
+                      Try a different name, UID, or guild.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="max-h-[640px] divide-y divide-line-subtle overflow-y-auto">
+                    {filteredRankings.map((player) => (
+                      <div
+                        key={`${player.rank}-${player.id}-${player.uid}`}
+                        className={`flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-surface-2 sm:px-5 ${
+                          player.rank === '01' ? 'bg-brand-muted' : ''
                         }`}
                       >
-                        {rankStr}
-                      </span>
-
-                      <div className="shrink-0 mt-0.5">
+                        <span
+                          className={`w-7 shrink-0 text-center text-sm font-bold tabular-nums ${
+                            player.rank === '01' ? 'text-brand-bright' : 'text-ink-subtle'
+                          }`}
+                        >
+                          {player.rank}
+                        </span>
                         <UserAvatar
-                          src={h.avatar_url}
-                          name={h.player_name}
+                          src={player.avatar_url}
+                          name={player.name}
                           size="md"
-                          className="border border-amber-500/40 h-9 w-9 sm:h-11 sm:w-11"
+                          className="h-10 w-10 shrink-0 border border-line"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="truncate text-sm font-semibold text-ink">
+                              {player.name}
+                            </p>
+                            <span className="hidden xs:inline-flex">
+                              <TierBadge tier={player.tier} rank={player.rank} />
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                            <span className="font-mono text-brand-bright">
+                              UID {player.uid}
+                            </span>
+                            <span className="text-ink-subtle">·</span>
+                            <span className="truncate text-ink-subtle">{player.guild}</span>
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="flex items-center justify-end gap-1 text-sm font-semibold text-ink">
+                            <Flame size={12} className="text-brand-bright" />
+                            {player.logins}
+                          </p>
+                          <p className="mt-0.5 text-xs text-ink-subtle">
+                            {player.xp.toLocaleString()} XP
+                          </p>
+                        </div>
+                        <ChevronRight
+                          size={15}
+                          className="hidden shrink-0 text-ink-subtle sm:block"
                         />
                       </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              {honorChampion ? (
+                <div className="space-y-5 self-start lg:sticky lg:top-24">
+                  <div className="card relative overflow-hidden p-5 sm:p-6 lg:p-7">
+                  <div
+                    className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-brand/10 blur-3xl"
+                    aria-hidden="true"
+                  />
+                  <div className="relative">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="badge badge-brand">
+                        <Trophy size={12} />
+                        Rank #1
+                      </span>
+                      <TierBadge tier={honorChampion.tier} rank={honorChampion.rank || '01'} />
+                    </div>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                          <p className="truncate text-sm sm:text-base font-black text-white">{h.player_name}</p>
-                          {renderTierBadge(h.tier, rankStr)}
-                        </div>
-                        <p className="font-mono text-[9px] sm:text-[10px] text-amber-400 mt-0.5">
-                          UID: {h.player_uid}
+                    <div className="mt-6 flex items-center gap-4">
+                      <UserAvatar
+                        src={honorChampion.avatar_url}
+                        name={honorChampion.player_name}
+                        size="xl"
+                        className="h-16 w-16 shrink-0 border-2 border-brand-border"
+                      />
+                      <div className="min-w-0">
+                        <h2 className="truncate text-2xl font-bold tracking-tight text-ink">
+                          {honorChampion.player_name}
+                        </h2>
+                        <p className="mt-1 truncate font-mono text-xs text-brand-bright">
+                          UID: {honorChampion.player_uid}
                         </p>
-                        <div className="mt-2 bg-white/5 border border-white/10 p-2 sm:p-2.5 rounded">
-                          <p className="font-display text-[11px] sm:text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                            {activeTab === 'GUN GODS' ? <Crosshair size={13} className="shrink-0" /> : <Zap size={13} className="shrink-0" />}
-                            <span className="truncate">{h.title_name}</span>
-                          </p>
-                          {h.description && (
-                            <p className="mt-1 text-[10px] sm:text-[11px] text-white/60 leading-snug">
-                              {h.description}
-                            </p>
-                          )}
-                        </div>
                       </div>
                     </div>
-                  )
-                })
-              )}
-            </div>
-          </div>
-        )}
-      </div>
 
-      <Footer />
-    </main>
+                    <div className="mt-7 border-t border-line-subtle pt-5">
+                      <p className="label">
+                        {activeTab === 'GUN GODS' ? 'Gun specialty' : 'Movement style'}
+                      </p>
+                      <h3 className="mt-1.5 flex items-center gap-2 text-lg font-semibold tracking-tight text-ink">
+                        {activeTab === 'GUN GODS' ? (
+                          <Crosshair size={18} className="shrink-0 text-brand-bright" />
+                        ) : (
+                          <Zap size={18} className="shrink-0 text-brand-bright" />
+                        )}
+                        <span className="truncate">{honorChampion.title_name}</span>
+                      </h3>
+                      {honorChampion.description && (
+                        <p className="mt-3 rounded-lg border border-line-subtle bg-surface-2 p-3 text-xs leading-relaxed text-ink-muted">
+                          {honorChampion.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  </div>
+
+                  <div className="card p-5">
+                    <p className="label">
+                      {activeTab === 'GUN GODS'
+                        ? 'How Gun Gods are ranked'
+                        : 'How Movement Gods are ranked'}
+                    </p>
+                    <ul className="mt-3 space-y-2.5 text-xs leading-relaxed text-ink-muted">
+                      <li className="flex gap-2.5">
+                        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-brand bg-brand-muted text-[10px] font-bold text-brand-bright">
+                          1
+                        </span>
+                        Titles are awarded by admins for verified in-game skill.
+                      </li>
+                      <li className="flex gap-2.5">
+                        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-line bg-surface-2 text-[10px] font-bold text-ink-subtle">
+                          2
+                        </span>
+                        Every title includes a specialty and a short performance note.
+                      </li>
+                      <li className="flex gap-2.5">
+                        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-line bg-surface-2 text-[10px] font-bold text-ink-subtle">
+                          3
+                        </span>
+                        Rank #1 is the latest top-ranked title holder in this category.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <EmptyChampion label="Titles will appear here once the admin awards them." />
+              )}
+
+              <div className="card overflow-hidden">
+                <div className="flex items-center justify-between border-b border-line px-4 py-3 sm:px-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-ink-subtle">
+                    {activeTab === 'GUN GODS' ? 'Gun Gods' : 'Movement Gods'}
+                  </p>
+                  <span className="text-xs text-ink-subtle">{filteredHonors.length}</span>
+                </div>
+
+                {filteredHonors.length === 0 ? (
+                  <div className="px-5 py-12 text-center">
+                    <p className="text-sm font-medium text-ink">No titles awarded yet</p>
+                    <p className="mt-1 text-xs text-ink-subtle">
+                      The admin can assign titles from the control center.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="max-h-[640px] divide-y divide-line-subtle overflow-y-auto">
+                    {filteredHonors.map((honor, index) => {
+                      const rank = honor.rank || String(index + 1).padStart(2, '0')
+                      return (
+                        <div
+                          key={honor.id || `${honor.player_uid}-${index}`}
+                          className={`flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-surface-2 sm:px-5 ${
+                            rank === '01' ? 'bg-brand-muted' : ''
+                          }`}
+                        >
+                          <span
+                            className={`mt-0.5 w-7 shrink-0 text-center text-sm font-bold tabular-nums ${
+                              rank === '01' ? 'text-brand-bright' : 'text-ink-subtle'
+                            }`}
+                          >
+                            {rank}
+                          </span>
+                          <UserAvatar
+                            src={honor.avatar_url}
+                            name={honor.player_name}
+                            size="md"
+                            className="h-10 w-10 shrink-0 border border-line"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <p className="truncate text-sm font-semibold text-ink">
+                                {honor.player_name}
+                              </p>
+                              <span className="hidden xs:inline-flex">
+                                <TierBadge tier={honor.tier} rank={rank} />
+                              </span>
+                            </div>
+                            <p className="mt-0.5 font-mono text-xs text-brand-bright">
+                              UID {honor.player_uid}
+                            </p>
+                            <div className="mt-2 rounded-md border border-line-subtle bg-surface-2 px-2.5 py-2">
+                              <p className="flex items-center gap-1.5 text-xs font-semibold text-brand-bright">
+                                {activeTab === 'GUN GODS' ? (
+                                  <Crosshair size={12} className="shrink-0" />
+                                ) : (
+                                  <Zap size={12} className="shrink-0" />
+                                )}
+                                <span className="truncate">{honor.title_name}</span>
+                              </p>
+                              {honor.description && (
+                                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-muted">
+                                  {honor.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="mt-8 flex flex-col items-start justify-between gap-3 rounded-xl border border-line bg-surface px-5 py-4 sm:flex-row sm:items-center">
+          <p className="text-xs text-ink-subtle">
+            Rankings update as players visit, compete, and earn verified titles.
+          </p>
+          <a
+            href="/achievements"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-muted transition-colors hover:text-brand-bright"
+          >
+            View achievements
+            <ArrowRight size={14} />
+          </a>
+        </div>
+      </div>
+    </SitePage>
   )
 }

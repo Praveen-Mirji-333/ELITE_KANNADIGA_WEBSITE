@@ -240,58 +240,58 @@ export function PlayoffBracketGraph({
   }
 
   return (
-    <div className="min-h-screen bg-[#08090B] text-[#F5F7FA] font-sans antialiased selection:bg-[#FFB000]/30 selection:text-white">
+    <div className="min-h-screen bg-canvas text-ink font-sans antialiased selection:bg-brand/30 selection:text-white">
       {/* 1. TOP ADMIN NAVIGATION */}
-      <nav className="border-b border-[#242830] bg-[#101216] px-4 sm:px-6 py-2.5">
+      <nav className="border-b border-line bg-surface px-4 sm:px-6 py-2.5">
         <div className="mx-auto flex max-w-[1720px] items-center justify-between gap-4">
           {/* Left Brand */}
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded bg-[#FFB000]/10 border border-[#FFB000]/30 text-[#FFB000]">
+            <div className="flex h-8 w-8 items-center justify-center rounded bg-brand/10 border border-brand/30 text-brand-bright">
               <ShieldCheck size={18} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-display text-sm font-black uppercase tracking-wider text-white">
+                <span className="font-display text-sm font-extrabold uppercase tracking-wider text-ink">
                   ADMIN CONTROL CENTER
                 </span>
               </div>
-              <p className="text-[9px] font-bold tracking-widest text-[#FFB000] uppercase leading-none mt-0.5">
+              <p className="text-xs font-bold tracking-widest text-brand-bright uppercase leading-none mt-0.5">
                 ELITE KANNADIGA BACKEND MANAGEMENT
               </p>
             </div>
           </div>
 
           {/* Navigation Items */}
-          <div className="hidden lg:flex items-center gap-1 text-[11px] font-bold tracking-wider uppercase text-[#8B93A1]">
-            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-white transition cursor-pointer">
+          <div className="hidden lg:flex items-center gap-1 text-xs font-bold tracking-wider uppercase text-ink-muted">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-ink transition cursor-pointer">
               <Home size={13} /> HOME CMS
             </span>
-            <span className="flex items-center gap-1.5 px-3 py-1.5 text-[#FFB000] font-black border-b-2 border-[#FFB000] cursor-pointer">
-              <Trophy size={13} className="text-[#FFB000]" /> TOURNAMENTS
+            <span className="flex items-center gap-1.5 px-3 py-1.5 text-brand-bright font-extrabold border-b-2 border-brand cursor-pointer">
+              <Trophy size={13} className="text-brand-bright" /> TOURNAMENTS
             </span>
-            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-white transition cursor-pointer">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-ink transition cursor-pointer">
               <Megaphone size={13} /> ANNOUNCEMENTS
             </span>
-            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-white transition cursor-pointer">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-ink transition cursor-pointer">
               <Layers size={13} /> LEADERBOARD
             </span>
-            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-white transition cursor-pointer">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-ink transition cursor-pointer">
               <Shield size={13} /> ELITE ARMY GUILD
             </span>
-            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-white transition cursor-pointer">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-ink transition cursor-pointer">
               <Award size={13} /> ACHIEVEMENTS
             </span>
-            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-white transition cursor-pointer">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 hover:text-ink transition cursor-pointer">
               <Video size={13} /> CLIPS (0)
             </span>
           </div>
 
           {/* Right User Badge */}
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#15181D] border border-[#242830] text-[10px] font-black text-white">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-2 border border-line text-xs font-extrabold text-ink">
               EK
             </div>
-            <span className="text-xs font-medium text-[#8B93A1] hidden sm:inline">Admin ▾</span>
+            <span className="text-xs font-medium text-ink-muted hidden sm:inline">Admin ▾</span>
           </div>
         </div>
       </nav>
@@ -305,28 +305,28 @@ export function PlayoffBracketGraph({
           {/* ========================================================= */}
           <div className="lg:col-span-9 space-y-6">
             {/* 2. TOURNAMENT HEADER / SUMMARY */}
-            <div className="rounded-lg border border-[#242830] bg-[#101216] p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">
+            <div className="rounded-lg border border-line bg-surface p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">
               {/* Left Info */}
               <div className="flex items-start gap-4">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[#15181D] border border-[#FFB000]/40 text-[#FFB000] shadow-sm">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-surface-2 border border-brand/40 text-brand-bright shadow-sm">
                   <Trophy size={28} />
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="inline-block rounded px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-[#FFB000]/10 text-[#FFB000] border border-[#FFB000]/30">
+                    <span className="inline-block rounded px-2 py-0.5 text-xs font-extrabold uppercase tracking-wider bg-brand/10 text-brand-bright border border-brand/30">
                       IPL-STYLE PLAYOFF
                     </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B93A1]">
+                    <span className="text-xs font-bold uppercase tracking-wider text-ink-muted">
                       {seasonName || 'SEASON 2'}
                     </span>
                   </div>
-                  <h1 className="font-display text-2xl sm:text-3xl font-black uppercase tracking-tight text-[#F5F7FA]">
+                  <h1 className="font-display text-2xl sm:text-3xl font-extrabold uppercase tracking-tight text-ink">
                     KNOCKOUT STAGE
                   </h1>
-                  <p className="text-xs font-black uppercase tracking-widest text-[#FFB000]">
+                  <p className="text-xs font-extrabold uppercase tracking-widest text-brand-bright">
                     CHAMPIONSHIP BRACKET
                   </p>
-                  <p className="text-xs text-[#8B93A1] max-w-xl leading-relaxed pt-1">
+                  <p className="text-xs text-ink-muted max-w-xl leading-relaxed pt-1">
                     Top seeded contenders battle through double-chance Qualifier 1, Eliminators, Quarter-Finals, and
                     the Semi-Final to claim the Grand Championship Trophy.
                   </p>
@@ -334,46 +334,46 @@ export function PlayoffBracketGraph({
               </div>
 
               {/* Right Compact Statistics */}
-              <div className="shrink-0 rounded-lg border border-[#242830] bg-[#15181D] p-3.5 sm:px-5">
+              <div className="shrink-0 rounded-lg border border-line bg-surface-2 p-3.5 sm:px-5">
                 <div className="grid grid-cols-4 gap-4 sm:gap-6 text-center">
                   <div className="space-y-0.5">
-                    <div className="flex items-center justify-center text-[#8B93A1] mb-1">
+                    <div className="flex items-center justify-center text-ink-muted mb-1">
                       <Users size={15} />
                     </div>
-                    <span className="font-mono text-xl font-black text-[#F5F7FA] block leading-none">6</span>
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B93A1]">TEAMS</span>
+                    <span className="font-mono text-xl font-extrabold text-ink block leading-none">6</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-ink-muted">TEAMS</span>
                   </div>
-                  <div className="space-y-0.5 border-l border-[#242830] pl-4 sm:pl-6">
-                    <div className="flex items-center justify-center text-[#8B93A1] mb-1">
+                  <div className="space-y-0.5 border-l border-line pl-4 sm:pl-6">
+                    <div className="flex items-center justify-center text-ink-muted mb-1">
                       <Gamepad2 size={15} />
                     </div>
-                    <span className="font-mono text-xl font-black text-[#F5F7FA] block leading-none">6</span>
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B93A1]">MATCHES</span>
+                    <span className="font-mono text-xl font-extrabold text-ink block leading-none">6</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-ink-muted">MATCHES</span>
                   </div>
-                  <div className="space-y-0.5 border-l border-[#242830] pl-4 sm:pl-6">
-                    <div className="flex items-center justify-center text-[#20C997] mb-1">
+                  <div className="space-y-0.5 border-l border-line pl-4 sm:pl-6">
+                    <div className="flex items-center justify-center text-ink mb-1">
                       <CheckCircle2 size={15} />
                     </div>
-                    <span className="font-mono text-xl font-black text-[#20C997] block leading-none">
+                    <span className="font-mono text-xl font-extrabold text-ink block leading-none">
                       {completedCount}
                     </span>
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B93A1]">COMPLETED</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-ink-muted">COMPLETED</span>
                   </div>
-                  <div className="space-y-0.5 border-l border-[#242830] pl-4 sm:pl-6">
-                    <div className="flex items-center justify-center text-[#FFB000] mb-1">
+                  <div className="space-y-0.5 border-l border-line pl-4 sm:pl-6">
+                    <div className="flex items-center justify-center text-brand-bright mb-1">
                       <Clock size={15} />
                     </div>
-                    <span className="font-mono text-xl font-black text-[#FFB000] block leading-none">
+                    <span className="font-mono text-xl font-extrabold text-brand-bright block leading-none">
                       {remainingCount}
                     </span>
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#8B93A1]">REMAINING</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-ink-muted">REMAINING</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* STAGE STEPPER BAR */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 border-b border-[#242830] pb-3 text-xs">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 border-b border-line pb-3 text-xs">
               <StageStep
                 stepNumber="01"
                 title="OPENING ROUND"
@@ -405,19 +405,19 @@ export function PlayoffBracketGraph({
               <div className="min-w-[940px] relative">
                 {/* SVG CONNECTOR LINES */}
                 <svg
-                  className="pointer-events-none absolute inset-0 h-full w-full stroke-[#242830]"
+                  className="pointer-events-none absolute inset-0 h-full w-full stroke-line"
                   fill="none"
                   strokeWidth="1.5"
                 >
                   {/* From M1 to Stage 2 / M4 */}
-                  <path d="M 235 68 H 255 V 195 H 285" stroke="#20C997" strokeOpacity="0.5" />
+                  <path d="M 235 68 H 255 V 195 H 285" stroke="#A0A7B3" strokeOpacity="0.5" />
                   {/* From M2 & M3 to M4 */}
-                  <path d="M 235 220 H 255 V 205 H 285" stroke="#20C997" strokeOpacity="0.5" />
-                  <path d="M 235 372 H 255 V 360 H 285" stroke="#20C997" strokeOpacity="0.5" />
+                  <path d="M 235 220 H 255 V 205 H 285" stroke="#A0A7B3" strokeOpacity="0.5" />
+                  <path d="M 235 372 H 255 V 360 H 285" stroke="#A0A7B3" strokeOpacity="0.5" />
                   {/* From Stage 2 (M4) to Stage 3 (M5/Semi) */}
-                  <path d="M 505 200 H 530 V 270 H 555" stroke="#20C997" strokeOpacity="0.5" />
+                  <path d="M 505 200 H 530 V 270 H 555" stroke="#A0A7B3" strokeOpacity="0.5" />
                   {/* From Stage 3 to Grand Final (M6) */}
-                  <path d="M 775 270 H 800 V 270 H 825" stroke="#FFB000" strokeOpacity="0.7" />
+                  <path d="M 775 270 H 800 V 270 H 825" stroke="#FF5A57" strokeOpacity="0.7" />
                 </svg>
 
                 {/* 4-COLUMN HORIZONTAL BRACKET GRID */}
@@ -563,44 +563,44 @@ export function PlayoffBracketGraph({
           {/* ========================================================= */}
           <div className="lg:col-span-3 space-y-5">
             {/* 3. NEXT MATCH PANEL */}
-            <div className="rounded-lg border-2 border-[#FFB000] bg-[#101216] p-4 sm:p-5 shadow-lg shadow-[#FFB000]/5 space-y-4">
+            <div className="rounded-lg border-2 border-brand bg-surface p-4 sm:p-5 shadow-lg shadow-brand/5 space-y-4">
               {/* Header */}
               <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#FFB000]">
+                <span className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-brand-bright">
                   ⚡ NEXT MATCH
                 </span>
-                <span className="rounded px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-[#FFB000]/15 text-[#FFB000] border border-[#FFB000]/40">
+                <span className="rounded px-2 py-0.5 text-xs font-extrabold uppercase tracking-wider bg-brand/15 text-brand-bright border border-brand/40">
                   {nextMatch?.status === 'completed' ? 'COMPLETED' : 'READY TO PLAY'}
                 </span>
               </div>
 
               {/* Match Title */}
               <div>
-                <h3 className="font-display text-sm font-black uppercase text-[#F5F7FA]">
+                <h3 className="font-display text-sm font-extrabold uppercase text-ink">
                   {nextMatch?.stageName || 'GRAND FINAL'} · MATCH {nextMatch?.matchNumber || 6}
                 </h3>
-                <p className="text-[11px] text-[#8B93A1]">{nextMatch?.tagline || 'Championship Match'}</p>
+                <p className="text-xs text-ink-muted">{nextMatch?.tagline || 'Championship Match'}</p>
               </div>
 
               {/* Head-to-Head Visual Card */}
-              <div className="rounded-lg border border-[#242830] bg-[#15181D] p-3.5 flex items-center justify-between gap-3">
+              <div className="rounded-lg border border-line bg-surface-2 p-3.5 flex items-center justify-between gap-3">
                 {/* Team 1 */}
                 <div className="flex-1 flex flex-col items-center text-center space-y-1.5">
                   <div className="relative">
                     <TeamEmblem name={nextMatch?.teamA?.name || 'CJP'} size="lg" />
-                    <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded bg-[#FFB000] text-[9px] font-black text-black">
+                    <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded bg-brand text-xs font-extrabold text-ink">
                       {nextMatch?.teamA?.seedRank || 1}
                     </span>
                   </div>
-                  <span className="text-xs font-bold text-[#F5F7FA] truncate max-w-[90px] flex items-center justify-center gap-1">
+                  <span className="text-xs font-bold text-ink truncate max-w-[90px] flex items-center justify-center gap-1">
                     {nextMatch?.teamA?.name || 'CJP'}
-                    <Crown size={11} className="text-[#FFB000]" />
+                    <Crown size={11} className="text-brand-bright" />
                   </span>
                 </div>
 
                 {/* VS Badge */}
                 <div className="shrink-0 flex flex-col items-center">
-                  <span className="rounded bg-[#101216] px-2 py-1 text-[10px] font-black tracking-widest text-[#8B93A1] border border-[#242830]">
+                  <span className="rounded bg-surface px-2 py-1 text-xs font-extrabold tracking-widest text-ink-muted border border-line">
                     VS
                   </span>
                 </div>
@@ -609,30 +609,30 @@ export function PlayoffBracketGraph({
                 <div className="flex-1 flex flex-col items-center text-center space-y-1.5">
                   <div className="relative">
                     <TeamEmblem name={nextMatch?.teamB?.name || 'DEVARU BOYS'} size="lg" />
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded bg-[#242830] text-[9px] font-black text-[#8B93A1]">
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded bg-surface-3 text-xs font-extrabold text-ink-muted">
                       {nextMatch?.teamB?.seedRank || 2}
                     </span>
                   </div>
-                  <span className="text-xs font-bold text-[#F5F7FA] truncate max-w-[90px]">
+                  <span className="text-xs font-bold text-ink truncate max-w-[90px]">
                     {nextMatch?.teamB?.name || 'DEVARU BOYS'}
                   </span>
                 </div>
               </div>
 
               {/* Match Meta Grid */}
-              <div className="grid grid-cols-2 gap-2 text-[10px] text-[#8B93A1]">
-                <div className="rounded border border-[#242830] bg-[#15181D] p-2 flex items-center gap-2">
-                  <Calendar size={14} className="text-[#8B93A1] shrink-0" />
+              <div className="grid grid-cols-2 gap-2 text-xs text-ink-muted">
+                <div className="rounded border border-line bg-surface-2 p-2 flex items-center gap-2">
+                  <Calendar size={14} className="text-ink-muted shrink-0" />
                   <div>
-                    <span className="block text-[8px] uppercase tracking-wider text-[#8B93A1]">Scheduled</span>
-                    <span className="font-bold text-[#F5F7FA]">{nextMatch?.scheduledTime || 'TBD'}</span>
+                    <span className="block text-xs uppercase tracking-wider text-ink-muted">Scheduled</span>
+                    <span className="font-bold text-ink">{nextMatch?.scheduledTime || 'TBD'}</span>
                   </div>
                 </div>
-                <div className="rounded border border-[#242830] bg-[#15181D] p-2 flex items-center gap-2">
-                  <Gamepad2 size={14} className="text-[#8B93A1] shrink-0" />
+                <div className="rounded border border-line bg-surface-2 p-2 flex items-center gap-2">
+                  <Gamepad2 size={14} className="text-ink-muted shrink-0" />
                   <div>
-                    <span className="block text-[8px] uppercase tracking-wider text-[#8B93A1]">Format</span>
-                    <span className="font-bold text-[#F5F7FA]">Best of 1</span>
+                    <span className="block text-xs uppercase tracking-wider text-ink-muted">Format</span>
+                    <span className="font-bold text-ink">Best of 1</span>
                   </div>
                 </div>
               </div>
@@ -641,7 +641,7 @@ export function PlayoffBracketGraph({
               {!isReadOnly && nextMatch && nextMatch.teamA && nextMatch.teamB && (
                 <button
                   onClick={() => openMatchEditor(nextMatch)}
-                  className="w-full rounded bg-[#FFB000] hover:bg-[#FFB000]/90 text-black font-black uppercase text-xs tracking-wider py-2.5 flex items-center justify-center gap-2 transition shadow-md shadow-[#FFB000]/20"
+                  className="w-full rounded bg-brand hover:bg-brand/90 text-ink font-extrabold uppercase text-xs tracking-wider py-2.5 flex items-center justify-center gap-2 transition shadow-md shadow-brand/20"
                 >
                   <Edit2 size={13} /> RECORD RESULT
                 </button>
@@ -649,36 +649,36 @@ export function PlayoffBracketGraph({
             </div>
 
             {/* 5. TOP 6 SEEDED CONTENDERS */}
-            <div className="rounded-lg border border-[#242830] bg-[#101216] overflow-hidden">
+            <div className="rounded-lg border border-line bg-surface overflow-hidden">
               <div
                 onClick={() => setContendersCollapsed(!contendersCollapsed)}
-                className="flex items-center justify-between p-3.5 border-b border-[#242830] cursor-pointer hover:bg-white/[0.02] transition"
+                className="flex items-center justify-between p-3.5 border-b border-line cursor-pointer hover:bg-surface transition"
               >
-                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-[#F5F7FA]">
-                  <Shield size={14} className="text-[#FFB000]" /> TOP 6 SEEDED CONTENDERS
+                <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-ink">
+                  <Shield size={14} className="text-brand-bright" /> TOP 6 SEEDED CONTENDERS
                 </div>
-                <button className="text-[#8B93A1] hover:text-white">
+                <button className="text-ink-muted hover:text-ink">
                   {contendersCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
                 </button>
               </div>
 
               {!contendersCollapsed && (
                 <div className="p-3">
-                  <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-[#8B93A1] pb-2 px-2 border-b border-[#242830]/50">
+                  <div className="flex items-center justify-between text-xs font-extrabold uppercase tracking-widest text-ink-muted pb-2 px-2 border-b border-line/50">
                     <span className="w-6">#</span>
                     <span className="flex-1">TEAM</span>
                     <span className="text-right">SEED POINTS</span>
                   </div>
 
-                  <div className="divide-y divide-[#242830]/40 text-xs">
+                  <div className="divide-y divide-line/40 text-xs">
                     {seededList.map((team) => (
                       <div
                         key={team.rank}
-                        className="flex items-center justify-between py-2 px-2 hover:bg-white/[0.02] transition rounded"
+                        className="flex items-center justify-between py-2 px-2 hover:bg-surface transition rounded"
                       >
                         <span
                           className={`w-6 font-mono font-bold text-xs ${
-                            team.rank === 1 ? 'text-[#FFB000]' : 'text-[#8B93A1]'
+                            team.rank === 1 ? 'text-brand-bright' : 'text-ink-muted'
                           }`}
                         >
                           #{team.rank}
@@ -688,15 +688,15 @@ export function PlayoffBracketGraph({
                           <TeamEmblem name={team.name} size="sm" />
                           <span
                             className={`truncate font-medium ${
-                              team.rank === 1 ? 'text-[#F5F7FA] font-bold' : 'text-[#F5F7FA]'
+                              team.rank === 1 ? 'text-ink font-bold' : 'text-ink'
                             }`}
                           >
                             {team.name}
                           </span>
-                          {team.rank === 1 && <Crown size={11} className="text-[#FFB000] shrink-0" />}
+                          {team.rank === 1 && <Crown size={11} className="text-brand-bright shrink-0" />}
                         </div>
 
-                        <span className="font-mono text-xs font-bold text-[#FFB000] shrink-0">
+                        <span className="font-mono text-xs font-bold text-brand-bright shrink-0">
                           {team.points} pts
                         </span>
                       </div>
@@ -711,28 +711,28 @@ export function PlayoffBracketGraph({
 
       {/* ADMIN RECORD RESULT MODAL */}
       {activeEditingMatch && matches[activeEditingMatch] && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="relative w-full max-w-md rounded-lg border border-[#242830] bg-[#101216] p-5 shadow-2xl text-[#F5F7FA] space-y-4">
-            <div className="flex items-start justify-between border-b border-[#242830] pb-3">
+        <div className="modal-overlay">
+          <div className="modal-panel relative max-w-md space-y-4 p-5 text-ink">
+            <div className="flex items-start justify-between border-b border-line pb-3">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-[#FFB000]">
+                <span className="text-xs font-extrabold uppercase tracking-widest text-brand-bright">
                   {matches[activeEditingMatch].stageName} • {matches[activeEditingMatch].shortLabel}
                 </span>
-                <h3 className="font-display text-base font-black uppercase text-[#F5F7FA]">
+                <h3 className="font-display text-base font-extrabold uppercase text-ink">
                   Record Match Score &amp; Winner
                 </h3>
               </div>
               <button
                 onClick={() => setActiveEditingMatch(null)}
-                className="text-[#8B93A1] hover:text-white transition p-1"
+                className="text-ink-muted hover:text-ink transition p-1"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <p className="text-xs text-[#8B93A1]">{matches[activeEditingMatch].ruleExplanation}</p>
+            <p className="text-xs text-ink-muted">{matches[activeEditingMatch].ruleExplanation}</p>
 
-            <div className="space-y-3 rounded border border-[#242830] bg-[#15181D] p-3.5">
+            <div className="space-y-3 rounded border border-line bg-surface-2 p-3.5">
               {/* Team A */}
               <div
                 onClick={() =>
@@ -740,16 +740,16 @@ export function PlayoffBracketGraph({
                 }
                 className={`p-2.5 rounded border cursor-pointer transition flex items-center justify-between gap-3 ${
                   selectedWinnerId === matches[activeEditingMatch].teamA?.id
-                    ? 'border-[#FFB000] bg-[#FFB000]/10 text-[#F5F7FA]'
-                    : 'border-[#242830] bg-[#101216] hover:border-[#8B93A1]/40'
+                    ? 'border-brand bg-brand/10 text-ink'
+                    : 'border-line bg-surface hover:border-line-strong'
                 }`}
               >
                 <div className="min-w-0 flex items-center gap-2">
                   <div
                     className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
                       selectedWinnerId === matches[activeEditingMatch].teamA?.id
-                        ? 'border-[#FFB000] bg-[#FFB000] text-black'
-                        : 'border-[#242830]'
+                        ? 'border-brand bg-brand text-ink'
+                        : 'border-line'
                     }`}
                   >
                     {selectedWinnerId === matches[activeEditingMatch].teamA?.id && <Check size={11} />}
@@ -761,19 +761,19 @@ export function PlayoffBracketGraph({
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <label className="text-[9px] text-[#8B93A1] font-mono">SCORE:</label>
+                  <label className="text-xs text-ink-muted font-mono">SCORE:</label>
                   <input
                     type="number"
                     min="0"
                     value={scoreA}
                     onChange={(e) => handleScoreChange('A', e.target.value)}
                     placeholder="0"
-                    className="w-14 rounded border border-[#242830] bg-black px-2 py-1 text-center text-xs font-mono font-bold text-white focus:border-[#FFB000] focus:outline-none"
+                    className="w-14 rounded border border-line bg-canvas px-2 py-1 text-center text-xs font-mono font-bold text-ink focus:border-brand focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div className="text-center font-display text-[9px] font-black text-[#8B93A1]/50 tracking-wider">
+              <div className="text-center font-display text-xs font-extrabold text-ink-muted/50 tracking-wider">
                 VS
               </div>
 
@@ -784,16 +784,16 @@ export function PlayoffBracketGraph({
                 }
                 className={`p-2.5 rounded border cursor-pointer transition flex items-center justify-between gap-3 ${
                   selectedWinnerId === matches[activeEditingMatch].teamB?.id
-                    ? 'border-[#FFB000] bg-[#FFB000]/10 text-[#F5F7FA]'
-                    : 'border-[#242830] bg-[#101216] hover:border-[#8B93A1]/40'
+                    ? 'border-brand bg-brand/10 text-ink'
+                    : 'border-line bg-surface hover:border-line-strong'
                 }`}
               >
                 <div className="min-w-0 flex items-center gap-2">
                   <div
                     className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
                       selectedWinnerId === matches[activeEditingMatch].teamB?.id
-                        ? 'border-[#FFB000] bg-[#FFB000] text-black'
-                        : 'border-[#242830]'
+                        ? 'border-brand bg-brand text-ink'
+                        : 'border-line'
                     }`}
                   >
                     {selectedWinnerId === matches[activeEditingMatch].teamB?.id && <Check size={11} />}
@@ -805,29 +805,29 @@ export function PlayoffBracketGraph({
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <label className="text-[9px] text-[#8B93A1] font-mono">SCORE:</label>
+                  <label className="text-xs text-ink-muted font-mono">SCORE:</label>
                   <input
                     type="number"
                     min="0"
                     value={scoreB}
                     onChange={(e) => handleScoreChange('B', e.target.value)}
                     placeholder="0"
-                    className="w-14 rounded border border-[#242830] bg-black px-2 py-1 text-center text-xs font-mono font-bold text-white focus:border-[#FFB000] focus:outline-none"
+                    className="w-14 rounded border border-line bg-canvas px-2 py-1 text-center text-xs font-mono font-bold text-ink focus:border-brand focus:outline-none"
                   />
                 </div>
               </div>
             </div>
 
-            <p className="text-[10px] text-[#8B93A1] italic">
+            <p className="text-xs text-ink-muted italic">
               Click the winning squad or enter scores. Winning and losing slots will advance dynamically per IPL
               playoff rules.
             </p>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#242830]">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-line">
               <button
                 type="button"
                 onClick={() => setActiveEditingMatch(null)}
-                className="px-3 py-1.5 rounded border border-[#242830] bg-[#15181D] text-xs font-bold uppercase tracking-wider text-[#8B93A1] hover:text-white"
+                className="px-3 py-1.5 rounded border border-line bg-surface-2 text-xs font-bold uppercase tracking-wider text-ink-muted hover:text-ink"
               >
                 Cancel
               </button>
@@ -835,7 +835,7 @@ export function PlayoffBracketGraph({
                 type="button"
                 onClick={handleSaveResult}
                 disabled={saving || !selectedWinnerId}
-                className="inline-flex items-center gap-1.5 rounded border border-[#FFB000] bg-[#FFB000] hover:bg-[#FFB000]/90 px-4 py-1.5 text-xs font-black uppercase tracking-wider text-black transition disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 rounded border border-brand bg-brand hover:bg-brand/90 px-4 py-1.5 text-xs font-extrabold uppercase tracking-wider text-ink transition disabled:opacity-40"
               >
                 <Check size={13} /> {saving ? 'Saving…' : 'Save Match Result'}
               </button>
@@ -864,23 +864,23 @@ function StageStep({
   return (
     <div className="flex items-center gap-2.5">
       <span
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-[10px] font-black font-mono border ${
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-extrabold font-mono border ${
           isActive
-            ? 'border-[#FFB000] bg-[#FFB000] text-black shadow-sm'
-            : 'border-[#242830] bg-[#15181D] text-[#8B93A1]'
+            ? 'border-brand bg-brand text-ink shadow-sm'
+            : 'border-line bg-surface-2 text-ink-muted'
         }`}
       >
         {stepNumber}
       </span>
       <div className="min-w-0">
         <span
-          className={`block text-[11px] font-black uppercase tracking-wider truncate ${
-            isActive ? 'text-[#FFB000]' : 'text-[#F5F7FA]'
+          className={`block text-xs font-extrabold uppercase tracking-wider truncate ${
+            isActive ? 'text-brand-bright' : 'text-ink'
           }`}
         >
           {title}
         </span>
-        <span className="block text-[9px] text-[#8B93A1] truncate leading-none mt-0.5">{subtitle}</span>
+        <span className="block text-xs text-ink-muted truncate leading-none mt-0.5">{subtitle}</span>
       </div>
     </div>
   )
@@ -927,26 +927,26 @@ function MatchCardCompact({
 
   return (
     <div
-      className={`rounded-lg border bg-[#101216] p-3 text-xs shadow-sm transition ${
+      className={`rounded-lg border bg-surface p-3 text-xs shadow-sm transition ${
         isGrandFinal && isReady
-          ? 'border-[#FFB000] ring-1 ring-[#FFB000]/20'
+          ? 'border-brand ring-1 ring-[#FF5A57]/20'
           : isCompleted
-            ? 'border-[#242830]'
+            ? 'border-line'
             : isReady
-              ? 'border-[#FFB000]/60'
-              : 'border-[#242830]/60 opacity-65'
+              ? 'border-brand/60'
+              : 'border-line/60 opacity-65'
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-[#242830] text-[9px]">
-        <span className="font-bold uppercase tracking-wider text-[#8B93A1]">{stageTitle}</span>
+      <div className="flex items-center justify-between pb-2 border-b border-line text-xs">
+        <span className="font-bold uppercase tracking-wider text-ink-muted">{stageTitle}</span>
         <span
-          className={`rounded px-1.5 py-0.2 font-black uppercase text-[8px] tracking-wider ${
+          className={`rounded px-1.5 py-0.2 font-extrabold uppercase text-xs tracking-wider ${
             isCompleted
-              ? 'bg-[#20C997]/15 text-[#20C997] border border-[#20C997]/30'
+              ? 'bg-surface-3 text-ink border border-line-strong'
               : isReady
-                ? 'bg-[#FFB000]/15 text-[#FFB000] border border-[#FFB000]/30'
-                : 'bg-[#15181D] text-[#8B93A1] border border-[#242830]'
+                ? 'bg-brand/15 text-brand-bright border border-brand/30'
+                : 'bg-surface-2 text-ink-muted border border-line'
           }`}
         >
           {status}
@@ -954,28 +954,28 @@ function MatchCardCompact({
       </div>
 
       {/* Contenders */}
-      <div className="divide-y divide-[#242830]/40 py-1.5">
+      <div className="divide-y divide-line/40 py-1.5">
         {/* Team 1 */}
         <div
           className={`flex items-center justify-between py-1.5 ${
             isCompleted && winnerIndex === 0
-              ? 'text-[#F5F7FA] font-bold'
+              ? 'text-ink font-bold'
               : isCompleted && winnerIndex === 1
-                ? 'text-[#8B93A1] opacity-60'
-                : 'text-[#F5F7FA]'
+                ? 'text-ink-muted opacity-60'
+                : 'text-ink'
           }`}
         >
           <div className="flex items-center gap-1.5 min-w-0 pr-2">
             <span
-              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded text-[8px] font-bold font-mono ${
-                winnerIndex === 0 ? 'bg-[#FFB000] text-black font-black' : 'bg-[#15181D] text-[#8B93A1]'
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded text-xs font-bold font-mono ${
+                winnerIndex === 0 ? 'bg-brand text-ink font-extrabold' : 'bg-surface-2 text-ink-muted'
               }`}
             >
               {seedA || 1}
             </span>
             <TeamEmblem name={teamA} size="sm" />
             <span className="truncate max-w-[120px]">{teamA}</span>
-            {isCompleted && winnerIndex === 0 && <Crown size={11} className="text-[#FFB000] shrink-0" />}
+            {isCompleted && winnerIndex === 0 && <Crown size={11} className="text-brand-bright shrink-0" />}
           </div>
           <span className="font-mono text-xs font-bold tabular-nums">
             {scoreA !== undefined ? scoreA : '-'}
@@ -986,23 +986,23 @@ function MatchCardCompact({
         <div
           className={`flex items-center justify-between py-1.5 ${
             isCompleted && winnerIndex === 1
-              ? 'text-[#F5F7FA] font-bold'
+              ? 'text-ink font-bold'
               : isCompleted && winnerIndex === 0
-                ? 'text-[#8B93A1] opacity-60'
-                : 'text-[#F5F7FA]'
+                ? 'text-ink-muted opacity-60'
+                : 'text-ink'
           }`}
         >
           <div className="flex items-center gap-1.5 min-w-0 pr-2">
             <span
-              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded text-[8px] font-bold font-mono ${
-                winnerIndex === 1 ? 'bg-[#FFB000] text-black font-black' : 'bg-[#15181D] text-[#8B93A1]'
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded text-xs font-bold font-mono ${
+                winnerIndex === 1 ? 'bg-brand text-ink font-extrabold' : 'bg-surface-2 text-ink-muted'
               }`}
             >
               {seedB || 2}
             </span>
             <TeamEmblem name={teamB} size="sm" />
             <span className="truncate max-w-[120px]">{teamB}</span>
-            {isCompleted && winnerIndex === 1 && <Crown size={11} className="text-[#FFB000] shrink-0" />}
+            {isCompleted && winnerIndex === 1 && <Crown size={11} className="text-brand-bright shrink-0" />}
           </div>
           <span className="font-mono text-xs font-bold tabular-nums">
             {scoreB !== undefined ? scoreB : '-'}
@@ -1012,15 +1012,15 @@ function MatchCardCompact({
 
       {/* Footer / Advance Notice or Action Button */}
       {isCompleted && advancesText && (
-        <div className="pt-2 border-t border-[#242830] flex items-center justify-between text-[10px]">
-          <span className="text-[#20C997] font-bold flex items-center gap-1 truncate">
+        <div className="pt-2 border-t border-line flex items-center justify-between text-xs">
+          <span className="text-ink font-bold flex items-center gap-1 truncate">
             <Check size={11} /> {advancesText}
           </span>
           {!isReadOnly && (
             <button
               onClick={onReset}
               title="Reset match result"
-              className="text-[#8B93A1] hover:text-[#FF4D5A] p-0.5 transition"
+              className="text-ink-muted hover:text-brand-bright p-0.5 transition"
             >
               <RotateCcw size={10} />
             </button>
@@ -1029,10 +1029,10 @@ function MatchCardCompact({
       )}
 
       {isReady && !isReadOnly && (
-        <div className="pt-2 border-t border-[#242830]">
+        <div className="pt-2 border-t border-line">
           <button
             onClick={onRecordResult}
-            className="w-full rounded bg-[#FFB000] hover:bg-[#FFB000]/90 text-black font-black uppercase text-[10px] tracking-wider py-1.5 flex items-center justify-center gap-1.5 transition"
+            className="w-full rounded bg-brand hover:bg-brand/90 text-ink font-extrabold uppercase text-xs tracking-wider py-1.5 flex items-center justify-center gap-1.5 transition"
           >
             <Edit2 size={11} /> RECORD RESULT
           </button>
@@ -1053,14 +1053,14 @@ function TeamEmblem({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' | 
     return (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase()
   }, [name])
 
-  const dim = size === 'lg' ? 'h-11 w-11 text-xs' : size === 'sm' ? 'h-5 w-5 text-[9px]' : 'h-7 w-7 text-[10px]'
+  const dim = size === 'lg' ? 'h-11 w-11 text-xs' : size === 'sm' ? 'h-5 w-5 text-xs' : 'h-7 w-7 text-xs'
 
   return (
     <div
-      className={`relative flex ${dim} shrink-0 items-center justify-center rounded bg-[#15181D] border border-[#242830] font-black font-mono text-[#F5F7FA] overflow-hidden shadow-inner`}
+      className={`relative flex ${dim} shrink-0 items-center justify-center rounded bg-surface-2 border border-line font-extrabold font-mono text-ink overflow-hidden shadow-inner`}
       title={name}
     >
-      <div className="absolute inset-0 bg-gradient-to-tr from-black/40 via-transparent to-white/5 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-tr from-canvas/40 via-transparent to-white/5 pointer-events-none" />
       <span className="relative z-10">{initials}</span>
     </div>
   )

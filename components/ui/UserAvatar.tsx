@@ -11,8 +11,8 @@ interface UserAvatarProps {
 }
 
 const sizeClasses: Record<string, string> = {
-  xs: 'h-6 w-6 text-[9px]',
-  sm: 'h-8 w-8 text-[10px]',
+  xs: 'h-6 w-6 text-xs',
+  sm: 'h-8 w-8 text-xs',
   md: 'h-10 w-10 text-xs',
   lg: 'h-14 w-14 text-base',
   xl: 'h-20 w-20 text-xl',
@@ -32,16 +32,16 @@ function getInitials(name?: string): string {
 // Simple hash to pick a consistent color from the name
 function getAvatarColor(name?: string): string {
   const colors = [
-    'bg-red-700',
-    'bg-orange-700',
-    'bg-amber-700',
-    'bg-green-700',
-    'bg-teal-700',
-    'bg-cyan-700',
-    'bg-blue-700',
-    'bg-indigo-700',
-    'bg-purple-700',
-    'bg-pink-700',
+    'bg-brand',
+    'bg-brand',
+    'bg-brand',
+    'bg-surface-3',
+    'bg-surface-3',
+    'bg-surface-3',
+    'bg-surface-3',
+    'bg-surface-3',
+    'bg-surface-3',
+    'bg-surface-3',
   ]
   if (!name) return colors[0]
   let hash = 0
@@ -74,7 +74,7 @@ export function UserAvatar({
 
   return (
     <div
-      className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-neutral-900 shadow-md ${sizeClass} ${className}`}
+      className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-surface-2 shadow-md ${sizeClass} ${className}`}
       title={name || alt}
     >
       {hasValidSrc ? (
@@ -89,7 +89,7 @@ export function UserAvatar({
         />
       ) : (
         <span
-          className={`flex h-full w-full items-center justify-center rounded-full font-black text-white ${colorClass}`}
+          className={`flex h-full w-full items-center justify-center rounded-full font-extrabold text-ink ${colorClass}`}
         >
           {initials}
         </span>

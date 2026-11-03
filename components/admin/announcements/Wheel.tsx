@@ -13,21 +13,23 @@ interface WheelProps {
   spinning: boolean
   onSpinEnd: () => void
   accent?: string
+  className?: string
+  isFullscreen?: boolean
 }
 
 const PALETTE = [
-  '#dc2626',
-  '#f59e0b',
-  '#16a34a',
-  '#0891b2',
-  '#7c3aed',
-  '#db2777',
-  '#65a30d',
-  '#ea580c',
-  '#0d9488',
-  '#9333ea',
-  '#b91c1c',
-  '#ca8a04',
+  '#D3100E',
+  '#1A1E24',
+  '#9E0C0B',
+  '#242830',
+  '#E81B18',
+  '#15181D',
+  '#8F0B0A',
+  '#343A45',
+  '#B00D0C',
+  '#101216',
+  '#FF5A57',
+  '#2A0A0A',
 ]
 
 const SIZE = 360
@@ -49,7 +51,15 @@ function slicePath(startDeg: number, endDeg: number, radius: number) {
   return `M ${CENTER} ${CENTER} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 1 ${end.x} ${end.y} Z`
 }
 
-export function Wheel({ segments, targetIndex, spinning, onSpinEnd, accent = '#dc2626' }: WheelProps) {
+export function Wheel({
+  segments,
+  targetIndex,
+  spinning,
+  onSpinEnd,
+  accent = '#FF5A57',
+  className,
+  isFullscreen = false,
+}: WheelProps) {
   const [rotation, setRotation] = useState(0)
   const rotationRef = useRef(0)
   const [reducedMotion, setReducedMotion] = useState(false)
@@ -86,21 +96,31 @@ export function Wheel({ segments, targetIndex, spinning, onSpinEnd, accent = '#d
 
   const count = segments.length
   const slice = count > 0 ? 360 / count : 360
-  const showLabels = count > 0 && count <= 12
+  const showLabels = count > 0 && count <= 16
+
+  const containerClasses =
+    className ||
+    (isFullscreen
+      ? 'relative mx-auto w-full max-w-[540px] sm:max-w-[620px] lg:max-w-[680px] xl:max-w-[720px] select-none transition-all'
+      : 'relative mx-auto w-full max-w-[420px] sm:max-w-[460px] select-none transition-all')
 
   return (
-    <div className="relative mx-auto w-full max-w-[360px] select-none">
+    <div className={containerClasses}>
       {/* Pointer */}
-      <div className="absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1">
+      <div className="absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1.5 sm:-translate-y-2">
         <div
-          className="h-0 w-0 border-x-[10px] border-t-[18px] border-x-transparent drop-shadow-[0_0_8px_rgba(220,38,38,0.8)]"
+          className={`h-0 w-0 border-x-transparent transition-all ${
+            isFullscreen
+              ? 'border-x-[14px] sm:border-x-[18px] border-t-[26px] sm:border-t-[32px] drop-shadow-[0_0_10px_rgba(255,90,87,0.65)]'
+              : 'border-x-[11px] sm:border-x-[13px] border-t-[20px] sm:border-t-[24px] drop-shadow-[0_0_8px_rgba(255,90,87,0.55)]'
+          }`}
           style={{ borderTopColor: accent }}
         />
       </div>
 
       <div className="relative aspect-square w-full">
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="h-full w-full" role="img" aria-label="Pairing draw wheel">
-          <circle cx={CENTER} cy={CENTER} r={RADIUS + 6} fill="#0a0a0b" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
+          <circle cx={CENTER} cy={CENTER} r={RADIUS + 6} fill="#08090B" stroke="#242830" strokeWidth="2" />
 
           <g
             style={{
@@ -114,8 +134,8 @@ export function Wheel({ segments, targetIndex, spinning, onSpinEnd, accent = '#d
                 cx={CENTER}
                 cy={CENTER}
                 r={RADIUS}
-                fill="rgba(255,255,255,0.03)"
-                stroke="rgba(255,255,255,0.15)"
+                fill="#101216"
+                stroke="#343A45"
                 strokeDasharray="6 6"
               />
             )}
@@ -143,16 +163,16 @@ export function Wheel({ segments, targetIndex, spinning, onSpinEnd, accent = '#d
                       cy={CENTER}
                       r={RADIUS}
                       fill={color}
-                      fillOpacity={isTarget ? 0.95 : 0.55}
-                      stroke="#050505"
+                      fillOpacity={isTarget ? 0.95 : 0.72}
+                      stroke="#08090B"
                       strokeWidth="2"
                     />
                   ) : (
                     <path
                       d={slicePath(start, end, RADIUS)}
                       fill={color}
-                      fillOpacity={isTarget ? 0.95 : 0.55}
-                      stroke="#050505"
+                      fillOpacity={isTarget ? 0.95 : 0.72}
+                      stroke="#08090B"
                       strokeWidth="2"
                     />
                   )}
@@ -161,7 +181,7 @@ export function Wheel({ segments, targetIndex, spinning, onSpinEnd, accent = '#d
                       x={labelPoint.x}
                       y={labelPoint.y}
                       fill="#ffffff"
-                      fontSize="8"
+                      fontSize="11"
                       fontWeight="700"
                       textAnchor="middle"
                       dominantBaseline="middle"
@@ -175,11 +195,11 @@ export function Wheel({ segments, targetIndex, spinning, onSpinEnd, accent = '#d
                     x={numberPoint.x}
                     y={numberPoint.y}
                     fill="#ffffff"
-                    fontSize="9"
-                    fontWeight="900"
+                    fontSize="12"
+                    fontWeight="700"
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    opacity="0.85"
+                    opacity="0.9"
                     style={{ pointerEvents: 'none' }}
                   >
                     {index + 1}
@@ -190,19 +210,19 @@ export function Wheel({ segments, targetIndex, spinning, onSpinEnd, accent = '#d
           </g>
 
           {/* Hub */}
-          <circle cx={CENTER} cy={CENTER} r="40" fill="#050505" stroke={accent} strokeWidth="3" />
+          <circle cx={CENTER} cy={CENTER} r="40" fill="#08090B" stroke={accent} strokeWidth="3" />
           <text
             x={CENTER}
             y={CENTER - 3}
             textAnchor="middle"
             fill="#ffffff"
-            fontSize="10"
-            fontWeight="900"
+            fontSize="11"
+            fontWeight="700"
             letterSpacing="1.5"
           >
             ELITE
           </text>
-          <text x={CENTER} y={CENTER + 11} textAnchor="middle" fill={accent} fontSize="7" fontWeight="900" letterSpacing="1">
+          <text x={CENTER} y={CENTER + 12} textAnchor="middle" fill={accent} fontSize="9" fontWeight="700" letterSpacing="1">
             DRAW
           </text>
         </svg>

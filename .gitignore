@@ -49,6 +49,9 @@ ehthumbs.db
 *.swp
 *.swo
 
+# Embedded repositories
+unslop/
+
 # v0 Sandbox & Deployment Artifacts
 __v0_runtime_loader.js
 __v0_devtools.tsx

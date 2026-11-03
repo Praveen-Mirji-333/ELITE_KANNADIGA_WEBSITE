@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   ShieldCheck,
   Video,
@@ -20,11 +20,21 @@ import {
   Save,
   CheckCircle2,
   Lock,
+  Unlock,
+  UserPlus,
   Flag,
   FileText,
   Calendar,
   Clock,
   Megaphone,
+  Image as ImageIcon,
+  Music,
+  Volume2,
+  VolumeX,
+  Upload,
+  Play,
+  Pause,
+  RefreshCw,
 } from 'lucide-react'
 import {
   HomeCard,
@@ -35,6 +45,8 @@ import {
   CommunityClip,
   TopTeamDetail,
   Profile,
+  PRESET_CHAMPION_IMAGES,
+  PRESET_BGMS,
 } from '../../lib/types'
 import {
   supabase,
@@ -113,6 +125,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
   const [editingTourney, setEditingTourney] = useState<Tournament | null>(null)
   const [selectedTourneyRegs, setSelectedTourneyRegs] = useState<TournamentRegistration[]>([])
   const [selectedTourneyTitle, setSelectedTourneyTitle] = useState('')
+  const [selectedTourneyId, setSelectedTourneyId] = useState('')
   const [showRegModal, setShowRegModal] = useState(false)
   const [rulesModalTourney, setRulesModalTourney] = useState<Tournament | null>(null)
 
@@ -120,9 +133,19 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
   const [finishingTourney, setFinishingTourney] = useState<Tournament | null>(null)
   const [finishRegs, setFinishRegs] = useState<TournamentRegistration[]>([])
 
-  const [top1Team, setTop1Team] = useState<TopTeamDetail>({ rank: 1, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: [], player_uids: [] })
-  const [top2Team, setTop2Team] = useState<TopTeamDetail>({ rank: 2, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: [], player_uids: [] })
-  const [top3Team, setTop3Team] = useState<TopTeamDetail>({ rank: 3, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: [], player_uids: [] })
+  const [top1Team, setTop1Team] = useState<TopTeamDetail>({ rank: 1, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: ['', '', '', ''], player_uids: ['', '', '', ''] })
+  const [top2Team, setTop2Team] = useState<TopTeamDetail>({ rank: 2, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: ['', '', '', ''], player_uids: ['', '', '', ''] })
+  const [top3Team, setTop3Team] = useState<TopTeamDetail>({ rank: 3, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: ['', '', '', ''], player_uids: ['', '', '', ''] })
+  const [finishChampionsImageUrl, setFinishChampionsImageUrl] = useState<string>('/images/carousel-aliens-champions.jpg')
+  const [finishResultsBgmUrl, setFinishResultsBgmUrl] = useState<string>('')
+  const [imageFileName, setImageFileName] = useState<string>('')
+  const [audioFileName, setAudioFileName] = useState<string>('')
+  const [adminAudioTesting, setAdminAudioTesting] = useState(false)
+  const [adminAudioElement, setAdminAudioElement] = useState<HTMLAudioElement | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [uploadingAudio, setUploadingAudio] = useState(false)
+  const finishImageInputRef = useRef<HTMLInputElement>(null)
+  const finishAudioInputRef = useRef<HTMLInputElement>(null)
 
   // Admin Manual Team Registration State
   const [adminAddRegModalOpen, setAdminAddRegModalOpen] = useState(false)
@@ -520,13 +543,24 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
     }
   }
 
+  const handleReopenRegistration = async (tourneyId: string) => {
+    const res = await updateTournament(tourneyId, { status: 'registration_open' })
+    if (res.success) {
+      showNotification('Registration reopened for this tournament!')
+      loadAllAdminData()
+    } else {
+      showNotification(res.error || 'Failed to reopen registration', 'error')
+    }
+  }
+
   const extractPlayerNames = (r: TournamentRegistration) => {
     const names: string[] = []
     if (r.captain_name) names.push(r.captain_name)
     if (Array.isArray(r.teammate_names)) {
       r.teammate_names.forEach((n) => { if (n && n.trim()) names.push(n.trim()) })
     }
-    return names
+    while (names.length < 4) names.push('')
+    return names.slice(0, 4)
   }
 
   const extractPlayerUids = (r: TournamentRegistration) => {
@@ -535,27 +569,225 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
     if (Array.isArray(r.teammate_uids)) {
       r.teammate_uids.forEach((u) => { if (u && u.trim()) uids.push(u.trim()) })
     }
-    return uids
+    while (uids.length < 4) uids.push('')
+    return uids.slice(0, 4)
+  }
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageFileName(file.name)
+    setUploadingImage(true)
+
+    // Instant local object URL for preview
+    const previewUrl = URL.createObjectURL(file)
+    setFinishChampionsImageUrl(previewUrl)
+
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('type', 'images')
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: fd,
+      })
+      const json = await res.json()
+      if (json.success && json.url) {
+        setFinishChampionsImageUrl(json.url)
+        showNotification(`Attached image "${file.name}" ready!`)
+        return
+      }
+
+      // Fallback to Supabase Storage if API response was unsuccessful
+      const fileExt = file.name.split('.').pop() || 'png'
+      const fileName = `tournaments/${finishingTourney?.id || 'tourney'}_champions_${Date.now()}.${fileExt}`
+      const { data: uploadData, error: uploadErr } = await supabase.storage.from('avatars').upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true,
+      })
+      if (!uploadErr && uploadData) {
+        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName)
+        if (urlData?.publicUrl) {
+          setFinishChampionsImageUrl(urlData.publicUrl)
+        }
+      }
+    } catch (err) {
+      console.warn('Image upload notice:', err)
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
+  const handleAudioFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAudioFileName(file.name)
+    setUploadingAudio(true)
+
+    if (adminAudioElement) {
+      adminAudioElement.pause()
+      setAdminAudioTesting(false)
+    }
+
+    // Instant local object URL for test playback
+    const previewUrl = URL.createObjectURL(file)
+    setFinishResultsBgmUrl(previewUrl)
+
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('type', 'audio')
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: fd,
+      })
+      const json = await res.json()
+      if (json.success && json.url) {
+        setFinishResultsBgmUrl(json.url)
+        showNotification(`Attached audio "${file.name}" ready!`)
+        return
+      }
+
+      // Fallback to Supabase Storage if API response was unsuccessful
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'mp3'
+      const mimeType = file.type || (fileExt === 'mp4' ? 'video/mp4' : 'audio/mpeg')
+      const fileName = `audio/${finishingTourney?.id || 'tourney'}_victory_${Date.now()}.${fileExt}`
+      const { data: uploadData, error: uploadErr } = await supabase.storage.from('avatars').upload(fileName, file, {
+        contentType: mimeType,
+        cacheControl: '3600',
+        upsert: true,
+      })
+      if (!uploadErr && uploadData) {
+        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName)
+        if (urlData?.publicUrl) {
+          setFinishResultsBgmUrl(urlData.publicUrl)
+        }
+      }
+    } catch (err) {
+      console.warn('Audio upload notice:', err)
+    } finally {
+      setUploadingAudio(false)
+    }
+  }
+
+  const toggleAdminAudioTest = () => {
+    if (!finishResultsBgmUrl) return
+    if (adminAudioTesting && adminAudioElement) {
+      adminAudioElement.pause()
+      setAdminAudioTesting(false)
+    } else {
+      if (adminAudioElement) {
+        adminAudioElement.pause()
+      }
+      const audio = new Audio(finishResultsBgmUrl)
+      audio.preload = 'auto'
+      audio.onended = () => setAdminAudioTesting(false)
+      audio.onerror = () => {
+        setAdminAudioTesting(false)
+        showNotification('Unable to preview audio track. Check that your MP3 or MP4 file has a valid audio track.', 'error')
+      }
+      audio.play().then(() => {
+        setAdminAudioTesting(true)
+        setAdminAudioElement(audio)
+      }).catch((err) => {
+        console.warn('Audio test blocked:', err)
+        setAdminAudioTesting(false)
+      })
+    }
   }
 
   const handleOpenFinishModal = async (t: Tournament) => {
     setFinishingTourney(t)
+    setFinishChampionsImageUrl(t.champions_image_url || '/images/carousel-aliens-champions.jpg')
+    setFinishResultsBgmUrl(t.results_bgm_url || '')
+    setImageFileName('')
+    setAudioFileName('')
+    if (adminAudioElement) {
+      adminAudioElement.pause()
+      setAdminAudioElement(null)
+      setAdminAudioTesting(false)
+    }
+
     const regs = await fetchTournamentRegistrationsForAdmin(t.id)
     setFinishRegs(regs)
 
-    if (t.top_3_teams && t.top_3_teams.length > 0) {
-      const t1 = t.top_3_teams.find((x) => x.rank === 1)
-      const t2 = t.top_3_teams.find((x) => x.rank === 2)
-      const t3 = t.top_3_teams.find((x) => x.rank === 3)
+    const prepTeam = (
+      rank: 1 | 2 | 3,
+      defaultPoints: number,
+      defaultPrize: string,
+      reg?: TournamentRegistration,
+      existing?: TopTeamDetail
+    ): TopTeamDetail => {
+      if (existing) {
+        const names = existing.player_names && existing.player_names.length >= 4
+          ? [...existing.player_names]
+          : [
+              existing.captain_name || reg?.captain_name || '',
+              existing.player_names?.[1] || reg?.teammate_names?.[0] || '',
+              existing.player_names?.[2] || reg?.teammate_names?.[1] || '',
+              existing.player_names?.[3] || reg?.teammate_names?.[2] || '',
+            ]
+        const uids = existing.player_uids && existing.player_uids.length >= 4
+          ? [...existing.player_uids]
+          : [
+              existing.captain_uid || reg?.captain_free_fire_uid || '',
+              existing.player_uids?.[1] || reg?.teammate_uids?.[0] || '',
+              existing.player_uids?.[2] || reg?.teammate_uids?.[1] || '',
+              existing.player_uids?.[3] || reg?.teammate_uids?.[2] || '',
+            ]
+        while (names.length < 4) names.push('')
+        while (uids.length < 4) uids.push('')
+        return {
+          rank,
+          team_name: existing.team_name || reg?.team_name || reg?.captain_name || '',
+          captain_name: names[0] || existing.captain_name || '',
+          captain_uid: uids[0] || existing.captain_uid || '',
+          kills: existing.kills ?? (reg?.kills || 0),
+          points: existing.points ?? defaultPoints,
+          prize: existing.prize || defaultPrize,
+          player_names: names.slice(0, 4),
+          player_uids: uids.slice(0, 4),
+        }
+      }
 
-      setTop1Team(t1 || (regs[0] ? { rank: 1, team_name: regs[0].team_name || regs[0].captain_name || '', captain_name: regs[0].captain_name || '', captain_uid: regs[0].captain_free_fire_uid || '', kills: regs[0].kills || 0, points: 35, prize: '', player_names: extractPlayerNames(regs[0]), player_uids: extractPlayerUids(regs[0]) } : { rank: 1, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: [], player_uids: [] }))
-      setTop2Team(t2 || (regs[1] ? { rank: 2, team_name: regs[1].team_name || regs[1].captain_name || '', captain_name: regs[1].captain_name || '', captain_uid: regs[1].captain_free_fire_uid || '', kills: regs[1].kills || 0, points: 25, prize: '', player_names: extractPlayerNames(regs[1]), player_uids: extractPlayerUids(regs[1]) } : { rank: 2, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: [], player_uids: [] }))
-      setTop3Team(t3 || (regs[2] ? { rank: 3, team_name: regs[2].team_name || regs[2].captain_name || '', captain_name: regs[2].captain_name || '', captain_uid: regs[2].captain_free_fire_uid || '', kills: regs[2].kills || 0, points: 18, prize: '', player_names: extractPlayerNames(regs[2]), player_uids: extractPlayerUids(regs[2]) } : { rank: 3, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: [], player_uids: [] }))
-    } else {
-      setTop1Team(regs[0] ? { rank: 1, team_name: regs[0].team_name || regs[0].captain_name || '', captain_name: regs[0].captain_name || '', captain_uid: regs[0].captain_free_fire_uid || '', kills: regs[0].kills || 0, points: 35, prize: '', player_names: extractPlayerNames(regs[0]), player_uids: extractPlayerUids(regs[0]) } : { rank: 1, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: [], player_uids: [] })
-      setTop2Team(regs[1] ? { rank: 2, team_name: regs[1].team_name || regs[1].captain_name || '', captain_name: regs[1].captain_name || '', captain_uid: regs[1].captain_free_fire_uid || '', kills: regs[1].kills || 0, points: 25, prize: '', player_names: extractPlayerNames(regs[1]), player_uids: extractPlayerUids(regs[1]) } : { rank: 2, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: [], player_uids: [] })
-      setTop3Team(regs[2] ? { rank: 3, team_name: regs[2].team_name || regs[2].captain_name || '', captain_name: regs[2].captain_name || '', captain_uid: regs[2].captain_free_fire_uid || '', kills: regs[2].kills || 0, points: 18, prize: '', player_names: extractPlayerNames(regs[2]), player_uids: extractPlayerUids(regs[2]) } : { rank: 3, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: [], player_uids: [] })
+      if (reg) {
+        const names = extractPlayerNames(reg)
+        const uids = extractPlayerUids(reg)
+        return {
+          rank,
+          team_name: reg.team_name || reg.captain_name || '',
+          captain_name: names[0] || reg.captain_name || '',
+          captain_uid: uids[0] || reg.captain_free_fire_uid || '',
+          kills: reg.kills || 0,
+          points: defaultPoints,
+          prize: defaultPrize,
+          player_names: names,
+          player_uids: uids,
+        }
+      }
+
+      return {
+        rank,
+        team_name: '',
+        captain_name: '',
+        captain_uid: '',
+        kills: 0,
+        points: defaultPoints,
+        prize: defaultPrize,
+        player_names: ['', '', '', ''],
+        player_uids: ['', '', '', ''],
+      }
     }
+
+    const t1 = t.top_3_teams?.find((x) => x.rank === 1)
+    const t2 = t.top_3_teams?.find((x) => x.rank === 2)
+    const t3 = t.top_3_teams?.find((x) => x.rank === 3)
+
+    setTop1Team(prepTeam(1, 35, '₹5,000', regs[0], t1))
+    setTop2Team(prepTeam(2, 25, '₹3,000', regs[1], t2))
+    setTop3Team(prepTeam(3, 18, '₹2,000', regs[2], t3))
   }
 
   const handleAdminRegisterTeamSubmit = async (e: React.FormEvent) => {
@@ -602,6 +834,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
       teamName: adminRegTeamName.trim() || adminRegCaptainName.trim(),
       teammateNames,
       teammateUids,
+      isAdmin: true,
     })
 
     if (res.success) {
@@ -656,19 +889,51 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
     e.preventDefault()
     if (!finishingTourney) return
 
+    if (adminAudioElement) {
+      adminAudioElement.pause()
+      setAdminAudioElement(null)
+      setAdminAudioTesting(false)
+    }
+
+    const cleanTeam = (item: TopTeamDetail): TopTeamDetail => {
+      const names = (item.player_names || []).map((n) => n.trim())
+      const uids = (item.player_uids || []).map((u) => u.trim())
+      while (names.length < 4) names.push('')
+      while (uids.length < 4) uids.push('')
+      return {
+        ...item,
+        team_name: item.team_name.trim(),
+        captain_name: names[0] || item.captain_name.trim(),
+        captain_uid: uids[0] || item.captain_uid?.trim() || '',
+        player_names: names.slice(0, 4),
+        player_uids: uids.slice(0, 4),
+      }
+    }
+
     const top3Payload: TopTeamDetail[] = [
-      top1Team,
-      top2Team,
-      top3Team,
+      cleanTeam(top1Team),
+      cleanTeam(top2Team),
+      cleanTeam(top3Team),
     ].filter((item) => item.team_name.trim() !== '')
 
-    const res = await updateTournamentTop3AndResults(finishingTourney.id, top3Payload, 'completed')
+    const res = await updateTournamentTop3AndResults(
+      finishingTourney.id,
+      top3Payload,
+      'completed',
+      {
+        championsImageUrl: finishChampionsImageUrl.trim(),
+        resultsBgmUrl: finishResultsBgmUrl.trim(),
+      }
+    )
     if (!res.success) {
       showNotification(res.error || 'Failed to save tournament results', 'error')
       return
     }
 
     showNotification(`Tournament Results & Top 3 teams saved and published successfully!`)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('tournaments_updated'))
+    }
     setFinishingTourney(null)
     loadAllAdminData()
   }
@@ -683,6 +948,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
   const handleViewRegistrations = async (t: Tournament) => {
     setSelectedTourneyTitle(t.title)
+    setSelectedTourneyId(t.id)
     const regs = await fetchTournamentRegistrationsForAdmin(t.id)
     setSelectedTourneyRegs(regs)
     setShowRegModal(true)
@@ -878,124 +1144,202 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
     }
   }
 
+  const adminTabs = [
+    { id: 'HOME_CMS', label: 'Home CMS', icon: Home },
+    {
+      id: 'TOURNAMENTS',
+      label: `Tournaments${showLiveSection ? ' · Live' : ''}`,
+      icon: Trophy,
+    },
+    { id: 'ANNOUNCEMENTS', label: 'ANNOUNCEMENTS', icon: Megaphone },
+    { id: 'LEADERBOARD', label: 'Leaderboard', icon: Layers },
+    {
+      id: 'GUILD',
+      label: `Elite Army Guild${!showGuildSection ? ' · Hidden' : ''}`,
+      icon: ShieldCheck,
+    },
+    { id: 'ACHIEVEMENTS', label: 'Achievements', icon: Award },
+    {
+      id: 'CLIPS',
+      label: 'Clips',
+      icon: Video,
+      count: pendingClips.length,
+    },
+  ]
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#050505] text-white overflow-hidden">
-      <div className="relative flex h-full w-full flex-col bg-[#0c0c0e] overflow-hidden">
+    <div className="admin-dashboard-root fixed inset-0 z-50 flex flex-col overflow-hidden bg-canvas text-ink neu-theme">
+      <div className="relative flex h-full w-full flex-col overflow-hidden bg-canvas">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 bg-[#120607] px-4 sm:px-6 py-3 sm:py-4 gap-2 shrink-0">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <ShieldCheck className="text-amber-500 shrink-0" size={26} />
+        <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-line-subtle bg-surface px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-brand-border bg-brand-muted text-brand-bright">
+              <ShieldCheck size={19} />
+            </span>
             <div className="min-w-0">
-              <h3 className="font-display text-lg sm:text-2xl font-black uppercase text-white truncate">
-                ADMIN CONTROL CENTER
-              </h3>
-              <p className="text-[9px] sm:text-[10px] font-bold tracking-widest text-amber-500 truncate">
-                ELITE KANNADIGA BACKEND MANAGEMENT
+              <h1 className="truncate text-sm font-semibold tracking-tight text-ink">
+                Control center
+              </h1>
+              <p className="hidden truncate text-xs text-ink-subtle sm:block">
+                ELITE ಕನ್ನಡಿಗ operations
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <div className="hidden sm:block">
+              <span className="badge">Admin</span>
+            </div>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 sm:gap-2 border border-red-800 bg-red-950/60 px-2.5 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-xs font-black tracking-widest text-red-400 transition hover:bg-red-600 hover:text-white"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
             >
-              <LogOut size={13} /> <span className="hidden xs:inline">LOGOUT</span>
+              <LogOut size={15} />
+              <span className="hidden sm:inline">Logout</span>
             </button>
-            <button onClick={onClose} className="text-white/60 hover:text-white p-1">
-              <X size={22} />
+            <button
+              onClick={onClose}
+              className="grid h-9 w-9 place-items-center rounded-md text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
+              aria-label="Close dashboard"
+            >
+              <X size={19} />
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* Global Alert Notification */}
+        {/* Global alert */}
         {msg && (
           <div
-            className={`px-4 sm:px-6 py-2.5 text-xs font-bold shrink-0 ${
+            className={`shrink-0 border-b px-4 py-2.5 text-xs font-medium sm:px-6 ${
               msg.type === 'success'
-                ? 'bg-emerald-950 text-emerald-400 border-b border-emerald-500/40'
-                : 'bg-red-950 text-red-400 border-b border-red-500/40'
+                ? 'border-line-strong bg-surface-3 text-ink'
+                : 'border-brand-border bg-brand-muted text-brand-bright'
             }`}
+            role="status"
           >
             {msg.text}
           </div>
         )}
 
-        {/* Navigation Tabs */}
-        <div className="flex overflow-x-auto no-scrollbar border-b border-white/10 bg-[#050505] px-2 sm:px-4 shrink-0">
-          {[
-            { id: 'HOME_CMS', label: 'HOME CMS', icon: Home },
-            { id: 'TOURNAMENTS', label: `TOURNAMENTS${showLiveSection ? ' (LIVE ON)' : ''}`, icon: Trophy },
-            { id: 'ANNOUNCEMENTS', label: 'ANNOUNCEMENTS', icon: Megaphone },
-            { id: 'LEADERBOARD', label: 'LEADERBOARD', icon: Layers },
-            { id: 'GUILD', label: `ELITE ARMY GUILD${!showGuildSection ? ' (HIDDEN)' : ''}`, icon: ShieldCheck },
-            { id: 'ACHIEVEMENTS', label: 'ACHIEVEMENTS', icon: Award },
-            { id: 'CLIPS', label: `CLIPS (${pendingClips.length})`, icon: Video },
-          ].map((tab) => {
-            const Icon = tab.icon
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as TabType)}
-                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-black tracking-wider transition whitespace-nowrap shrink-0 ${
-                  activeTab === tab.id
-                    ? 'border-b-2 border-red-600 bg-white/5 text-white'
-                    : 'text-white/40 hover:text-white'
-                }`}
-              >
-                <Icon size={13} className={activeTab === tab.id ? 'text-red-500' : ''} />
-                {tab.label}
-              </button>
-            )
-          })}
-        </div>
+        <div className="flex min-h-0 flex-1 overflow-hidden bg-canvas">
+          {/* Desktop sidebar */}
+          <aside className="hidden w-64 shrink-0 flex-col border-r border-line-subtle bg-surface xl:flex 2xl:w-72">
+            <div className="flex-1 overflow-y-auto p-3">
+              <p className="px-3 pb-2 pt-1 text-xs font-semibold uppercase tracking-[0.14em] text-ink-subtle">
+                Workspace
+              </p>
+              <nav className="space-y-1" aria-label="Admin sections">
+                {adminTabs.map((tab) => {
+                  const Icon = tab.icon
+                  const isActive = activeTab === tab.id
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as TabType)}
+                      className={`flex w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-xs font-medium transition-colors ${
+                        isActive
+                          ? 'bg-brand-muted text-ink'
+                          : 'text-ink-muted hover:bg-surface-2 hover:text-ink'
+                      }`}
+                    >
+                      <Icon
+                        size={16}
+                        className={
+                          isActive ? 'shrink-0 text-brand-bright' : 'shrink-0 text-ink-subtle'
+                        }
+                      />
+                      <span className="truncate">{tab.label}</span>
+                      {'count' in tab && tab.count ? (
+                        <span className="ml-auto rounded bg-brand px-1.5 py-0.5 text-xs font-semibold text-white">
+                          {tab.count}
+                        </span>
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </nav>
+            </div>
+            <div className="border-t border-line-subtle p-3">
+              <p className="px-3 text-xs text-ink-subtle">Signed in as admin</p>
+            </div>
+          </aside>
 
-        {/* Main Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 2xl:p-8 space-y-6 max-w-[1800px] w-full mx-auto">
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            {/* Mobile / tablet tabs */}
+            <div className="relative shrink-0 border-b border-line-subtle bg-surface xl:hidden">
+              <div className="no-scrollbar flex overflow-x-auto px-2">
+                {adminTabs.map((tab) => {
+                  const Icon = tab.icon
+                  const isActive = activeTab === tab.id
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as TabType)}
+                      className={`flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-3 text-xs font-semibold transition-colors ${
+                        isActive
+                          ? 'border-brand text-ink'
+                          : 'border-transparent text-ink-subtle hover:text-ink'
+                      }`}
+                    >
+                      <Icon size={14} className={isActive ? 'text-brand-bright' : ''} />
+                      {tab.label}
+                    </button>
+                  )
+                })}
+              </div>
+              <div
+                className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-surface to-transparent"
+                aria-hidden="true"
+              />
+            </div>
+
+            {/* Main content */}
+            <main className="flex-1 overflow-y-auto p-4 sm:p-6 2xl:p-8">
+              <div className="mx-auto w-full max-w-[1600px] space-y-6">
           {/* ============================================================ */}
           {/* 1. HOME CMS TAB */}
           {/* ============================================================ */}
           {activeTab === 'HOME_CMS' && (
             <div className="space-y-6">
               {/* Add Card Form */}
-              <div className="border border-white/10 bg-white/5 p-5 space-y-4">
+              <div className="border border-line-subtle bg-surface-2 p-5 space-y-4">
                 <h4 className="eyebrow flex items-center gap-2">
-                  <Plus size={14} /> ADD DYNAMIC CARD / STAT TO HOME PAGE
+                  <Plus size={14} /> Add home card / stat
                 </h4>
                 <form onSubmit={handleAddHomeCard} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">TITLE / NAME</label>
+                    <label className="mb-1 block label">TITLE / NAME</label>
                     <input
                       type="text"
                       placeholder="e.g. TOURNAMENT POOL"
                       value={newCardTitle}
                       onChange={(e) => setNewCardTitle(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      className="field h-10"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">STAT NUMBER / VALUE</label>
+                    <label className="mb-1 block label">STAT NUMBER / VALUE</label>
                     <input
                       type="text"
                       placeholder="e.g. ₹5,00,000+"
                       value={newCardNumber}
                       onChange={(e) => setNewCardNumber(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      className="field h-10"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">SUBTITLE / LABEL</label>
+                    <label className="mb-1 block label">SUBTITLE / LABEL</label>
                     <input
                       type="text"
                       placeholder="e.g. PRIZES DISTRIBUTED"
                       value={newCardLabel}
                       onChange={(e) => setNewCardLabel(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      className="field h-10"
                     />
                   </div>
                   <div className="flex items-end">
                     <button
                       type="submit"
-                      className="w-full bg-red-600 py-2 text-xs font-black tracking-widest text-white transition hover:bg-red-500"
+                      className="btn-primary w-full"
                     >
                       ADD CARD TO HOME
                     </button>
@@ -1008,23 +1352,23 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                 <h4 className="eyebrow mb-3">EXISTING HOME CARDS & STATS ({homeCards.length})</h4>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {homeCards.map((c) => (
-                    <div key={c.id} className="relative border border-white/10 bg-white/5 p-4 flex justify-between items-start">
+                    <div key={c.id} className="relative border border-line-subtle bg-surface-2 p-4 flex justify-between items-start">
                       <div>
-                        <p className="font-display text-xl font-black text-white">{c.stat_number || c.title}</p>
-                        <p className="text-xs font-bold text-white/50">{c.stat_label || c.subtitle}</p>
-                        <p className="mt-2 text-[10px] tracking-widest text-red-400 uppercase">Section: {c.section}</p>
+                        <p className="font-display text-xl font-extrabold text-ink">{c.stat_number || c.title}</p>
+                        <p className="text-xs font-bold text-ink-subtle">{c.stat_label || c.subtitle}</p>
+                        <p className="mt-2 text-xs tracking-widest text-brand-bright uppercase">Section: {c.section}</p>
                       </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => setEditingHomeCard(c)}
-                          className="text-white/40 hover:text-amber-400"
+                          className="text-ink-subtle hover:text-brand-bright"
                           title="Edit Card"
                         >
                           <Edit2 size={16} />
                         </button>
                         <button
                           onClick={() => handleDeleteHomeCard(c.id)}
-                          className="text-white/40 hover:text-red-500"
+                          className="text-ink-subtle hover:text-brand-bright"
                           title="Delete Card"
                         >
                           <Trash2 size={16} />
@@ -1043,36 +1387,36 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
           {activeTab === 'TOURNAMENTS' && (
             <div className="space-y-6">
               {/* User Dashboard Live Section Toggle Banner */}
-              <div className="flex flex-wrap items-center justify-between gap-4 border border-red-900/60 bg-gradient-to-r from-red-950/60 via-[#140607] to-black p-4 sm:p-5 shadow-lg">
+              <div className="flex flex-wrap items-center justify-between gap-4 border border-brand-border bg-gradient-to-r from-brand-muted via-surface to-canvas p-4 sm:p-5 shadow-lg">
                 <div className="flex items-center gap-3.5">
                   <div className="relative flex h-3.5 w-3.5 items-center justify-center">
                     <span
                       className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
-                        showLiveSection ? 'bg-red-400' : 'bg-gray-500'
+                        showLiveSection ? 'bg-brand' : 'bg-surface-3'
                       }`}
                     />
                     <span
                       className={`relative inline-flex h-3 w-3 rounded-full ${
-                        showLiveSection ? 'bg-red-500' : 'bg-gray-600'
+                        showLiveSection ? 'bg-brand' : 'bg-surface-3'
                       }`}
                     />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="font-display text-sm font-black uppercase tracking-wider text-white">
+                      <h4 className="font-display text-sm font-extrabold uppercase tracking-wider text-ink">
                         User Dashboard Live Section
                       </h4>
                       <span
-                        className={`rounded px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${
+                        className={`rounded px-2 py-0.5 text-xs font-extrabold uppercase tracking-wider ${
                           showLiveSection
-                            ? 'border border-emerald-500/50 bg-emerald-950/60 text-emerald-300'
-                            : 'border border-white/10 bg-white/5 text-white/40'
+                            ? 'border border-line-strong bg-surface-3 text-ink'
+                            : 'border border-line-subtle bg-surface-2 text-ink-subtle'
                         }`}
                       >
                         {showLiveSection ? '● VISIBLE TO USERS' : '○ HIDDEN FROM USERS'}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-white/60">
+                    <p className="mt-0.5 text-xs text-ink-muted">
                       When enabled, users will see the 🔴 LIVE ARENA tab in their dashboard displaying the real-time points table and open registrations.
                     </p>
                   </div>
@@ -1083,7 +1427,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     <select
                       value={liveTourneyId}
                       onChange={(e) => handleSetLiveTournament(e.target.value)}
-                      className="border border-white/15 bg-[#121214] px-3 py-2 text-xs font-bold text-white focus:border-red-500 focus:outline-none"
+                      className="border border-line bg-surface px-3 py-2 text-xs font-bold text-ink focus:border-brand focus:outline-none"
                       title="Featured Tournament for Live Section"
                     >
                       <option value="">Auto-Detect Active Tournament</option>
@@ -1098,10 +1442,10 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                   <button
                     type="button"
                     onClick={handleToggleLiveSection}
-                    className={`px-4 py-2 text-xs font-black uppercase tracking-wider transition-all shadow-md ${
+                    className={`px-4 py-2 text-xs font-extrabold uppercase tracking-wider transition-all shadow-md ${
                       showLiveSection
-                        ? 'bg-red-600 hover:bg-red-700 text-white border border-red-500 shadow-red-950/50'
-                        : 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500 shadow-emerald-950/50'
+                        ? 'bg-brand hover:bg-brand text-ink border border-brand shadow-brand/20'
+                        : 'bg-surface-3 hover:bg-surface-3 text-ink border border-line-strong shadow-black/20'
                     }`}
                   >
                     {showLiveSection ? 'HIDE LIVE SECTION' : 'SHOW LIVE SECTION'}
@@ -1110,28 +1454,28 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
               </div>
 
               {/* Create Tournament Form */}
-              <form onSubmit={handleCreateTournament} className="border border-white/10 bg-white/5 p-5 space-y-4">
+              <form onSubmit={handleCreateTournament} className="border border-line-subtle bg-surface-2 p-5 space-y-4">
                 <h4 className="eyebrow flex items-center gap-2">
                   <Plus size={14} /> ANNOUNCE NEW TOURNAMENT
                 </h4>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">TOURNAMENT TITLE *</label>
+                    <label className="mb-1 block label">TOURNAMENT TITLE *</label>
                     <input
                       type="text"
                       required
                       placeholder="e.g. ELITE CHAMPIONSHIP S4"
                       value={newTourneyTitle}
                       onChange={(e) => setNewTourneyTitle(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      className="field h-10"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">GAME MODE *</label>
+                    <label className="mb-1 block label">GAME MODE *</label>
                     <select
                       value={newTourneyMode}
                       onChange={(e) => setNewTourneyMode(e.target.value)}
-                      className="w-full border border-white/15 bg-[#121214] px-3 py-2 text-xs text-white focus:outline-none"
+                      className="w-full border border-line bg-surface px-3 py-2 text-xs text-ink focus:outline-none"
                     >
                       <option value="CS SQUAD BATTLE">1. CS SQUAD BATTLE (Clash Squad)</option>
                       <option value="BR SQUAD BATTLE">2. BR SQUAD BATTLE (Battle Royale)</option>
@@ -1141,56 +1485,56 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">PRIZE POOL / OFFERS *</label>
+                    <label className="mb-1 block label">PRIZE POOL / OFFERS *</label>
                     <input
                       type="text"
                       required
                       placeholder="e.g. ₹10,000 OR Free Channel Membership"
                       value={customPrizeText}
                       onChange={(e) => setCustomPrizeText(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      className="field h-10"
                     />
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-amber-400">
+                    <label className="mb-1 block text-xs font-bold text-brand-bright">
                       REGISTRATION CLOSE DATE & TIME
                     </label>
                     <input
                       type="datetime-local"
                       value={regCloseDate}
                       onChange={(e) => setRegCloseDate(e.target.value)}
-                      className="w-full border border-white/15 bg-[#121214] px-3 py-2 text-xs text-white focus:outline-none"
+                      className="w-full border border-line bg-surface px-3 py-2 text-xs text-ink focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/80">
+                    <label className="mb-1 block text-xs font-bold text-ink">
                       TOURNAMENT START DATE & TIME
                     </label>
                     <input
                       type="datetime-local"
                       value={tourneyStartDate}
                       onChange={(e) => setTourneyStartDate(e.target.value)}
-                      className="w-full border border-white/15 bg-[#121214] px-3 py-2 text-xs text-white focus:outline-none"
+                      className="w-full border border-line bg-surface px-3 py-2 text-xs text-ink focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold text-white/60">TOURNAMENT RULES</label>
+                  <label className="mb-1 block label">TOURNAMENT RULES</label>
                   <textarea
                     rows={3}
                     value={rulesText}
                     onChange={(e) => setRulesText(e.target.value)}
-                    className="w-full border border-white/15 bg-white/5 p-3 text-xs text-white focus:outline-none"
+                    className="w-full border border-line bg-surface-2 p-3 text-xs text-ink focus:outline-none"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="bg-red-600 px-5 py-2.5 text-xs font-black tracking-widest text-white hover:bg-red-500"
+                  className="bg-brand px-5 py-2.5 text-xs font-extrabold tracking-widest text-ink hover:bg-brand"
                 >
                   PUBLISH TOURNAMENT
                 </button>
@@ -1202,27 +1546,27 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                 {tournaments.map((t) => (
                   <div
                     key={t.id}
-                    className="flex flex-col gap-3 border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-3 border border-line-subtle bg-surface-2 p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <h5 className="font-display text-lg font-black text-white">{t.title}</h5>
+                        <h5 className="font-display text-lg font-extrabold text-ink">{t.title}</h5>
                         <span
-                          className={`px-2 py-0.5 text-[9px] font-black uppercase ${
+                          className={`px-2 py-0.5 text-xs font-extrabold uppercase ${
                             t.status === 'registration_open'
-                              ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/40'
+                              ? 'bg-surface-3 text-ink border border-line-strong'
                               : t.status === 'full'
-                              ? 'bg-amber-950 text-amber-400 border border-amber-500/40'
-                              : 'bg-red-950 text-red-400 border border-red-500/40'
+                              ? 'bg-brand-muted text-brand-bright border border-brand'
+                              : 'bg-brand-muted text-brand-bright border border-brand'
                           }`}
                         >
                           {t.status.replace('_', ' ')}
                         </span>
                       </div>
-                      <p className="text-xs text-white/50 mt-1">
-                        Mode: <strong className="text-white">{t.game_mode}</strong> • Prize: <strong className="text-red-400">{t.prize_pool}</strong> • Registered: <strong className="text-amber-400">{t.slots_filled || 0} / {t.max_slots} TEAMS</strong>
+                      <p className="text-xs text-ink-subtle mt-1">
+                        Mode: <strong className="text-ink">{t.game_mode}</strong> • Prize: <strong className="text-brand-bright">{t.prize_pool}</strong> • Registered: <strong className="text-brand-bright">{t.slots_filled || 0} / {t.max_slots} TEAMS</strong>
                       </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-white/60">
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-ink-muted">
                         <span>Reg Closes: {t.registration_end ? new Date(t.registration_end).toLocaleString() : 'Open until full'}</span>
                         <span>• Starts: {new Date(t.tournament_start).toLocaleString()}</span>
                       </div>
@@ -1231,43 +1575,71 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => setRulesModalTourney(t)}
-                        className="flex items-center gap-1 border border-amber-500/40 bg-amber-950/40 px-3 py-1.5 text-xs font-bold text-amber-400 hover:bg-amber-500 hover:text-black"
+                        className="flex items-center gap-1 border border-brand bg-brand-muted px-3 py-1.5 text-xs font-bold text-brand-bright hover:bg-brand hover:text-ink"
                       >
                         <FileText size={13} /> SEE RULES
                       </button>
 
                       <button
                         onClick={() => handleViewRegistrations(t)}
-                        className="flex items-center gap-1 border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white hover:border-red-500"
+                        className="flex items-center gap-1 border border-line bg-surface-3 px-3 py-1.5 text-xs font-bold text-ink hover:border-brand"
                       >
                         <Users size={14} /> VIEW REGS ({t.slots_filled || 0})
                       </button>
 
-                      {/* Edit Button */}
+                      {/* Admin Direct Register Team Button */}
                       <button
-                        onClick={() => setEditingTourney(t)}
-                        className="flex items-center gap-1 border border-amber-500/40 bg-amber-950/40 px-3 py-1.5 text-xs font-bold text-amber-400 hover:bg-amber-500 hover:text-black"
+                        onClick={() => {
+                          setAdminRegTourneyId(t.id)
+                          setAdminAddRegModalOpen(true)
+                        }}
+                        className="flex items-center gap-1 border border-brand bg-brand-muted px-3 py-1.5 text-xs font-extrabold text-brand-bright hover:bg-brand hover:text-ink transition shadow-sm"
+                        title="Register team directly into this tournament even if registrations are closed"
                       >
-                        <Edit2 size={13} /> EDIT
+                        <UserPlus size={13} /> + REGISTER TEAM
                       </button>
 
-                      {/* Close Registration Button */}
-                      {t.status === 'registration_open' && (
+                      {/* Edit Button */}
+                      <button
+                        onClick={() => {
+                          if (t.status === 'completed') {
+                            handleOpenFinishModal(t)
+                          } else {
+                            setEditingTourney(t)
+                          }
+                        }}
+                        className="flex items-center gap-1 border border-brand bg-brand-muted px-3 py-1.5 text-xs font-bold text-brand-bright hover:bg-brand hover:text-ink"
+                        title={t.status === 'completed' ? 'Edit Top 3 Teams, Player UIDs & Attached Media' : 'Edit Tournament Card'}
+                      >
+                        <Edit2 size={13} /> {t.status === 'completed' ? 'EDIT RESULTS' : 'EDIT'}
+                      </button>
+
+                      {/* Close or Re-Open Registration Button */}
+                      {t.status === 'registration_open' ? (
                         <button
                           onClick={() => handleCloseRegistration(t.id)}
-                          className="flex items-center gap-1 border border-amber-600/40 bg-amber-950/60 px-3 py-1.5 text-xs font-bold text-amber-300 hover:bg-amber-600 hover:text-black"
+                          className="flex items-center gap-1 border border-brand bg-brand-muted px-3 py-1.5 text-xs font-bold text-brand-bright hover:bg-brand hover:text-ink transition"
+                          title="Close public registration (sets status to FULL)"
                         >
-                          <Lock size={13} /> CLOSE REGISTRATION
+                          <Lock size={13} /> CLOSE REG
                         </button>
-                      )}
+                      ) : t.status !== 'completed' ? (
+                        <button
+                          onClick={() => handleReopenRegistration(t.id)}
+                          className="flex items-center gap-1 border border-line-strong bg-surface-3 px-3 py-1.5 text-xs font-bold text-ink hover:bg-surface-3 hover:text-ink transition"
+                          title="Re-open registrations for players"
+                        >
+                          <Unlock size={13} /> RE-OPEN REG
+                        </button>
+                      ) : null}
 
                       {/* Finish / Edit Results Button */}
                       <button
                         onClick={() => handleOpenFinishModal(t)}
                         className={`flex items-center gap-1 border px-3 py-1.5 text-xs font-bold transition ${
                           t.status === 'completed'
-                            ? 'border-amber-500/50 bg-amber-950/60 text-amber-400 hover:bg-amber-500 hover:text-black'
-                            : 'border-emerald-500/50 bg-emerald-950/60 text-emerald-400 hover:bg-emerald-600 hover:text-white'
+                            ? 'border-brand bg-brand-muted text-brand-bright hover:bg-brand hover:text-ink'
+                            : 'border-line-strong bg-surface-3 text-ink hover:bg-surface-3 hover:text-ink'
                         }`}
                       >
                         {t.status === 'completed' ? (
@@ -1283,7 +1655,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
                       <button
                         onClick={() => handleDeleteTournament(t.id)}
-                        className="p-1.5 text-white/40 hover:text-red-500"
+                        className="p-1.5 text-ink-subtle hover:text-brand-bright"
                         title="Delete Tournament"
                       >
                         <Trash2 size={16} />
@@ -1300,12 +1672,12 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
           {/* ============================================================ */}
           {activeTab === 'LEADERBOARD' && (
             <div className="space-y-6">
-              <div className="border border-amber-600/40 bg-amber-950/20 p-5">
+              <div className="border border-brand bg-brand-muted p-5">
                 <div className="flex items-center gap-3">
-                  <Trophy className="text-amber-400" size={32} />
+                  <Trophy className="text-brand-bright" size={32} />
                   <div>
-                    <h4 className="font-display text-2xl font-black text-white">GUN GODS & MOVEMENT GODS MANAGEMENT</h4>
-                    <p className="text-xs font-bold tracking-widest text-amber-400">
+                    <h4 className="font-display text-2xl font-extrabold text-ink">GUN GODS & MOVEMENT GODS MANAGEMENT</h4>
+                    <p className="text-xs font-bold tracking-widest text-brand-bright">
                       ASSIGN SPECIALIST HONORS & GUN/MOVEMENT TITLES TO PLAYERS BY SEARCHING THEIR GAME UID
                     </p>
                   </div>
@@ -1313,45 +1685,45 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
               </div>
 
               {/* Form to Add Player Honor */}
-              <form onSubmit={handleAddPlayerHonor} className="border border-white/10 bg-white/5 p-5 space-y-4">
-                <h4 className="eyebrow flex items-center gap-2 text-amber-400">
+              <form onSubmit={handleAddPlayerHonor} className="border border-line-subtle bg-surface-2 p-5 space-y-4">
+                <h4 className="eyebrow flex items-center gap-2 text-brand-bright">
                   <Plus size={14} /> ASSIGN NEW PLAYER HONOR / TITLE
                 </h4>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">CATEGORY *</label>
+                    <label className="mb-1 block label">CATEGORY *</label>
                     <select
                       value={honorCategory}
                       onChange={(e) => setHonorCategory(e.target.value as any)}
-                      className="w-full border border-white/15 bg-[#121214] px-3 py-2 text-xs text-white focus:outline-none"
+                      className="w-full border border-line bg-surface px-3 py-2 text-xs text-ink focus:outline-none"
                     >
                       <option value="gun_gods">1. GUN GODS (Weapon Mastery)</option>
                       <option value="movement_gods">2. MOVEMENT GODS (Reflex & Speed)</option>
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-amber-400">SEARCH PLAYER GAME UID *</label>
+                    <label className="mb-1 block text-xs font-bold text-brand-bright">SEARCH PLAYER GAME UID *</label>
                     <input
                       type="text"
                       required
                       placeholder="e.g. 1928374650"
                       value={honorPlayerUid}
                       onChange={(e) => handleUidSearch(e.target.value)}
-                      className="w-full border border-amber-500/40 bg-white/5 px-3 py-2 text-xs font-mono text-amber-300 focus:outline-none"
+                      className="w-full border border-brand bg-surface-2 px-3 py-2 text-xs font-mono text-brand-bright focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">PLAYER NAME (IGN)</label>
+                    <label className="mb-1 block label">PLAYER NAME (IGN)</label>
                     <input
                       type="text"
                       placeholder={searchingUid ? "Searching UID..." : "e.g. ELITE_RAHUL"}
                       value={honorPlayerName}
                       onChange={(e) => setHonorPlayerName(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      className="field h-10"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">
+                    <label className="mb-1 block label">
                       {honorCategory === 'gun_gods' ? 'GUN NAME / TITLE *' : 'MOVEMENT STYLE / TITLE *'}
                     </label>
                     <input
@@ -1360,42 +1732,42 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                       placeholder={honorCategory === 'gun_gods' ? "e.g. M1887 One-Tap King" : "e.g. 360 Gloo Wall Fast Dash"}
                       value={honorTitleName}
                       onChange={(e) => setHonorTitleName(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      className="field h-10"
                     />
                   </div>
                 </div>
 
                 {honorPlayerName && (
-                  <div className="flex items-center gap-3 border border-amber-500/50 bg-amber-950/40 p-3 rounded">
+                  <div className="flex items-center gap-3 border border-brand bg-brand-muted p-3 rounded">
                     <UserAvatar
                       src={honorPlayerAvatar || avatarMap.get(honorPlayerUid.trim().toLowerCase())}
                       name={honorPlayerName}
                       size="md"
-                      className="border-2 border-amber-400"
+                      className="border-2 border-brand"
                     />
                     <div>
-                      <p className="text-xs font-black text-amber-300">
-                        PLAYER DETECTED: <span className="text-white">{honorPlayerName}</span>
+                      <p className="text-xs font-extrabold text-brand-bright">
+                        PLAYER DETECTED: <span className="text-ink">{honorPlayerName}</span>
                       </p>
-                      <p className="font-mono text-[10px] text-white/60">UID: {honorPlayerUid}</p>
+                      <p className="font-mono text-xs text-ink-muted">UID: {honorPlayerUid}</p>
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold text-white/60">DESCRIPTION / PLAYSTYLE DETAILS</label>
+                  <label className="mb-1 block label">DESCRIPTION / PLAYSTYLE DETAILS</label>
                   <textarea
                     rows={2}
                     placeholder="e.g. Unstoppable close-range headshot accuracy in 1v1 custom rooms."
                     value={honorDescription}
                     onChange={(e) => setHonorDescription(e.target.value)}
-                    className="w-full border border-white/15 bg-white/5 p-2.5 text-xs text-white focus:outline-none"
+                    className="w-full border border-line bg-surface-2 p-2.5 text-xs text-ink focus:outline-none"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="bg-amber-600 px-6 py-2.5 text-xs font-black tracking-widest text-black hover:bg-amber-500 transition shadow-lg uppercase"
+                  className="bg-brand px-6 py-2.5 text-xs font-extrabold tracking-widest text-ink hover:bg-brand transition shadow-lg uppercase"
                 >
                   ADD TO {honorCategory === 'gun_gods' ? 'GUN GODS' : 'MOVEMENT GODS'}
                 </button>
@@ -1403,32 +1775,32 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
               {/* Gun Gods List */}
               <div className="space-y-3">
-                <h4 className="eyebrow text-amber-400">GUN GODS LEADERBOARD HONORS ({gunGodsList.length})</h4>
+                <h4 className="eyebrow text-brand-bright">GUN GODS LEADERBOARD HONORS ({gunGodsList.length})</h4>
                 <div className="space-y-2">
                   {gunGodsList.map((h, idx) => (
-                    <div key={h.id || idx} className="flex items-center justify-between border border-amber-900/40 bg-white/5 p-4">
+                    <div key={h.id || idx} className="flex items-center justify-between border border-brand-border bg-surface-2 p-4">
                       <div className="flex items-center gap-4">
-                        <span className="font-display text-sm font-black text-amber-400">#{String(idx + 1).padStart(2, '0')}</span>
+                        <span className="font-display text-sm font-extrabold text-brand-bright">#{String(idx + 1).padStart(2, '0')}</span>
                         <UserAvatar
                           src={h.avatar_url || avatarMap.get((h.player_uid || '').trim().toLowerCase())}
                           name={h.player_name}
                           size="md"
-                          className="border border-amber-500/40"
+                          className="border border-brand"
                         />
                         <div>
                           <div className="flex items-center gap-3">
-                            <span className="font-bold text-white">{h.player_name}</span>
-                            <span className="font-mono text-xs text-amber-400">UID: {h.player_uid}</span>
-                            <span className="border border-amber-500/40 bg-amber-950/60 px-2 py-0.5 text-[9px] font-black text-amber-300">
+                            <span className="font-bold text-ink">{h.player_name}</span>
+                            <span className="font-mono text-xs text-brand-bright">UID: {h.player_uid}</span>
+                            <span className="border border-brand bg-brand-muted px-2 py-0.5 text-xs font-extrabold text-brand-bright">
                               {h.title_name}
                             </span>
                           </div>
-                          {h.description && <p className="text-xs text-white/60 mt-1 italic font-mono">"{h.description}"</p>}
+                          {h.description && <p className="text-xs text-ink-muted mt-1 italic font-mono">"{h.description}"</p>}
                         </div>
                       </div>
                       <button
                         onClick={() => handleDeletePlayerHonor(h.id)}
-                        className="text-white/40 hover:text-red-500 p-2"
+                        className="text-ink-subtle hover:text-brand-bright p-2"
                         title="Remove Title"
                       >
                         <Trash2 size={16} />
@@ -1439,33 +1811,33 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
               </div>
 
               {/* Movement Gods List */}
-              <div className="space-y-3 pt-4 border-t border-white/10">
-                <h4 className="eyebrow text-cyan-400">MOVEMENT GODS LEADERBOARD HONORS ({movementGodsList.length})</h4>
+              <div className="space-y-3 pt-4 border-t border-line-subtle">
+                <h4 className="eyebrow text-ink-muted">MOVEMENT GODS LEADERBOARD HONORS ({movementGodsList.length})</h4>
                 <div className="space-y-2">
                   {movementGodsList.map((h, idx) => (
-                    <div key={h.id || idx} className="flex items-center justify-between border border-cyan-900/40 bg-white/5 p-4">
+                    <div key={h.id || idx} className="flex items-center justify-between border border-line bg-surface-2 p-4">
                       <div className="flex items-center gap-4">
-                        <span className="font-display text-sm font-black text-cyan-400">#{String(idx + 1).padStart(2, '0')}</span>
+                        <span className="font-display text-sm font-extrabold text-ink-muted">#{String(idx + 1).padStart(2, '0')}</span>
                         <UserAvatar
                           src={h.avatar_url || avatarMap.get((h.player_uid || '').trim().toLowerCase())}
                           name={h.player_name}
                           size="md"
-                          className="border border-cyan-500/40"
+                          className="border border-line"
                         />
                         <div>
                           <div className="flex items-center gap-3">
-                            <span className="font-bold text-white">{h.player_name}</span>
-                            <span className="font-mono text-xs text-amber-400">UID: {h.player_uid}</span>
-                            <span className="border border-cyan-500/40 bg-cyan-950/60 px-2 py-0.5 text-[9px] font-black text-cyan-300">
+                            <span className="font-bold text-ink">{h.player_name}</span>
+                            <span className="font-mono text-xs text-brand-bright">UID: {h.player_uid}</span>
+                            <span className="border border-line bg-surface-3 px-2 py-0.5 text-xs font-extrabold text-ink-muted">
                               {h.title_name}
                             </span>
                           </div>
-                          {h.description && <p className="text-xs text-white/60 mt-1 italic font-mono">"{h.description}"</p>}
+                          {h.description && <p className="text-xs text-ink-muted mt-1 italic font-mono">"{h.description}"</p>}
                         </div>
                       </div>
                       <button
                         onClick={() => handleDeletePlayerHonor(h.id)}
-                        className="text-white/40 hover:text-red-500 p-2"
+                        className="text-ink-subtle hover:text-brand-bright p-2"
                         title="Remove Title"
                       >
                         <Trash2 size={16} />
@@ -1482,31 +1854,31 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
           {/* ============================================================ */}
           {activeTab === 'GUILD' && (
             <div className="space-y-6">
-              <div className="border border-red-900/40 bg-red-950/20 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="border border-brand-border bg-brand-muted p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <ShieldCheck className="text-red-500" size={32} />
+                  <ShieldCheck className="text-brand-bright" size={32} />
                   <div>
-                    <h4 className="font-display text-2xl font-black text-white">ELITE ARMY (OFFICIAL GUILD)</h4>
-                    <p className="text-xs font-bold tracking-widest text-red-400">
+                    <h4 className="font-display text-2xl font-extrabold text-ink">ELITE ARMY (OFFICIAL GUILD)</h4>
+                    <p className="text-xs font-bold tracking-widest text-brand-bright">
                       SINGLE OFFICIAL GUILD • RANKED STRICTLY BY PLAYER GLORY SCORE
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 bg-black/60 border border-white/10 px-4 py-3 rounded-lg shadow-inner">
+                <div className="flex items-center gap-3 bg-canvas/60 border border-line-subtle px-4 py-3 rounded-lg shadow-inner">
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-black uppercase text-white/60 tracking-wider">User Guild Section Status</span>
-                    <span className={`text-xs font-black uppercase tracking-wider ${showGuildSection ? 'text-green-400' : 'text-red-500'}`}>
+                    <span className="text-xs font-extrabold uppercase text-ink-muted tracking-wider">User Guild Section Status</span>
+                    <span className={`text-xs font-extrabold uppercase tracking-wider ${showGuildSection ? 'text-ink' : 'text-brand-bright'}`}>
                       {showGuildSection ? '● VISIBLE TO USERS' : '○ HIDDEN FROM USERS'}
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={handleToggleGuildSection}
-                    className={`ml-2 px-4 py-2 text-xs font-black uppercase tracking-wider rounded transition-all shadow-md ${
+                    className={`ml-2 px-4 py-2 text-xs font-extrabold uppercase tracking-wider rounded transition-all shadow-md ${
                       showGuildSection
-                        ? 'bg-red-600 hover:bg-red-700 text-white border border-red-400'
-                        : 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-400'
+                        ? 'bg-brand hover:bg-brand text-ink border border-brand'
+                        : 'bg-surface-3 hover:bg-surface-3 text-ink border border-line-strong'
                     }`}
                   >
                     {showGuildSection ? 'HIDE GUILD SECTION' : 'SHOW GUILD SECTION'}
@@ -1515,18 +1887,18 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
               </div>
 
               {/* Add Guild Member */}
-              <form onSubmit={handleAddGuildPlayer} className="border border-white/10 bg-white/5 p-5 space-y-4">
+              <form onSubmit={handleAddGuildPlayer} className="border border-line-subtle bg-surface-2 p-5 space-y-4">
                 <h4 className="eyebrow flex items-center gap-2">
                   <Plus size={14} /> ADD REGISTERED PLAYER TO ELITE ARMY
                 </h4>
 
                 {/* Registered Player Selection */}
-                <div className="space-y-2 border border-white/10 bg-black/40 p-4 rounded">
+                <div className="space-y-2 border border-line-subtle bg-canvas/40 p-4 rounded">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                    <label className="text-xs font-bold uppercase tracking-wider text-brand-bright">
                       1. SELECT REGISTERED PLAYER *
                     </label>
-                    <span className="text-[10px] text-white/50">
+                    <span className="text-xs text-ink-subtle">
                       Total Registered: {registeredPlayers.length} Players
                     </span>
                   </div>
@@ -1537,7 +1909,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                       placeholder="Search registered player by IGN, UID, or ID..."
                       value={playerSearchQuery}
                       onChange={(e) => setPlayerSearchQuery(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white placeholder-white/40 focus:border-red-500 focus:outline-none"
+                      className="w-full border border-line bg-surface-2 px-3 py-2 text-xs text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
                     />
                   </div>
 
@@ -1545,7 +1917,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     required
                     value={selectedPlayerId}
                     onChange={(e) => setSelectedPlayerId(e.target.value)}
-                    className="w-full border border-white/20 bg-[#121214] px-3 py-2.5 text-xs text-white focus:border-red-500 focus:outline-none"
+                    className="w-full border border-line bg-surface px-3 py-2.5 text-xs text-ink focus:border-brand focus:outline-none"
                   >
                     <option value="">-- Choose from Registered Players List --</option>
                     {registeredPlayers
@@ -1571,11 +1943,11 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     const sel = registeredPlayers.find((p) => p.id === selectedPlayerId)
                     if (!sel) return null
                     return (
-                      <div className="flex items-center gap-3 pt-2 border-t border-white/10 mt-2">
+                      <div className="flex items-center gap-3 pt-2 border-t border-line-subtle mt-2">
                         <UserAvatar src={sel.avatar_url} name={sel.ign || sel.username} size="sm" />
                         <div>
-                          <p className="text-xs font-bold text-white">{sel.ign || sel.username}</p>
-                          <p className="text-[10px] text-white/50">
+                          <p className="text-xs font-bold text-ink">{sel.ign || sel.username}</p>
+                          <p className="text-xs text-ink-subtle">
                             ID: {sel.player_id || 'N/A'} • Free Fire UID: {sel.free_fire_uid || 'N/A'} • Level: {sel.level || 1}
                           </p>
                         </div>
@@ -1586,7 +1958,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-amber-400 uppercase">
+                    <label className="mb-1 block label !text-brand-bright">
                       2. ASSIGN RANKING *
                     </label>
                     <input
@@ -1596,13 +1968,13 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                       placeholder="e.g. 1"
                       value={newMemberRanking}
                       onChange={(e) => setNewMemberRanking(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-amber-400 font-bold focus:outline-none"
+                      className="w-full border border-line bg-surface-2 px-3 py-2 text-xs text-brand-bright font-bold focus:outline-none"
                     />
-                    <span className="text-[9px] text-white/40">Roster position (#1, #2...)</span>
+                    <span className="text-xs text-ink-subtle">Roster position (#1, #2...)</span>
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-red-400 uppercase">
+                    <label className="mb-1 block label !text-brand-bright">
                       3. PLAYER KILLS *
                     </label>
                     <input
@@ -1612,13 +1984,13 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                       placeholder="e.g. 250"
                       value={newMemberKills}
                       onChange={(e) => setNewMemberKills(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-red-400 font-bold focus:outline-none"
+                      className="w-full border border-line bg-surface-2 px-3 py-2 text-xs text-brand-bright font-bold focus:outline-none"
                     />
-                    <span className="text-[9px] text-white/40">Total verified kills</span>
+                    <span className="text-xs text-ink-subtle">Total verified kills</span>
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60 uppercase">
+                    <label className="mb-1 block label uppercase">
                       4. INITIAL GLORY POINTS *
                     </label>
                     <input
@@ -1626,19 +1998,19 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                       required
                       value={newMemberGlory}
                       onChange={(e) => setNewMemberGlory(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      className="field h-10"
                     />
-                    <span className="text-[9px] text-white/40">Guild glory points</span>
+                    <span className="text-xs text-ink-subtle">Guild glory points</span>
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60 uppercase">
+                    <label className="mb-1 block label uppercase">
                       5. GUILD ROLE
                     </label>
                     <select
                       value={newMemberRank}
                       onChange={(e) => setNewMemberRank(e.target.value)}
-                      className="w-full border border-white/15 bg-[#121214] px-3 py-2 text-xs text-white focus:outline-none"
+                      className="w-full border border-line bg-surface px-3 py-2 text-xs text-ink focus:outline-none"
                     >
                       {GUILD_ROLES.map((r) => (
                         <option key={r.rank} value={r.name}>
@@ -1646,13 +2018,13 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                         </option>
                       ))}
                     </select>
-                    <span className="text-[9px] text-white/40">Member squad rank</span>
+                    <span className="text-xs text-ink-subtle">Member squad rank</span>
                   </div>
                 </div>
 
                 <button
                   type="submit"
-                  className="bg-red-600 px-6 py-2.5 text-xs font-black tracking-widest text-white uppercase hover:bg-red-500 transition shadow-lg"
+                  className="bg-brand px-6 py-2.5 text-xs font-extrabold tracking-widest text-ink uppercase hover:bg-brand transition shadow-lg"
                 >
                   ADD PLAYER TO ELITE ARMY
                 </button>
@@ -1662,50 +2034,50 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="eyebrow">GUILD ROSTER (ORDERED BY ASSIGNED RANKING)</h4>
-                  <span className="text-xs text-white/50">{guildMembers.length} Members Active</span>
+                  <span className="text-xs text-ink-subtle">{guildMembers.length} Members Active</span>
                 </div>
 
                 <div className="space-y-2">
                   {guildMembers.length === 0 ? (
-                    <div className="p-8 text-center border border-white/10 bg-white/5 text-white/50 text-xs">
+                    <div className="p-8 text-center border border-line-subtle bg-surface-2 text-ink-subtle text-xs">
                       No members added to ELITE ARMY yet. Use the form above to add registered players!
                     </div>
                   ) : (
                     guildMembers.map((m, idx) => (
                       <div
                         key={m.id || idx}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-white/10 bg-white/5 px-4 py-3 hover:border-white/20 transition"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-line-subtle bg-surface-2 px-4 py-3 hover:border-line transition"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <span className="font-display text-lg font-black text-amber-400 w-8 shrink-0">
+                          <span className="font-display text-lg font-extrabold text-brand-bright w-8 shrink-0">
                             #{String(m.ranking || idx + 1).padStart(2, '0')}
                           </span>
                           <UserAvatar
                             src={m.profiles?.avatar_url}
                             name={m.player_name || m.profiles?.ign}
                             size="md"
-                            className="border border-white/20 h-10 w-10 shrink-0"
+                            className="border border-line h-10 w-10 shrink-0"
                           />
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-display text-base font-black text-white truncate">
+                              <p className="font-display text-base font-extrabold text-ink truncate">
                                 {m.player_name || m.profiles?.ign || 'ELITE_PLAYER'}
                               </p>
-                              <span className={`border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded ${
+                              <span className={`border px-2 py-0.5 text-xs font-extrabold uppercase tracking-wider rounded ${
                                 (m.guild_role || '').includes('Leader')
-                                  ? 'border-amber-500/50 bg-amber-500/15 text-amber-300'
+                                  ? 'border-brand bg-brand/15 text-brand-bright'
                                   : (m.guild_role || '').includes('Commander')
-                                  ? 'border-purple-500/50 bg-purple-500/15 text-purple-300'
+                                  ? 'border-line bg-surface-3 text-ink-muted'
                                   : (m.guild_role || '').includes('Officer')
-                                  ? 'border-blue-500/50 bg-blue-500/15 text-blue-300'
+                                  ? 'border-line bg-surface-3 text-ink-muted'
                                   : (m.guild_role || '').includes('Elder')
-                                  ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
-                                  : 'border-white/10 bg-white/10 text-white/70'
+                                  ? 'border-line-strong bg-surface-3 text-ink'
+                                  : 'border-line-subtle bg-surface-3 text-ink-muted'
                               }`}>
                                 {normalizeGuildRole(m.guild_role)}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 flex-wrap text-[10px] font-bold text-white/50 mt-0.5">
+                            <div className="flex items-center gap-2 flex-wrap text-xs font-bold text-ink-subtle mt-0.5">
                               <span>ID: {m.profiles?.player_id || 'N/A'}</span>
                               <span>•</span>
                               <span>UID: {m.profiles?.free_fire_uid || 'N/A'}</span>
@@ -1713,12 +2085,12 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 border-white/5 pt-2 sm:pt-0">
+                        <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 border-line-subtle pt-2 sm:pt-0">
                           <div className="text-left sm:text-right">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-red-950/60 border border-red-600/40 text-red-400 font-display font-black text-xs">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-brand-muted border border-brand text-brand-bright font-display font-extrabold text-xs">
                               ⚔️ {(m.kills || 0).toLocaleString()} KILLS
                             </span>
-                            <p className="text-[10px] font-bold text-amber-400 mt-0.5">
+                            <p className="text-xs font-bold text-brand-bright mt-0.5">
                               {(m.glory_contributed || 1000).toLocaleString()} GP
                             </p>
                           </div>
@@ -1727,7 +2099,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                             <button
                               type="button"
                               onClick={() => setEditingMember(m)}
-                              className="text-white/50 hover:text-amber-400 p-2 rounded hover:bg-white/5 transition"
+                              className="text-ink-subtle hover:text-brand-bright p-2 rounded hover:bg-surface-2 transition"
                               title="Edit Member Ranking, Kills & Role"
                             >
                               <Edit2 size={16} />
@@ -1735,7 +2107,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                             <button
                               type="button"
                               onClick={() => handleDeleteGuildPlayer(m.id, m.user_id)}
-                              className="text-white/50 hover:text-red-500 p-2 rounded hover:bg-white/5 transition"
+                              className="text-ink-subtle hover:text-brand-bright p-2 rounded hover:bg-surface-2 transition"
                               title="Remove Player from Guild"
                             >
                               <Trash2 size={16} />
@@ -1755,75 +2127,75 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
           {/* ============================================================ */}
           {activeTab === 'ACHIEVEMENTS' && (
             <div className="space-y-6">
-              <form onSubmit={handleAddAchievement} className="border border-white/10 bg-white/5 p-5 space-y-4">
+              <form onSubmit={handleAddAchievement} className="border border-line-subtle bg-surface-2 p-5 space-y-4">
                 <h4 className="eyebrow flex items-center gap-2">
                   <Plus size={14} /> ADD NEW ACHIEVEMENT CARD
                 </h4>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">ACHIEVEMENT TITLE *</label>
+                    <label className="mb-1 block label">ACHIEVEMENT TITLE *</label>
                     <input
                       type="text"
                       required
                       placeholder="e.g. SQUAD SLAYER"
                       value={achTitle}
                       onChange={(e) => setAchTitle(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      className="field h-10"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">PLAYER NAME / IGN</label>
+                    <label className="mb-1 block label">PLAYER NAME / IGN</label>
                     <input
                       type="text"
                       placeholder="e.g. ELITE_RAHUL"
                       value={achPlayerName}
                       onChange={(e) => setAchPlayerName(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      className="field h-10"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-amber-400">PLAYER FREE FIRE UID</label>
+                    <label className="mb-1 block text-xs font-bold text-brand-bright">PLAYER FREE FIRE UID</label>
                     <input
                       type="text"
                       placeholder="e.g. 9876543210"
                       value={achPlayerUid}
                       onChange={(e) => setAchPlayerUid(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-amber-400 font-mono focus:outline-none"
+                      className="w-full border border-line bg-surface-2 px-3 py-2 text-xs text-brand-bright font-mono focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">DESCRIPTION</label>
+                    <label className="mb-1 block label">DESCRIPTION</label>
                     <input
                       type="text"
                       placeholder="e.g. Wipe an entire enemy squad solo"
                       value={achDesc}
                       onChange={(e) => setAchDesc(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      className="field h-10"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">IMAGE / BADGE ICON URL</label>
+                    <label className="mb-1 block label">IMAGE / BADGE ICON URL</label>
                     <input
                       type="text"
                       placeholder="e.g. https://..."
                       value={achBadge}
                       onChange={(e) => setAchBadge(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      className="field h-10"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-white/60">XP REWARD</label>
+                    <label className="mb-1 block label">XP REWARD</label>
                     <input
                       type="number"
                       value={achXp}
                       onChange={(e) => setAchXp(e.target.value)}
-                      className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                      className="field h-10"
                     />
                   </div>
                 </div>
                 <button
                   type="submit"
-                  className="bg-red-600 px-5 py-2 text-xs font-black tracking-widest text-white hover:bg-red-500"
+                  className="bg-brand px-5 py-2 text-xs font-extrabold tracking-widest text-ink hover:bg-brand"
                 >
                   SAVE ACHIEVEMENT CARD
                 </button>
@@ -1834,35 +2206,35 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                 <h4 className="eyebrow">EXISTING ACHIEVEMENTS ({achievements.length})</h4>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {achievements.map((a) => (
-                    <div key={a.id} className="border border-white/10 bg-white/5 p-4 flex justify-between items-start">
+                    <div key={a.id} className="border border-line-subtle bg-surface-2 p-4 flex justify-between items-start">
                       <div className="flex items-center gap-3">
                         {a.icon_url ? (
                           <img src={a.icon_url} alt={a.name} className="h-8 w-8 object-contain" />
                         ) : (
-                          <Award size={28} className="text-red-500" />
+                          <Award size={28} className="text-brand-bright" />
                         )}
                         <div>
-                          <h5 className="font-display text-base font-black text-white">{a.name}</h5>
+                          <h5 className="font-display text-base font-extrabold text-ink">{a.name}</h5>
                           {(a.player_name || a.player_uid) && (
-                            <p className="text-[11px] font-bold text-amber-400">
+                            <p className="text-xs font-bold text-brand-bright">
                               👤 {a.player_name || 'N/A'} {a.player_uid ? `(UID: ${a.player_uid})` : ''}
                             </p>
                           )}
-                          <p className="text-xs text-white/50">{a.description}</p>
-                          <p className="mt-1 text-[10px] font-bold text-amber-400">+{a.xp_reward} XP REWARD</p>
+                          <p className="text-xs text-ink-subtle">{a.description}</p>
+                          <p className="mt-1 text-xs font-bold text-brand-bright">+{a.xp_reward} XP REWARD</p>
                         </div>
                       </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => setEditingAch(a)}
-                          className="text-white/40 hover:text-amber-400"
+                          className="text-ink-subtle hover:text-brand-bright"
                           title="Edit Card"
                         >
                           <Edit2 size={16} />
                         </button>
                         <button
                           onClick={() => handleDeleteAchievement(a.id)}
-                          className="text-white/40 hover:text-red-500"
+                          className="text-ink-subtle hover:text-brand-bright"
                           title="Delete Card"
                         >
                           <Trash2 size={16} />
@@ -1887,7 +2259,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
             <div className="space-y-4">
               <h4 className="eyebrow">PENDING COMMUNITY CLIPS MODERATION</h4>
               {pendingClips.length === 0 ? (
-                <div className="border border-white/10 p-8 text-center text-sm text-white/40">
+                <div className="border border-line-subtle p-8 text-center text-sm text-ink-subtle">
                   No pending clips moderation right now. All clear!
                 </div>
               ) : (
@@ -1895,18 +2267,18 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                   {pendingClips.map((clip) => (
                     <div
                       key={clip.id}
-                      className="flex items-center justify-between border border-white/10 bg-white/5 p-4"
+                      className="flex items-center justify-between border border-line-subtle bg-surface-2 p-4"
                     >
                       <div>
-                        <h5 className="font-display text-lg font-black text-white">{clip.title}</h5>
-                        <p className="text-xs text-white/50">
-                          Submitted by: <strong className="text-white">{clip.player_name}</strong> • Category: {clip.category}
+                        <h5 className="font-display text-lg font-extrabold text-ink">{clip.title}</h5>
+                        <p className="text-xs text-ink-subtle">
+                          Submitted by: <strong className="text-ink">{clip.player_name}</strong> • Category: {clip.category}
                         </p>
                         <a
                           href={clip.video_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-red-400 underline"
+                          className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-brand-bright underline"
                         >
                           <Eye size={12} /> Watch Video Clip
                         </a>
@@ -1914,13 +2286,13 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleModerateClip(clip.id, 'approved')}
-                          className="flex items-center gap-1 border border-emerald-500/50 bg-emerald-950/40 px-3 py-1.5 text-xs font-bold text-emerald-400 hover:bg-emerald-600 hover:text-white"
+                          className="flex items-center gap-1 border border-line-strong bg-surface-3 px-3 py-1.5 text-xs font-bold text-ink hover:bg-surface-3 hover:text-ink"
                         >
                           <Check size={14} /> APPROVE
                         </button>
                         <button
                           onClick={() => handleModerateClip(clip.id, 'rejected')}
-                          className="flex items-center gap-1 border border-red-500/50 bg-red-950/40 px-3 py-1.5 text-xs font-bold text-red-400 hover:bg-red-600 hover:text-white"
+                          className="flex items-center gap-1 border border-brand bg-brand-muted px-3 py-1.5 text-xs font-bold text-brand-bright hover:bg-brand hover:text-ink"
                         >
                           <X size={14} /> REJECT
                         </button>
@@ -1931,6 +2303,9 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
               )}
             </div>
           )}
+              </div>
+            </main>
+          </div>
         </div>
       </div>
 
@@ -1940,14 +2315,14 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
       {/* 1. Admin See Rules Modal */}
       {rulesModalTourney && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-          <div className="relative w-full max-w-lg border border-amber-500/80 bg-[#0c0c0e] p-6 shadow-2xl space-y-4">
-            <button onClick={() => setRulesModalTourney(null)} className="absolute right-4 top-4 text-white/60 hover:text-white">
+        <div className="modal-overlay">
+          <div className="modal-panel relative max-w-lg p-5 sm:p-6 space-y-4">
+            <button onClick={() => setRulesModalTourney(null)} className="absolute right-4 top-4 text-ink-muted hover:text-ink">
               <X size={20} />
             </button>
-            <h3 className="font-display text-xl font-black uppercase text-amber-400">TOURNAMENT RULES</h3>
-            <p className="text-xs text-white/60">{rulesModalTourney.title}</p>
-            <div className="whitespace-pre-wrap border border-white/10 bg-white/5 p-4 text-xs text-white/90 max-h-[50vh] overflow-y-auto">
+            <h3 className="font-display text-xl font-extrabold uppercase text-brand-bright">TOURNAMENT RULES</h3>
+            <p className="text-xs text-ink-muted">{rulesModalTourney.title}</p>
+            <div className="whitespace-pre-wrap border border-line-subtle bg-surface-2 p-4 text-xs text-ink max-h-[50vh] overflow-y-auto">
               {rulesModalTourney.rules || 'No custom rules specified for this tournament.'}
             </div>
           </div>
@@ -1956,31 +2331,35 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
       {/* 2. View Registrations (Separate Cards for Each Registered Team/Player) */}
       {showRegModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-          <div className="relative w-full max-w-4xl border border-red-800/80 bg-[#0c0c0e] p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+        <div className="modal-overlay">
+          <div className="modal-panel relative max-w-4xl p-5 sm:p-6 space-y-4 max-h-[90vh] flex flex-col">
             <button
               onClick={() => setShowRegModal(false)}
-              className="absolute right-4 top-4 text-white/60 hover:text-white"
+              className="absolute right-4 top-4 text-ink-muted hover:text-ink"
             >
               <X size={20} />
             </button>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-3 gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-line-subtle pb-3 gap-2">
               <div>
-                <h3 className="font-display text-xl font-black uppercase text-white">
+                <h3 className="font-display text-xl font-extrabold uppercase text-ink">
                   REGISTERED TEAMS: {selectedTourneyTitle}
                 </h3>
-                <p className="text-xs text-white/60">
-                  TOTAL REGISTERED: <strong className="text-amber-400">{selectedTourneyRegs.length} TEAMS / PLAYERS</strong>
+                <p className="text-xs text-ink-muted">
+                  TOTAL REGISTERED: <strong className="text-brand-bright">{selectedTourneyRegs.length} TEAMS / PLAYERS</strong>
                 </p>
               </div>
 
               <button
                 onClick={() => {
-                  const tourney = tournaments.find((t) => t.title === selectedTourneyTitle || t.id === selectedTourneyRegs[0]?.tournament_id)
-                  if (tourney) setAdminRegTourneyId(tourney.id)
+                  if (selectedTourneyId) {
+                    setAdminRegTourneyId(selectedTourneyId)
+                  } else {
+                    const tourney = tournaments.find((t) => t.title === selectedTourneyTitle || t.id === selectedTourneyRegs[0]?.tournament_id)
+                    if (tourney) setAdminRegTourneyId(tourney.id)
+                  }
                   setAdminAddRegModalOpen(true)
                 }}
-                className="flex items-center gap-1.5 bg-red-600 px-3.5 py-2 text-xs font-black text-white hover:bg-red-500 shadow"
+                className="flex items-center gap-1.5 bg-brand px-3.5 py-2 text-xs font-extrabold text-ink hover:bg-brand shadow"
               >
                 <Plus size={14} /> ADMIN REGISTER TEAM
               </button>
@@ -1988,24 +2367,24 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
             <div className="flex-1 overflow-y-auto pr-2">
               {selectedTourneyRegs.length === 0 ? (
-                <div className="border border-white/10 p-8 text-center text-xs text-white/40">
+                <div className="border border-line-subtle p-8 text-center text-xs text-ink-subtle">
                   No registered teams found for this tournament yet.
                 </div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2">
                   {selectedTourneyRegs.map((r, i) => (
-                    <div key={r.id || i} className="border border-red-900/40 bg-[#120607] p-4 space-y-3 shadow-lg">
-                      <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                        <span className="font-display text-base font-black text-white">
+                    <div key={r.id || i} className="border border-brand-border bg-surface p-4 space-y-3 shadow-lg">
+                      <div className="flex items-center justify-between border-b border-line-subtle pb-2">
+                        <span className="font-display text-base font-extrabold text-ink">
                           #{i + 1} {r.team_name || r.captain_name}
                         </span>
                         <div className="flex items-center gap-2">
-                          <span className="border border-red-600/40 bg-red-950/60 px-2 py-0.5 text-[9px] font-black tracking-widest text-red-400 uppercase">
+                          <span className="border border-brand bg-brand-muted px-2 py-0.5 text-xs font-extrabold tracking-widest text-brand-bright uppercase">
                             {r.registration_status || 'CONFIRMED'}
                           </span>
                           <button
                             onClick={() => handleDeleteReg(r.id, r.tournament_id)}
-                            className="flex items-center gap-1 border border-red-800 bg-red-950/80 px-2 py-0.5 text-[9px] font-bold text-red-400 hover:bg-red-600 hover:text-white"
+                            className="flex items-center gap-1 border border-brand-border bg-brand-muted px-2 py-0.5 text-xs font-bold text-brand-bright hover:bg-brand hover:text-ink"
                             title="Delete Registered Team"
                           >
                             <Trash2 size={11} /> DELETE
@@ -2014,45 +2393,45 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                       </div>
 
                       <div className="space-y-1.5 text-xs">
-                        <div className="rounded border border-red-900/40 bg-red-950/20 p-2 space-y-1">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-bold text-red-400">👑 1. Team Leader: <strong className="text-white">{r.captain_name}</strong></span>
-                            <span className="font-mono text-[10px] text-amber-300">UID: {r.captain_free_fire_uid || 'N/A'}</span>
+                        <div className="rounded border border-brand-border bg-brand-muted p-2 space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-brand-bright">👑 1. Team Leader: <strong className="text-ink">{r.captain_name}</strong></span>
+                            <span className="font-mono text-xs text-brand-bright">UID: {r.captain_free_fire_uid || 'N/A'}</span>
                           </div>
-                          <div className="flex items-center justify-between text-[11px] border-t border-white/10 pt-1">
-                            <span className="text-white/80">🎮 2. 2nd Player: <strong className="text-white">{r.teammate_names?.[0] || 'N/A'}</strong></span>
-                            <span className="font-mono text-[10px] text-amber-300/80">UID: {r.teammate_uids?.[0] || 'N/A'}</span>
+                          <div className="flex items-center justify-between text-xs border-t border-line-subtle pt-1">
+                            <span className="text-ink">🎮 2. 2nd Player: <strong className="text-ink">{r.teammate_names?.[0] || 'N/A'}</strong></span>
+                            <span className="font-mono text-xs text-brand-bright">UID: {r.teammate_uids?.[0] || 'N/A'}</span>
                           </div>
-                          <div className="flex items-center justify-between text-[11px] border-t border-white/10 pt-1">
-                            <span className="text-white/80">🎮 3. 3rd Player: <strong className="text-white">{r.teammate_names?.[1] || 'N/A'}</strong></span>
-                            <span className="font-mono text-[10px] text-amber-300/80">UID: {r.teammate_uids?.[1] || 'N/A'}</span>
+                          <div className="flex items-center justify-between text-xs border-t border-line-subtle pt-1">
+                            <span className="text-ink">🎮 3. 3rd Player: <strong className="text-ink">{r.teammate_names?.[1] || 'N/A'}</strong></span>
+                            <span className="font-mono text-xs text-brand-bright">UID: {r.teammate_uids?.[1] || 'N/A'}</span>
                           </div>
-                          <div className="flex items-center justify-between text-[11px] border-t border-white/10 pt-1">
-                            <span className="text-white/80">🎮 4. 4th Player: <strong className="text-white">{r.teammate_names?.[2] || 'N/A'}</strong></span>
-                            <span className="font-mono text-[10px] text-amber-300/80">UID: {r.teammate_uids?.[2] || 'N/A'}</span>
+                          <div className="flex items-center justify-between text-xs border-t border-line-subtle pt-1">
+                            <span className="text-ink">🎮 4. 4th Player: <strong className="text-ink">{r.teammate_names?.[2] || 'N/A'}</strong></span>
+                            <span className="font-mono text-xs text-brand-bright">UID: {r.teammate_uids?.[2] || 'N/A'}</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="border-t border-white/10 pt-3 flex items-center justify-between">
+                      <div className="border-t border-line-subtle pt-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold text-white/50">PLACE:</span>
+                          <span className="text-xs font-bold text-ink-subtle">PLACE:</span>
                           <input
                             type="number"
                             placeholder="#"
                             defaultValue={r.placement || ''}
                             onBlur={(e) => handleSaveResults(r.id, Number(e.target.value), r.kills || 0)}
-                            className="w-14 border border-white/20 bg-black px-2 py-1 text-xs text-center font-bold text-white"
+                            className="w-14 border border-line bg-canvas px-2 py-1 text-xs text-center font-bold text-ink"
                           />
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold text-white/50">KILLS:</span>
+                          <span className="text-xs font-bold text-ink-subtle">KILLS:</span>
                           <input
                             type="number"
                             placeholder="Kills"
                             defaultValue={r.kills || 0}
                             onBlur={(e) => handleSaveResults(r.id, r.placement || 0, Number(e.target.value))}
-                            className="w-14 border border-white/20 bg-black px-2 py-1 text-xs text-center font-bold text-red-400"
+                            className="w-14 border border-line bg-canvas px-2 py-1 text-xs text-center font-bold text-brand-bright"
                           />
                         </div>
                       </div>
@@ -2067,23 +2446,30 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
       {/* 3. Finish / Edit Tournament Results & Top 3 Teams Modal */}
       {finishingTourney && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-          <div className="relative w-full max-w-4xl border border-emerald-600/80 bg-[#0c0c0e] p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col text-white">
+        <div className="modal-overlay">
+          <div className="relative w-full max-w-4xl border border-line-strong bg-surface p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col text-ink">
             <button
-              onClick={() => setFinishingTourney(null)}
-              className="absolute right-4 top-4 text-white/60 hover:text-white"
+              onClick={() => {
+                if (adminAudioElement) {
+                  adminAudioElement.pause()
+                  setAdminAudioElement(null)
+                  setAdminAudioTesting(false)
+                }
+                setFinishingTourney(null)
+              }}
+              className="absolute right-4 top-4 text-ink-muted hover:text-ink"
             >
               <X size={20} />
             </button>
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-3 gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-line-subtle pb-3 gap-2">
               <div className="flex items-center gap-3">
-                <Trophy className="text-amber-400" size={28} />
+                <Trophy className="text-brand-bright" size={28} />
                 <div>
-                  <h3 className="font-display text-xl font-black uppercase text-white">
+                  <h3 className="font-display text-xl font-extrabold uppercase text-ink">
                     MANAGE RESULTS & TOP 3 TEAMS
                   </h3>
-                  <p className="text-xs text-amber-400 font-bold">{finishingTourney.title}</p>
+                  <p className="text-xs text-brand-bright font-bold">{finishingTourney.title}</p>
                 </div>
               </div>
 
@@ -2093,24 +2479,256 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                   setAdminRegTourneyId(finishingTourney.id)
                   setAdminAddRegModalOpen(true)
                 }}
-                className="flex items-center gap-1.5 bg-red-600 px-3.5 py-2 text-xs font-black text-white hover:bg-red-500 shadow"
+                className="flex items-center gap-1.5 bg-brand px-3.5 py-2 text-xs font-extrabold text-ink hover:bg-brand shadow"
               >
                 <Plus size={14} /> ADMIN REGISTER TEAM
               </button>
             </div>
 
             <form onSubmit={handleSubmitFinishTournament} className="flex-1 overflow-y-auto space-y-6 pr-2">
-              {/* TOP 3 PODIUM SECTION */}
-              <div className="space-y-4">
-                <h4 className="eyebrow flex items-center gap-2 text-amber-400">
-                  <Award size={16} /> TOP 3 PODIUM SQUADS (4 PLAYERS PER TEAM)
-                </h4>
+              {/* HIDDEN FILE INPUTS FOR DEVICE ATTACHMENTS */}
+              <input
+                ref={finishImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageFileChange}
+              />
+              <input
+                ref={finishAudioInputRef}
+                type="file"
+                accept="audio/*,video/mp4,.mp3,.mp4,.m4a,.wav,.ogg,.aac"
+                className="hidden"
+                onChange={handleAudioFileChange}
+              />
 
-                <div className="grid gap-4 md:grid-cols-3">
+              {/* MEDIA ATTACHMENTS: CHAMPIONS IMAGE & VICTORY SONG */}
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* 1. CHAMPIONS ARTWORK / BANNER IMAGE */}
+                <div className="rounded-lg border border-brand bg-brand-muted/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-brand pb-2">
+                    <div className="flex items-center gap-2">
+                      <ImageIcon size={16} className="text-brand-bright" />
+                      <h4 className="font-display text-xs font-extrabold uppercase tracking-wide text-brand-bright">
+                        CHAMPIONS ARTWORK / BANNER
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-bold text-ink-subtle uppercase">Top of Results</span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => finishImageInputRef.current?.click()}
+                      disabled={uploadingImage}
+                      className="inline-flex items-center gap-1.5 rounded border border-brand bg-brand px-3 py-1.5 text-xs font-extrabold text-ink hover:opacity-95 shadow transition"
+                    >
+                      <Upload size={13} />
+                      {uploadingImage ? 'Processing...' : 'Attach Image from Device'}
+                    </button>
+                    {imageFileName && (
+                      <span className="truncate rounded border border-brand/50 bg-brand/20 px-2 py-0.5 font-mono text-[11px] font-bold text-brand-bright max-w-[200px]">
+                        📁 {imageFileName}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-ink-subtle block">OR SELECT PRESET / ENTER URL</label>
+                    <select
+                      value={finishChampionsImageUrl}
+                      onChange={(e) => setFinishChampionsImageUrl(e.target.value)}
+                      className="w-full border border-line bg-surface-2 px-2.5 py-1.5 text-xs text-ink focus:border-brand focus:outline-none"
+                    >
+                      <option value="">-- Custom URL or Device Upload below --</option>
+                      {PRESET_CHAMPION_IMAGES.map((img, i) => (
+                        <option key={i} value={img.url}>
+                          {img.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <input
+                      type="text"
+                      placeholder="Paste Image URL (e.g. /images/... or https://...)"
+                      value={finishChampionsImageUrl}
+                      onChange={(e) => setFinishChampionsImageUrl(e.target.value)}
+                      className="w-full border border-line bg-canvas/80 px-2.5 py-1 text-xs text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Image Preview */}
+                  {finishChampionsImageUrl && (
+                    <div className="mx-auto relative mt-2 aspect-square max-w-[180px] w-full overflow-hidden rounded-xl border-2 border-brand bg-black">
+                      <img
+                        src={finishChampionsImageUrl}
+                        alt="Champions Preview"
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          ;(e.target as HTMLElement).style.display = 'none'
+                        }}
+                      />
+                      <div
+                        className="pointer-events-none absolute inset-0 rounded-xl"
+                        style={{
+                          boxShadow: 'inset 0 0 20px rgba(0, 0, 0, 0.4)',
+                        }}
+                      />
+                      <div className="absolute bottom-1 right-1 flex items-center gap-1 z-10">
+                        <span className="rounded bg-black/85 px-1.5 py-0.5 text-[9px] font-bold text-brand-bright">
+                          1:1 PREVIEW
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFinishChampionsImageUrl('')
+                            setImageFileName('')
+                          }}
+                          className="rounded bg-black/85 px-1.5 py-0.5 text-[9px] font-bold text-red-400 hover:text-white"
+                          title="Remove attached image"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. VICTORY SONG / ANTHEM AUDIO */}
+                <div className="rounded-lg border border-brand bg-brand-muted/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-brand pb-2">
+                    <div className="flex items-center gap-2">
+                      <Music size={16} className="text-brand-bright" />
+                      <h4 className="font-display text-xs font-extrabold uppercase tracking-wide text-brand-bright">
+                        VICTORY SONG / ANTHEM (MP3 / MP4 AUDIO)
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-bold text-ink-subtle uppercase">Autoplays in Results</span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => finishAudioInputRef.current?.click()}
+                      disabled={uploadingAudio}
+                      className="inline-flex items-center gap-1.5 rounded border border-brand bg-brand px-3 py-1.5 text-xs font-extrabold text-ink hover:opacity-95 shadow transition"
+                    >
+                      <Upload size={13} />
+                      {uploadingAudio ? 'Processing...' : 'Attach Song from Device (MP3 / MP4)'}
+                    </button>
+                    {audioFileName && (
+                      <span className="truncate rounded border border-brand/50 bg-brand/20 px-2 py-0.5 font-mono text-[11px] font-bold text-brand-bright max-w-[200px]">
+                        🎵 {audioFileName}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-[10px] text-ink-subtle">
+                    Supports <span className="font-bold text-brand-bright">MP3</span> and <span className="font-bold text-brand-bright">MP4</span> media files directly from your computer or phone.
+                  </p>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-ink-subtle block">OR SELECT PRESET / ENTER AUDIO URL</label>
+                    <select
+                      value={finishResultsBgmUrl}
+                      onChange={(e) => {
+                        if (adminAudioElement) {
+                          adminAudioElement.pause()
+                          setAdminAudioTesting(false)
+                        }
+                        setFinishResultsBgmUrl(e.target.value)
+                      }}
+                      className="w-full border border-line bg-surface-2 px-2.5 py-1.5 text-xs text-ink focus:border-brand focus:outline-none"
+                    >
+                      <option value="">-- No Victory Song / Custom URL below --</option>
+                      {PRESET_BGMS.map((bgm) => (
+                        <option key={bgm.id} value={bgm.url}>
+                          {bgm.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <input
+                      type="text"
+                      placeholder="Paste Audio URL (e.g. /audio/bgm/... or https://...)"
+                      value={finishResultsBgmUrl}
+                      onChange={(e) => {
+                        if (adminAudioElement) {
+                          adminAudioElement.pause()
+                          setAdminAudioTesting(false)
+                        }
+                        setFinishResultsBgmUrl(e.target.value)
+                      }}
+                      className="w-full border border-line bg-canvas/80 px-2.5 py-1 text-xs text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Audio Test Player Bar */}
+                  {finishResultsBgmUrl ? (
+                    <div className="rounded border border-brand/50 bg-surface-2 p-2.5 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold text-brand-bright truncate flex items-center gap-1.5">
+                          <Volume2 size={13} />
+                          {audioFileName ? `Attached: ${audioFileName}` : finishResultsBgmUrl.split('/').pop() || 'Victory Song Attached'}
+                        </p>
+                        <p className="text-[10px] text-ink-subtle">Autoplays when user opens results</p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={toggleAdminAudioTest}
+                          className="inline-flex items-center gap-1 rounded bg-brand px-2.5 py-1 text-[11px] font-bold text-ink hover:opacity-90"
+                        >
+                          {adminAudioTesting ? (
+                            <>
+                              <Pause size={12} /> Pause Test
+                            </>
+                          ) : (
+                            <>
+                              <Play size={12} /> Test Play
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (adminAudioElement) {
+                              adminAudioElement.pause()
+                              setAdminAudioTesting(false)
+                            }
+                            setFinishResultsBgmUrl('')
+                            setAudioFileName('')
+                          }}
+                          className="rounded border border-line px-2 py-1 text-[11px] text-red-400 hover:text-white"
+                          title="Remove attached song"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-ink-subtle italic">
+                      No song attached. Attach an audio file from your device or pick a preset anthem.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* TOP 3 PODIUM SECTION: 1ST, 2ND & 3RD PLACE */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-line-subtle pb-2">
+                  <h4 className="eyebrow flex items-center gap-2 text-brand-bright">
+                    <Award size={16} /> TOP 3 WINNING SQUADS (TEAM NAMES, PLAYER NAMES & UIDS)
+                  </h4>
+                  <span className="text-[11px] font-bold text-ink-subtle">4 Players per Team</span>
+                </div>
+
+                <div className="grid gap-5 lg:grid-cols-3">
                   {/* 1st Place - Gold */}
-                  <div className="border border-amber-500/50 bg-amber-950/20 p-4 space-y-3 rounded">
-                    <div className="flex items-center justify-between border-b border-amber-500/30 pb-2">
-                      <span className="font-display text-sm font-black text-amber-400">
+                  <div className="border-2 border-brand bg-brand-muted/60 p-4 space-y-3 rounded-lg shadow-md">
+                    <div className="flex items-center justify-between border-b border-brand pb-2">
+                      <span className="font-display text-sm font-extrabold text-brand-bright">
                         🥇 1ST PLACE (WINNER)
                       </span>
                       {finishRegs.length > 0 && (
@@ -2118,22 +2736,24 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                           onChange={(e) => {
                             const reg = finishRegs.find((r) => r.id === e.target.value)
                             if (reg) {
+                              const names = extractPlayerNames(reg)
+                              const uids = extractPlayerUids(reg)
                               setTop1Team({
                                 rank: 1,
                                 team_name: reg.team_name || reg.captain_name || '',
-                                captain_name: reg.captain_name || '',
-                                captain_uid: reg.captain_free_fire_uid || '',
+                                captain_name: names[0] || reg.captain_name || '',
+                                captain_uid: uids[0] || reg.captain_free_fire_uid || '',
                                 kills: reg.kills || 0,
                                 points: 35,
                                 prize: '₹5,000',
-                                player_names: extractPlayerNames(reg),
-                                player_uids: extractPlayerUids(reg),
+                                player_names: names,
+                                player_uids: uids,
                               })
                             }
                           }}
-                          className="bg-black text-[10px] text-amber-300 border border-amber-500/40 px-1 py-0.5"
+                          className="bg-canvas text-xs text-brand-bright border border-brand px-1.5 py-0.5 rounded"
                         >
-                          <option value="">-- Autofill --</option>
+                          <option value="">-- Autofill from Regs --</option>
                           {finishRegs.map((r) => (
                             <option key={r.id} value={r.id}>
                               {r.team_name || r.captain_name}
@@ -2144,97 +2764,114 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     </div>
 
                     <div>
-                      <label className="text-[10px] font-bold text-amber-300 block mb-1">TEAM / SQUAD NAME</label>
+                      <label className="text-xs font-bold text-brand-bright block mb-1">TEAM / SQUAD NAME</label>
                       <input
                         type="text"
                         required
                         value={top1Team.team_name}
                         onChange={(e) => setTop1Team({ ...top1Team, team_name: e.target.value })}
-                        className="w-full border border-amber-500/40 bg-black/60 px-2.5 py-1.5 text-xs text-white font-bold"
+                        className="w-full border border-brand bg-canvas/80 px-2.5 py-1.5 text-xs text-ink font-bold focus:outline-none"
                         placeholder="Winner Team Name"
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] font-bold text-white/60 block mb-1">CAPTAIN NAME</label>
-                        <input
-                          type="text"
-                          value={top1Team.captain_name}
-                          onChange={(e) => setTop1Team({ ...top1Team, captain_name: e.target.value })}
-                          className="w-full border border-white/20 bg-black/60 px-2 py-1 text-xs text-white"
-                          placeholder="Captain IGN"
-                        />
+                    {/* 4 Squad Players: Name & Free Fire UID side-by-side */}
+                    <div className="space-y-2 border-t border-line-subtle pt-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-extrabold text-brand-bright uppercase tracking-wide">
+                          4 SQUAD PLAYERS (NAME & FF UID)
+                        </label>
                       </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-white/60 block mb-1">CAPTAIN UID</label>
-                        <input
-                          type="text"
-                          value={top1Team.captain_uid}
-                          onChange={(e) => setTop1Team({ ...top1Team, captain_uid: e.target.value })}
-                          className="w-full border border-white/20 bg-black/60 px-2 py-1 text-xs text-white"
-                          placeholder="FF UID"
-                        />
+                      <div className="space-y-2">
+                        {[0, 1, 2, 3].map((idx) => {
+                          const isLeader = idx === 0
+                          const currentName = top1Team.player_names?.[idx] ?? (isLeader ? top1Team.captain_name : '')
+                          const currentUid = top1Team.player_uids?.[idx] ?? (isLeader ? top1Team.captain_uid || '' : '')
+
+                          return (
+                            <div key={idx} className="rounded bg-canvas/50 p-2 border border-brand/30 space-y-1">
+                              <span className="text-[10px] font-bold text-brand-bright block">
+                                {isLeader ? '👑 PLAYER 1 (CAPTAIN / LEADER)' : `PLAYER ${idx + 1}`}
+                              </span>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <input
+                                  type="text"
+                                  placeholder={isLeader ? 'Captain Name' : `Player ${idx + 1} Name`}
+                                  value={currentName}
+                                  onChange={(e) => {
+                                    const val = e.target.value
+                                    const names = [...(top1Team.player_names || ['', '', '', ''])]
+                                    while (names.length < 4) names.push('')
+                                    names[idx] = val
+                                    setTop1Team({
+                                      ...top1Team,
+                                      player_names: names,
+                                      ...(isLeader ? { captain_name: val } : {}),
+                                    })
+                                  }}
+                                  className="w-full border border-line bg-canvas px-2 py-1 text-xs text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
+                                />
+                                <input
+                                  type="text"
+                                  placeholder="Free Fire UID"
+                                  value={currentUid}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, '')
+                                    const uids = [...(top1Team.player_uids || ['', '', '', ''])]
+                                    while (uids.length < 4) uids.push('')
+                                    uids[idx] = val
+                                    setTop1Team({
+                                      ...top1Team,
+                                      player_uids: uids,
+                                      ...(isLeader ? { captain_uid: val } : {}),
+                                    })
+                                  }}
+                                  className="w-full border border-line bg-canvas px-2 py-1 text-xs font-mono text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
 
-                    {/* 4 Player Names Editor */}
-                    <div className="space-y-1.5 border-t border-white/10 pt-2">
-                      <label className="text-[10px] font-bold text-amber-300 block">4 SQUAD PLAYERS (NAMES):</label>
-                      <div className="space-y-1">
-                        {[0, 1, 2, 3].map((idx) => (
-                          <input
-                            key={idx}
-                            type="text"
-                            placeholder={`Player ${idx + 1} Name`}
-                            value={top1Team.player_names?.[idx] || (idx === 0 ? top1Team.captain_name : '')}
-                            onChange={(e) => {
-                              const names = [...(top1Team.player_names || [top1Team.captain_name, '', '', ''])]
-                              names[idx] = e.target.value
-                              setTop1Team({ ...top1Team, player_names: names })
-                            }}
-                            className="w-full border border-white/20 bg-black/60 px-2 py-1 text-[11px] text-white"
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 border-t border-white/10 pt-2">
+                    <div className="grid grid-cols-2 gap-2 border-t border-line-subtle pt-2">
                       <div>
-                        <label className="text-[10px] font-bold text-white/60 block mb-1">KILLS</label>
+                        <label className="label block mb-1">KILLS</label>
                         <input
                           type="number"
                           value={top1Team.kills}
                           onChange={(e) => setTop1Team({ ...top1Team, kills: parseInt(e.target.value) || 0 })}
-                          className="w-full border border-white/20 bg-black/60 px-2 py-1 text-xs text-amber-400 font-bold"
+                          className="w-full border border-line bg-canvas/60 px-2 py-1 text-xs text-brand-bright font-bold"
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-white/60 block mb-1">POINTS</label>
+                        <label className="label block mb-1">POINTS</label>
                         <input
                           type="number"
                           value={top1Team.points || 0}
                           onChange={(e) => setTop1Team({ ...top1Team, points: parseInt(e.target.value) || 0 })}
-                          className="w-full border border-white/20 bg-black/60 px-2 py-1 text-xs text-white font-bold"
+                          className="w-full border border-line bg-canvas/60 px-2 py-1 text-xs text-ink font-bold"
                         />
                       </div>
                     </div>
+
                     <div>
-                      <label className="text-[10px] font-bold text-amber-400 block mb-1">PRIZE WON</label>
+                      <label className="text-xs font-bold text-brand-bright block mb-1">PRIZE WON</label>
                       <input
                         type="text"
                         value={top1Team.prize || ''}
                         onChange={(e) => setTop1Team({ ...top1Team, prize: e.target.value })}
-                        className="w-full border border-amber-500/40 bg-black/60 px-2.5 py-1.5 text-xs text-amber-400 font-bold"
+                        className="w-full border border-brand bg-canvas/60 px-2.5 py-1.5 text-xs text-brand-bright font-bold"
                         placeholder="e.g. ₹5,000"
                       />
                     </div>
                   </div>
 
                   {/* 2nd Place - Silver */}
-                  <div className="border border-slate-400/40 bg-slate-900/40 p-4 space-y-3 rounded">
-                    <div className="flex items-center justify-between border-b border-slate-400/30 pb-2">
-                      <span className="font-display text-sm font-black text-slate-300">
+                  <div className="border-2 border-line-strong bg-surface-2 p-4 space-y-3 rounded-lg shadow-md">
+                    <div className="flex items-center justify-between border-b border-line pb-2">
+                      <span className="font-display text-sm font-extrabold text-ink">
                         🥈 2ND PLACE (RUNNER UP)
                       </span>
                       {finishRegs.length > 0 && (
@@ -2242,22 +2879,24 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                           onChange={(e) => {
                             const reg = finishRegs.find((r) => r.id === e.target.value)
                             if (reg) {
+                              const names = extractPlayerNames(reg)
+                              const uids = extractPlayerUids(reg)
                               setTop2Team({
                                 rank: 2,
                                 team_name: reg.team_name || reg.captain_name || '',
-                                captain_name: reg.captain_name || '',
-                                captain_uid: reg.captain_free_fire_uid || '',
+                                captain_name: names[0] || reg.captain_name || '',
+                                captain_uid: uids[0] || reg.captain_free_fire_uid || '',
                                 kills: reg.kills || 0,
                                 points: 25,
                                 prize: '₹3,000',
-                                player_names: extractPlayerNames(reg),
-                                player_uids: extractPlayerUids(reg),
+                                player_names: names,
+                                player_uids: uids,
                               })
                             }
                           }}
-                          className="bg-black text-[10px] text-slate-300 border border-slate-400/40 px-1 py-0.5"
+                          className="bg-canvas text-xs text-ink border border-line px-1.5 py-0.5 rounded"
                         >
-                          <option value="">-- Autofill --</option>
+                          <option value="">-- Autofill from Regs --</option>
                           {finishRegs.map((r) => (
                             <option key={r.id} value={r.id}>
                               {r.team_name || r.captain_name}
@@ -2268,96 +2907,113 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     </div>
 
                     <div>
-                      <label className="text-[10px] font-bold text-slate-300 block mb-1">TEAM / SQUAD NAME</label>
+                      <label className="text-xs font-bold text-ink block mb-1">TEAM / SQUAD NAME</label>
                       <input
                         type="text"
                         value={top2Team.team_name}
                         onChange={(e) => setTop2Team({ ...top2Team, team_name: e.target.value })}
-                        className="w-full border border-slate-400/40 bg-black/60 px-2.5 py-1.5 text-xs text-white font-bold"
+                        className="w-full border border-line bg-canvas/80 px-2.5 py-1.5 text-xs text-ink font-bold focus:outline-none"
                         placeholder="2nd Team Name"
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] font-bold text-white/60 block mb-1">CAPTAIN NAME</label>
-                        <input
-                          type="text"
-                          value={top2Team.captain_name}
-                          onChange={(e) => setTop2Team({ ...top2Team, captain_name: e.target.value })}
-                          className="w-full border border-white/20 bg-black/60 px-2 py-1 text-xs text-white"
-                          placeholder="Captain IGN"
-                        />
+                    {/* 4 Squad Players: Name & Free Fire UID side-by-side */}
+                    <div className="space-y-2 border-t border-line-subtle pt-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-extrabold text-ink uppercase tracking-wide">
+                          4 SQUAD PLAYERS (NAME & FF UID)
+                        </label>
                       </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-white/60 block mb-1">CAPTAIN UID</label>
-                        <input
-                          type="text"
-                          value={top2Team.captain_uid}
-                          onChange={(e) => setTop2Team({ ...top2Team, captain_uid: e.target.value })}
-                          className="w-full border border-white/20 bg-black/60 px-2 py-1 text-xs text-white"
-                          placeholder="FF UID"
-                        />
+                      <div className="space-y-2">
+                        {[0, 1, 2, 3].map((idx) => {
+                          const isLeader = idx === 0
+                          const currentName = top2Team.player_names?.[idx] ?? (isLeader ? top2Team.captain_name : '')
+                          const currentUid = top2Team.player_uids?.[idx] ?? (isLeader ? top2Team.captain_uid || '' : '')
+
+                          return (
+                            <div key={idx} className="rounded bg-canvas/50 p-2 border border-line-subtle space-y-1">
+                              <span className="text-[10px] font-bold text-ink-subtle block">
+                                {isLeader ? '👑 PLAYER 1 (CAPTAIN / LEADER)' : `PLAYER ${idx + 1}`}
+                              </span>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <input
+                                  type="text"
+                                  placeholder={isLeader ? 'Captain Name' : `Player ${idx + 1} Name`}
+                                  value={currentName}
+                                  onChange={(e) => {
+                                    const val = e.target.value
+                                    const names = [...(top2Team.player_names || ['', '', '', ''])]
+                                    while (names.length < 4) names.push('')
+                                    names[idx] = val
+                                    setTop2Team({
+                                      ...top2Team,
+                                      player_names: names,
+                                      ...(isLeader ? { captain_name: val } : {}),
+                                    })
+                                  }}
+                                  className="w-full border border-line bg-canvas px-2 py-1 text-xs text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
+                                />
+                                <input
+                                  type="text"
+                                  placeholder="Free Fire UID"
+                                  value={currentUid}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, '')
+                                    const uids = [...(top2Team.player_uids || ['', '', '', ''])]
+                                    while (uids.length < 4) uids.push('')
+                                    uids[idx] = val
+                                    setTop2Team({
+                                      ...top2Team,
+                                      player_uids: uids,
+                                      ...(isLeader ? { captain_uid: val } : {}),
+                                    })
+                                  }}
+                                  className="w-full border border-line bg-canvas px-2 py-1 text-xs font-mono text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
 
-                    {/* 4 Player Names Editor */}
-                    <div className="space-y-1.5 border-t border-white/10 pt-2">
-                      <label className="text-[10px] font-bold text-slate-300 block">4 SQUAD PLAYERS (NAMES):</label>
-                      <div className="space-y-1">
-                        {[0, 1, 2, 3].map((idx) => (
-                          <input
-                            key={idx}
-                            type="text"
-                            placeholder={`Player ${idx + 1} Name`}
-                            value={top2Team.player_names?.[idx] || (idx === 0 ? top2Team.captain_name : '')}
-                            onChange={(e) => {
-                              const names = [...(top2Team.player_names || [top2Team.captain_name, '', '', ''])]
-                              names[idx] = e.target.value
-                              setTop2Team({ ...top2Team, player_names: names })
-                            }}
-                            className="w-full border border-white/20 bg-black/60 px-2 py-1 text-[11px] text-white"
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 border-t border-white/10 pt-2">
+                    <div className="grid grid-cols-2 gap-2 border-t border-line-subtle pt-2">
                       <div>
-                        <label className="text-[10px] font-bold text-white/60 block mb-1">KILLS</label>
+                        <label className="label block mb-1">KILLS</label>
                         <input
                           type="number"
                           value={top2Team.kills}
                           onChange={(e) => setTop2Team({ ...top2Team, kills: parseInt(e.target.value) || 0 })}
-                          className="w-full border border-white/20 bg-black/60 px-2 py-1 text-xs text-slate-300 font-bold"
+                          className="w-full border border-line bg-canvas/60 px-2 py-1 text-xs text-ink font-bold"
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-white/60 block mb-1">POINTS</label>
+                        <label className="label block mb-1">POINTS</label>
                         <input
                           type="number"
                           value={top2Team.points || 0}
                           onChange={(e) => setTop2Team({ ...top2Team, points: parseInt(e.target.value) || 0 })}
-                          className="w-full border border-white/20 bg-black/60 px-2 py-1 text-xs text-white font-bold"
+                          className="w-full border border-line bg-canvas/60 px-2 py-1 text-xs text-ink font-bold"
                         />
                       </div>
                     </div>
+
                     <div>
-                      <label className="text-[10px] font-bold text-slate-300 block mb-1">PRIZE WON</label>
+                      <label className="text-xs font-bold text-ink block mb-1">PRIZE WON</label>
                       <input
                         type="text"
                         value={top2Team.prize || ''}
                         onChange={(e) => setTop2Team({ ...top2Team, prize: e.target.value })}
-                        className="w-full border border-slate-400/40 bg-black/60 px-2.5 py-1.5 text-xs text-slate-300 font-bold"
+                        className="w-full border border-line bg-canvas/60 px-2.5 py-1.5 text-xs text-ink font-bold"
                         placeholder="e.g. ₹3,000"
                       />
                     </div>
                   </div>
 
                   {/* 3rd Place - Bronze */}
-                  <div className="border border-amber-700/40 bg-amber-950/10 p-4 space-y-3 rounded">
-                    <div className="flex items-center justify-between border-b border-amber-700/30 pb-2">
-                      <span className="font-display text-sm font-black text-amber-500">
+                  <div className="border-2 border-brand-border bg-brand-muted/50 p-4 space-y-3 rounded-lg shadow-md">
+                    <div className="flex items-center justify-between border-b border-brand-border pb-2">
+                      <span className="font-display text-sm font-extrabold text-brand-bright">
                         🥉 3RD PLACE (2ND RUNNER UP)
                       </span>
                       {finishRegs.length > 0 && (
@@ -2365,22 +3021,24 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                           onChange={(e) => {
                             const reg = finishRegs.find((r) => r.id === e.target.value)
                             if (reg) {
+                              const names = extractPlayerNames(reg)
+                              const uids = extractPlayerUids(reg)
                               setTop3Team({
                                 rank: 3,
                                 team_name: reg.team_name || reg.captain_name || '',
-                                captain_name: reg.captain_name || '',
-                                captain_uid: reg.captain_free_fire_uid || '',
+                                captain_name: names[0] || reg.captain_name || '',
+                                captain_uid: uids[0] || reg.captain_free_fire_uid || '',
                                 kills: reg.kills || 0,
                                 points: 18,
                                 prize: '₹2,000',
-                                player_names: extractPlayerNames(reg),
-                                player_uids: extractPlayerUids(reg),
+                                player_names: names,
+                                player_uids: uids,
                               })
                             }
                           }}
-                          className="bg-black text-[10px] text-amber-500 border border-amber-700/40 px-1 py-0.5"
+                          className="bg-canvas text-xs text-brand-bright border border-brand-border px-1.5 py-0.5 rounded"
                         >
-                          <option value="">-- Autofill --</option>
+                          <option value="">-- Autofill from Regs --</option>
                           {finishRegs.map((r) => (
                             <option key={r.id} value={r.id}>
                               {r.team_name || r.captain_name}
@@ -2391,87 +3049,104 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     </div>
 
                     <div>
-                      <label className="text-[10px] font-bold text-amber-400 block mb-1">TEAM / SQUAD NAME</label>
+                      <label className="text-xs font-bold text-brand-bright block mb-1">TEAM / SQUAD NAME</label>
                       <input
                         type="text"
                         value={top3Team.team_name}
                         onChange={(e) => setTop3Team({ ...top3Team, team_name: e.target.value })}
-                        className="w-full border border-amber-700/40 bg-black/60 px-2.5 py-1.5 text-xs text-white font-bold"
+                        className="w-full border border-brand-border bg-canvas/80 px-2.5 py-1.5 text-xs text-ink font-bold focus:outline-none"
                         placeholder="3rd Team Name"
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] font-bold text-white/60 block mb-1">CAPTAIN NAME</label>
-                        <input
-                          type="text"
-                          value={top3Team.captain_name}
-                          onChange={(e) => setTop3Team({ ...top3Team, captain_name: e.target.value })}
-                          className="w-full border border-white/20 bg-black/60 px-2 py-1 text-xs text-white"
-                          placeholder="Captain IGN"
-                        />
+                    {/* 4 Squad Players: Name & Free Fire UID side-by-side */}
+                    <div className="space-y-2 border-t border-line-subtle pt-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-extrabold text-brand-bright uppercase tracking-wide">
+                          4 SQUAD PLAYERS (NAME & FF UID)
+                        </label>
                       </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-white/60 block mb-1">CAPTAIN UID</label>
-                        <input
-                          type="text"
-                          value={top3Team.captain_uid}
-                          onChange={(e) => setTop3Team({ ...top3Team, captain_uid: e.target.value })}
-                          className="w-full border border-white/20 bg-black/60 px-2 py-1 text-xs text-white"
-                          placeholder="FF UID"
-                        />
+                      <div className="space-y-2">
+                        {[0, 1, 2, 3].map((idx) => {
+                          const isLeader = idx === 0
+                          const currentName = top3Team.player_names?.[idx] ?? (isLeader ? top3Team.captain_name : '')
+                          const currentUid = top3Team.player_uids?.[idx] ?? (isLeader ? top3Team.captain_uid || '' : '')
+
+                          return (
+                            <div key={idx} className="rounded bg-canvas/50 p-2 border border-brand/20 space-y-1">
+                              <span className="text-[10px] font-bold text-brand-bright block">
+                                {isLeader ? '👑 PLAYER 1 (CAPTAIN / LEADER)' : `PLAYER ${idx + 1}`}
+                              </span>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <input
+                                  type="text"
+                                  placeholder={isLeader ? 'Captain Name' : `Player ${idx + 1} Name`}
+                                  value={currentName}
+                                  onChange={(e) => {
+                                    const val = e.target.value
+                                    const names = [...(top3Team.player_names || ['', '', '', ''])]
+                                    while (names.length < 4) names.push('')
+                                    names[idx] = val
+                                    setTop3Team({
+                                      ...top3Team,
+                                      player_names: names,
+                                      ...(isLeader ? { captain_name: val } : {}),
+                                    })
+                                  }}
+                                  className="w-full border border-line bg-canvas px-2 py-1 text-xs text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
+                                />
+                                <input
+                                  type="text"
+                                  placeholder="Free Fire UID"
+                                  value={currentUid}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, '')
+                                    const uids = [...(top3Team.player_uids || ['', '', '', ''])]
+                                    while (uids.length < 4) uids.push('')
+                                    uids[idx] = val
+                                    setTop3Team({
+                                      ...top3Team,
+                                      player_uids: uids,
+                                      ...(isLeader ? { captain_uid: val } : {}),
+                                    })
+                                  }}
+                                  className="w-full border border-line bg-canvas px-2 py-1 text-xs font-mono text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
 
-                    {/* 4 Player Names Editor */}
-                    <div className="space-y-1.5 border-t border-white/10 pt-2">
-                      <label className="text-[10px] font-bold text-amber-500 block">4 SQUAD PLAYERS (NAMES):</label>
-                      <div className="space-y-1">
-                        {[0, 1, 2, 3].map((idx) => (
-                          <input
-                            key={idx}
-                            type="text"
-                            placeholder={`Player ${idx + 1} Name`}
-                            value={top3Team.player_names?.[idx] || (idx === 0 ? top3Team.captain_name : '')}
-                            onChange={(e) => {
-                              const names = [...(top3Team.player_names || [top3Team.captain_name, '', '', ''])]
-                              names[idx] = e.target.value
-                              setTop3Team({ ...top3Team, player_names: names })
-                            }}
-                            className="w-full border border-white/20 bg-black/60 px-2 py-1 text-[11px] text-white"
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 border-t border-white/10 pt-2">
+                    <div className="grid grid-cols-2 gap-2 border-t border-line-subtle pt-2">
                       <div>
-                        <label className="text-[10px] font-bold text-white/60 block mb-1">KILLS</label>
+                        <label className="label block mb-1">KILLS</label>
                         <input
                           type="number"
                           value={top3Team.kills}
                           onChange={(e) => setTop3Team({ ...top3Team, kills: parseInt(e.target.value) || 0 })}
-                          className="w-full border border-white/20 bg-black/60 px-2 py-1 text-xs text-amber-500 font-bold"
+                          className="w-full border border-line bg-canvas/60 px-2 py-1 text-xs text-brand-bright font-bold"
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-white/60 block mb-1">POINTS</label>
+                        <label className="label block mb-1">POINTS</label>
                         <input
                           type="number"
                           value={top3Team.points || 0}
                           onChange={(e) => setTop3Team({ ...top3Team, points: parseInt(e.target.value) || 0 })}
-                          className="w-full border border-white/20 bg-black/60 px-2 py-1 text-xs text-white font-bold"
+                          className="w-full border border-line bg-canvas/60 px-2 py-1 text-xs text-ink font-bold"
                         />
                       </div>
                     </div>
+
                     <div>
-                      <label className="text-[10px] font-bold text-amber-500 block mb-1">PRIZE WON</label>
+                      <label className="text-xs font-bold text-brand-bright block mb-1">PRIZE WON</label>
                       <input
                         type="text"
                         value={top3Team.prize || ''}
                         onChange={(e) => setTop3Team({ ...top3Team, prize: e.target.value })}
-                        className="w-full border border-amber-700/40 bg-black/60 px-2.5 py-1.5 text-xs text-amber-500 font-bold"
+                        className="w-full border border-brand-border bg-canvas/60 px-2.5 py-1.5 text-xs text-brand-bright font-bold"
                         placeholder="e.g. ₹2,000"
                       />
                     </div>
@@ -2481,47 +3156,47 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
               {/* REGISTERED TEAMS SCORES & PLACEMENT QUICK EDIT */}
               {finishRegs.length > 0 && (
-                <div className="space-y-3 border-t border-white/10 pt-4">
+                <div className="space-y-3 border-t border-line-subtle pt-4">
                   <h4 className="eyebrow flex items-center gap-2">
                     <Users size={15} /> ALL REGISTERED TEAMS ({finishRegs.length}) - EDIT PLACEMENTS & KILLS
                   </h4>
                   <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                     {finishRegs.map((r, i) => (
-                      <div key={r.id} className="flex items-center justify-between border border-white/10 bg-white/5 p-3 text-xs">
+                      <div key={r.id} className="flex items-center justify-between border border-line-subtle bg-surface-2 p-3 text-xs">
                         <div>
-                          <p className="font-bold text-white">{r.team_name || r.captain_name}</p>
-                          <p className="text-[10px] text-white/50">Captain: {r.captain_name} (FF UID: {r.captain_free_fire_uid})</p>
+                          <p className="font-bold text-ink">{r.team_name || r.captain_name}</p>
+                          <p className="text-xs text-ink-subtle">Captain: {r.captain_name} (FF UID: {r.captain_free_fire_uid})</p>
                           {r.teammate_names && r.teammate_names.length > 0 && (
-                            <p className="text-[9px] text-amber-300">
+                            <p className="text-xs text-brand-bright">
                               Teammates: {r.teammate_names.join(', ')}
                             </p>
                           )}
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-bold text-white/50">RANK:</span>
+                            <span className="text-xs font-bold text-ink-subtle">RANK:</span>
                             <input
                               type="number"
                               placeholder="#"
                               defaultValue={r.placement || i + 1}
                               onBlur={(e) => handleSaveResults(r.id, Number(e.target.value), r.kills || 0)}
-                              className="w-12 border border-white/20 bg-black px-2 py-1 text-xs font-bold text-white text-center"
+                              className="w-12 border border-line bg-canvas px-2 py-1 text-xs font-bold text-ink text-center"
                             />
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-bold text-white/50">KILLS:</span>
+                            <span className="text-xs font-bold text-ink-subtle">KILLS:</span>
                             <input
                               type="number"
                               placeholder="Kills"
                               defaultValue={r.kills || 0}
                               onBlur={(e) => handleSaveResults(r.id, r.placement || (i + 1), Number(e.target.value))}
-                              className="w-12 border border-white/20 bg-black px-2 py-1 text-xs font-bold text-red-400 text-center"
+                              className="w-12 border border-line bg-canvas px-2 py-1 text-xs font-bold text-brand-bright text-center"
                             />
                           </div>
                           <button
                             type="button"
                             onClick={() => handleDeleteReg(r.id, r.tournament_id)}
-                            className="text-red-400 hover:text-white p-1"
+                            className="text-brand-bright hover:text-ink p-1"
                             title="Delete Registered Team"
                           >
                             <Trash2 size={13} />
@@ -2533,10 +3208,10 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                 </div>
               )}
 
-              <div className="border-t border-white/10 pt-4">
+              <div className="border-t border-line-subtle pt-4">
                 <button
                   type="submit"
-                  className="w-full bg-emerald-600 py-3 font-display text-xs font-black tracking-widest text-white hover:bg-emerald-500 transition shadow-lg"
+                  className="w-full bg-surface-3 py-3 font-display text-xs font-extrabold tracking-widest text-ink hover:bg-surface-3 transition shadow-lg"
                 >
                   SAVE & PUBLISH TOURNAMENT RESULTS & TOP 3 TEAMS
                 </button>
@@ -2548,28 +3223,52 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
       {/* 4. Edit Tournament Card Modal */}
       {editingTourney && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-          <div className="relative w-full max-w-md border border-amber-500/80 bg-[#0c0c0e] p-6 shadow-2xl space-y-4 text-white">
-            <button onClick={() => setEditingTourney(null)} className="absolute right-4 top-4 text-white/60 hover:text-white">
+        <div className="modal-overlay">
+          <div className="modal-panel relative max-w-md p-5 sm:p-6 space-y-4 text-ink">
+            <button onClick={() => setEditingTourney(null)} className="absolute right-4 top-4 text-ink-muted hover:text-ink">
               <X size={20} />
             </button>
-            <h3 className="font-display text-xl font-black uppercase text-amber-400">EDIT TOURNAMENT CARD</h3>
+            <h3 className="font-display text-xl font-extrabold uppercase text-brand-bright">EDIT TOURNAMENT CARD</h3>
+
+            {editingTourney.status === 'completed' && (
+              <div className="rounded-lg border border-brand bg-brand-muted/70 p-3 space-y-2">
+                <div className="flex items-center gap-2 text-brand-bright font-bold text-xs">
+                  <Trophy size={16} />
+                  <span>FINISHED TOURNAMENT RESULTS</span>
+                </div>
+                <p className="text-[11px] text-ink leading-relaxed">
+                  Edit the Top 3 podium squads, player names, player UIDs, or attach images and victory songs from your device.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const t = editingTourney
+                    setEditingTourney(null)
+                    handleOpenFinishModal(t)
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 rounded bg-brand py-2 text-xs font-extrabold text-ink hover:opacity-90 transition shadow"
+                >
+                  <Trophy size={13} /> EDIT TOP 3 SQUADS, UIDS & ATTACH MEDIA
+                </button>
+              </div>
+            )}
+
             <form onSubmit={handleSaveEditedTournament} className="space-y-3">
               <div>
-                <label className="mb-1 block text-[10px] font-bold text-white/60">TOURNAMENT TITLE</label>
+                <label className="mb-1 block label">TOURNAMENT TITLE</label>
                 <input
                   type="text"
                   value={editingTourney.title || ''}
                   onChange={(e) => setEditingTourney({ ...editingTourney, title: e.target.value })}
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                  className="field h-10"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-bold text-white/60">GAME MODE</label>
+                <label className="mb-1 block label">GAME MODE</label>
                 <select
                   value={editingTourney.game_mode}
                   onChange={(e) => setEditingTourney({ ...editingTourney, game_mode: e.target.value })}
-                  className="w-full border border-white/15 bg-[#121214] px-3 py-2 text-xs text-white focus:outline-none"
+                  className="w-full border border-line bg-surface px-3 py-2 text-xs text-ink focus:outline-none"
                 >
                   <option value="CS SQUAD BATTLE">1. CS SQUAD BATTLE (Clash Squad)</option>
                   <option value="BR SQUAD BATTLE">2. BR SQUAD BATTLE (Battle Royale)</option>
@@ -2579,24 +3278,24 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-bold text-white/60">PRIZE POOL / OFFERS</label>
+                <label className="mb-1 block label">PRIZE POOL / OFFERS</label>
                 <input
                   type="text"
                   value={editingTourney.prize_pool || ''}
                   onChange={(e) => setEditingTourney({ ...editingTourney, prize_pool: e.target.value })}
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                  className="field h-10"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-bold text-white/60">RULES</label>
+                <label className="mb-1 block label">RULES</label>
                 <textarea
                   rows={3}
                   value={editingTourney.rules || ''}
                   onChange={(e) => setEditingTourney({ ...editingTourney, rules: e.target.value })}
-                  className="w-full border border-white/15 bg-white/5 p-2 text-xs text-white focus:outline-none"
+                  className="w-full border border-line bg-surface-2 p-2 text-xs text-ink focus:outline-none"
                 />
               </div>
-              <button type="submit" className="w-full bg-amber-600 py-2.5 text-xs font-black tracking-widest text-black hover:bg-amber-500">
+              <button type="submit" className="btn-primary w-full">
                 UPDATE DATABASE
               </button>
             </form>
@@ -2606,38 +3305,41 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
       {/* 5. Admin Manual Team Registration Modal */}
       {adminAddRegModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4">
-          <div className="relative w-full max-w-xl border border-red-600/80 bg-[#0c0c0e] p-6 shadow-2xl space-y-4 text-white max-h-[90vh] overflow-y-auto">
+        <div className="modal-overlay">
+          <div className="modal-panel relative max-w-xl p-5 sm:p-6 space-y-4 text-ink max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setAdminAddRegModalOpen(false)}
-              className="absolute right-4 top-4 text-white/60 hover:text-white"
+              className="absolute right-4 top-4 text-ink-muted hover:text-ink"
             >
               <X size={20} />
             </button>
-            <div className="border-b border-white/10 pb-3">
-              <h3 className="font-display text-xl font-black uppercase text-red-500 flex items-center gap-2">
+            <div className="border-b border-line-subtle pb-3">
+              <h3 className="font-display text-xl font-extrabold uppercase text-brand-bright flex items-center gap-2">
                 <Plus size={20} /> ADMIN MANUAL TEAM REGISTRATION
               </h3>
-              <p className="text-xs text-white/60">
-                Register any team (Solo or 4-Player Squad) into the selected tournament directly.
+              <p className="text-xs text-ink-muted">
+                Register any team (Solo or 4-Player Squad) into any tournament directly.{' '}
+                <span className="text-ink font-bold">
+                  🛡️ Admin Override Active: You can register teams even if registrations are closed, full, or completed!
+                </span>
               </p>
             </div>
 
             <form onSubmit={handleAdminRegisterTeamSubmit} className="space-y-4">
               <div>
-                <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-white/70">
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-ink-muted">
                   SELECT TOURNAMENT *
                 </label>
                 <select
                   required
                   value={adminRegTourneyId}
                   onChange={(e) => setAdminRegTourneyId(e.target.value)}
-                  className="w-full border border-white/20 bg-black px-3 py-2 text-xs text-white focus:border-red-500 focus:outline-none"
+                  className="w-full border border-line bg-canvas px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none"
                 >
                   <option value="">-- Choose Tournament --</option>
                   {tournaments.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.title} ({t.game_mode})
+                      {t.title} ({t.game_mode}) — {t.status === 'registration_open' ? '🟢 REG OPEN' : `🔒 ${t.status.toUpperCase()} [Admin Allowed]`}
                     </option>
                   ))}
                 </select>
@@ -2645,7 +3347,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-white/70">
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-ink-muted">
                     TEAM / SQUAD NAME *
                   </label>
                   <input
@@ -2654,11 +3356,11 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     placeholder="e.g. ELITE TITANS"
                     value={adminRegTeamName}
                     onChange={(e) => setAdminRegTeamName(e.target.value)}
-                    className="w-full border border-white/20 bg-black px-3 py-2 text-xs text-white focus:border-red-500 focus:outline-none"
+                    className="w-full border border-line bg-canvas px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-white/70">
+                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-ink-muted">
                     CONTACT PHONE NUMBER
                   </label>
                   <input
@@ -2666,14 +3368,14 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     placeholder="+91 9876543210"
                     value={adminRegPhone}
                     onChange={(e) => setAdminRegPhone(e.target.value)}
-                    className="w-full border border-white/20 bg-black px-3 py-2 text-xs text-white focus:border-red-500 focus:outline-none"
+                    className="w-full border border-line bg-canvas px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none"
                   />
                 </div>
               </div>
 
               {/* Player 1 - Captain */}
-              <div className="border border-red-900/40 bg-red-950/20 p-3 space-y-2 rounded">
-                <p className="text-xs font-black text-red-400 uppercase flex items-center gap-1.5">
+              <div className="border border-brand-border bg-brand-muted p-3 space-y-2 rounded">
+                <p className="text-xs font-extrabold text-brand-bright uppercase flex items-center gap-1.5">
                   <User size={13} /> PLAYER 1 (CAPTAIN) *
                 </p>
                 <div className="grid grid-cols-2 gap-2">
@@ -2683,7 +3385,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     placeholder="Captain Name / IGN *"
                     value={adminRegCaptainName}
                     onChange={(e) => setAdminRegCaptainName(e.target.value)}
-                    className="w-full border border-white/20 bg-black px-2.5 py-1.5 text-xs text-white"
+                    className="field h-9 px-2.5"
                   />
                   <input
                     type="text"
@@ -2691,77 +3393,77 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     placeholder="Captain Free Fire UID *"
                     value={adminRegCaptainUid}
                     onChange={(e) => setAdminRegCaptainUid(e.target.value)}
-                    className="w-full border border-white/20 bg-black px-2.5 py-1.5 text-xs text-amber-400 font-mono"
+                    className="w-full border border-line bg-canvas px-2.5 py-1.5 text-xs text-brand-bright font-mono"
                   />
                 </div>
               </div>
 
               {/* Player 2 */}
-              <div className="border border-white/10 bg-white/5 p-3 space-y-2 rounded">
-                <p className="text-[11px] font-bold text-white/70 uppercase">PLAYER 2 (TEAMMATE 1)</p>
+              <div className="border border-line-subtle bg-surface-2 p-3 space-y-2 rounded">
+                <p className="label uppercase">PLAYER 2 (TEAMMATE 1)</p>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
                     placeholder="Player 2 Name"
                     value={adminRegP2Name}
                     onChange={(e) => setAdminRegP2Name(e.target.value)}
-                    className="w-full border border-white/20 bg-black px-2.5 py-1.5 text-xs text-white"
+                    className="field h-9 px-2.5"
                   />
                   <input
                     type="text"
                     placeholder="Player 2 FF UID"
                     value={adminRegP2Uid}
                     onChange={(e) => setAdminRegP2Uid(e.target.value)}
-                    className="w-full border border-white/20 bg-black px-2.5 py-1.5 text-xs text-amber-400 font-mono"
+                    className="w-full border border-line bg-canvas px-2.5 py-1.5 text-xs text-brand-bright font-mono"
                   />
                 </div>
               </div>
 
               {/* Player 3 */}
-              <div className="border border-white/10 bg-white/5 p-3 space-y-2 rounded">
-                <p className="text-[11px] font-bold text-white/70 uppercase">PLAYER 3 (TEAMMATE 2)</p>
+              <div className="border border-line-subtle bg-surface-2 p-3 space-y-2 rounded">
+                <p className="label uppercase">PLAYER 3 (TEAMMATE 2)</p>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
                     placeholder="Player 3 Name"
                     value={adminRegP3Name}
                     onChange={(e) => setAdminRegP3Name(e.target.value)}
-                    className="w-full border border-white/20 bg-black px-2.5 py-1.5 text-xs text-white"
+                    className="field h-9 px-2.5"
                   />
                   <input
                     type="text"
                     placeholder="Player 3 FF UID"
                     value={adminRegP3Uid}
                     onChange={(e) => setAdminRegP3Uid(e.target.value)}
-                    className="w-full border border-white/20 bg-black px-2.5 py-1.5 text-xs text-amber-400 font-mono"
+                    className="w-full border border-line bg-canvas px-2.5 py-1.5 text-xs text-brand-bright font-mono"
                   />
                 </div>
               </div>
 
               {/* Player 4 */}
-              <div className="border border-white/10 bg-white/5 p-3 space-y-2 rounded">
-                <p className="text-[11px] font-bold text-white/70 uppercase">PLAYER 4 (TEAMMATE 3)</p>
+              <div className="border border-line-subtle bg-surface-2 p-3 space-y-2 rounded">
+                <p className="label uppercase">PLAYER 4 (TEAMMATE 3)</p>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
                     placeholder="Player 4 Name"
                     value={adminRegP4Name}
                     onChange={(e) => setAdminRegP4Name(e.target.value)}
-                    className="w-full border border-white/20 bg-black px-2.5 py-1.5 text-xs text-white"
+                    className="field h-9 px-2.5"
                   />
                   <input
                     type="text"
                     placeholder="Player 4 FF UID"
                     value={adminRegP4Uid}
                     onChange={(e) => setAdminRegP4Uid(e.target.value)}
-                    className="w-full border border-white/20 bg-black px-2.5 py-1.5 text-xs text-amber-400 font-mono"
+                    className="w-full border border-line bg-canvas px-2.5 py-1.5 text-xs text-brand-bright font-mono"
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-red-600 py-3 text-xs font-black tracking-widest text-white uppercase hover:bg-red-500 transition shadow-lg"
+                className="w-full bg-brand py-3 text-xs font-extrabold tracking-widest text-ink uppercase hover:bg-brand transition shadow-lg"
               >
                 CONFIRM & REGISTER TEAM AS ADMIN
               </button>
@@ -2772,26 +3474,26 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
       {/* 7. Edit Guild Member Modal */}
       {editingMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-          <div className="relative w-full max-w-md border border-red-600/80 bg-[#0c0c0e] p-6 shadow-2xl space-y-4 text-white">
+        <div className="modal-overlay">
+          <div className="modal-panel relative max-w-md p-5 sm:p-6 space-y-4 text-ink">
             <button
               onClick={() => setEditingMember(null)}
-              className="absolute right-4 top-4 text-white/60 hover:text-white"
+              className="absolute right-4 top-4 text-ink-muted hover:text-ink"
             >
               <X size={20} />
             </button>
-            <div className="border-b border-white/10 pb-2">
-              <h3 className="font-display text-xl font-black uppercase text-red-500">
+            <div className="border-b border-line-subtle pb-2">
+              <h3 className="font-display text-xl font-extrabold uppercase text-brand-bright">
                 EDIT GUILD MEMBER
               </h3>
-              <p className="text-xs text-white/60">
+              <p className="text-xs text-ink-muted">
                 {editingMember.player_name || editingMember.profiles?.ign || 'ELITE PLAYER'}
               </p>
             </div>
             <form onSubmit={handleSaveEditedMember} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase text-amber-400">
+                  <label className="mb-1 block text-xs font-bold uppercase text-brand-bright">
                     ASSIGN RANKING *
                   </label>
                   <input
@@ -2802,12 +3504,12 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     onChange={(e) =>
                       setEditingMember({ ...editingMember, ranking: parseInt(e.target.value) || 1 })
                     }
-                    className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-amber-400 font-bold focus:outline-none"
+                    className="w-full border border-line bg-surface-2 px-3 py-2 text-xs text-brand-bright font-bold focus:outline-none"
                   />
-                  <span className="text-[9px] text-white/40">Roster position</span>
+                  <span className="text-xs text-ink-subtle">Roster position</span>
                 </div>
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase text-red-400">
+                  <label className="mb-1 block text-xs font-bold uppercase text-brand-bright">
                     PLAYER KILLS *
                   </label>
                   <input
@@ -2818,15 +3520,15 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     onChange={(e) =>
                       setEditingMember({ ...editingMember, kills: parseInt(e.target.value) || 0 })
                     }
-                    className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-red-400 font-bold focus:outline-none"
+                    className="w-full border border-line bg-surface-2 px-3 py-2 text-xs text-brand-bright font-bold focus:outline-none"
                   />
-                  <span className="text-[9px] text-white/40">Total kills</span>
+                  <span className="text-xs text-ink-subtle">Total kills</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase text-white/60">
+                  <label className="mb-1 block label">
                     GLORY POINTS
                   </label>
                   <input
@@ -2839,11 +3541,11 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                         glory_contributed: parseInt(e.target.value) || 0,
                       })
                     }
-                    className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                    className="field h-10"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase text-white/60">
+                  <label className="mb-1 block label">
                     GUILD ROLE
                   </label>
                   <select
@@ -2851,7 +3553,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     onChange={(e) =>
                       setEditingMember({ ...editingMember, guild_role: e.target.value })
                     }
-                    className="w-full border border-white/15 bg-[#121214] px-3 py-2 text-xs text-white focus:outline-none"
+                    className="w-full border border-line bg-surface px-3 py-2 text-xs text-ink focus:outline-none"
                   >
                     {GUILD_ROLES.map((r) => (
                       <option key={r.rank} value={r.name}>
@@ -2864,7 +3566,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
               <button
                 type="submit"
-                className="w-full bg-red-600 py-3 text-xs font-black tracking-widest text-white uppercase hover:bg-red-500 transition shadow-lg"
+                className="w-full bg-brand py-3 text-xs font-extrabold tracking-widest text-ink uppercase hover:bg-brand transition shadow-lg"
               >
                 SAVE MEMBER DETAILS
               </button>
@@ -2874,72 +3576,72 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
       )}
 
       {editingAch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-          <div className="relative w-full max-w-md border border-amber-500/80 bg-[#0c0c0e] p-6 shadow-2xl space-y-4 text-white">
-            <button onClick={() => setEditingAch(null)} className="absolute right-4 top-4 text-white/60 hover:text-white">
+        <div className="modal-overlay">
+          <div className="modal-panel relative max-w-md p-5 sm:p-6 space-y-4 text-ink">
+            <button onClick={() => setEditingAch(null)} className="absolute right-4 top-4 text-ink-muted hover:text-ink">
               <X size={20} />
             </button>
-            <h3 className="font-display text-xl font-black uppercase text-amber-400">EDIT ACHIEVEMENT CARD</h3>
+            <h3 className="font-display text-xl font-extrabold uppercase text-brand-bright">EDIT ACHIEVEMENT CARD</h3>
             <form onSubmit={handleSaveEditedAchievement} className="space-y-3">
               <div>
-                <label className="mb-1 block text-[10px] font-bold text-white/60">CARD TITLE</label>
+                <label className="mb-1 block label">CARD TITLE</label>
                 <input
                   type="text"
                   value={editingAch.name || ''}
                   onChange={(e) => setEditingAch({ ...editingAch, name: e.target.value })}
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                  className="field h-10"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold text-white/60">PLAYER NAME</label>
+                  <label className="mb-1 block label">PLAYER NAME</label>
                   <input
                     type="text"
                     value={editingAch.player_name || ''}
                     onChange={(e) => setEditingAch({ ...editingAch, player_name: e.target.value })}
-                    className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                    className="field h-10"
                     placeholder="e.g. ELITE_RAHUL"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold text-amber-400">PLAYER FF UID</label>
+                  <label className="mb-1 block text-xs font-bold text-brand-bright">PLAYER FF UID</label>
                   <input
                     type="text"
                     value={editingAch.player_uid || ''}
                     onChange={(e) => setEditingAch({ ...editingAch, player_uid: e.target.value })}
-                    className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-amber-400 font-mono focus:outline-none"
+                    className="w-full border border-line bg-surface-2 px-3 py-2 text-xs text-brand-bright font-mono focus:outline-none"
                     placeholder="e.g. 9876543210"
                   />
                 </div>
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-bold text-white/60">DESCRIPTION</label>
+                <label className="mb-1 block label">DESCRIPTION</label>
                 <textarea
                   rows={2}
                   value={editingAch.description || ''}
                   onChange={(e) => setEditingAch({ ...editingAch, description: e.target.value })}
-                  className="w-full border border-white/15 bg-white/5 p-2 text-xs text-white focus:outline-none"
+                  className="w-full border border-line bg-surface-2 p-2 text-xs text-ink focus:outline-none"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-bold text-white/60">IMAGE / BADGE URL</label>
+                <label className="mb-1 block label">IMAGE / BADGE URL</label>
                 <input
                   type="text"
                   value={editingAch.icon_url || ''}
                   onChange={(e) => setEditingAch({ ...editingAch, icon_url: e.target.value })}
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                  className="field h-10"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-bold text-white/60">XP REWARD</label>
+                <label className="mb-1 block label">XP REWARD</label>
                 <input
                   type="number"
                   value={editingAch.xp_reward || 500}
                   onChange={(e) => setEditingAch({ ...editingAch, xp_reward: parseInt(e.target.value) || 0 })}
-                  className="w-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none"
+                  className="field h-10"
                 />
               </div>
-              <button type="submit" className="w-full bg-amber-600 py-2.5 text-xs font-black tracking-widest text-black hover:bg-amber-500">
+              <button type="submit" className="btn-primary w-full">
                 UPDATE ACHIEVEMENT CARD
               </button>
             </form>

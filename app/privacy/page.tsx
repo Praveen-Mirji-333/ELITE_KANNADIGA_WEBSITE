@@ -1,5 +1,4 @@
-import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { LegalPage } from '../../components/layout/LegalPage'
 
 export const metadata = {
   title: 'Privacy Policy | ELITE ಕನ್ನಡಿಗ',
@@ -8,28 +7,46 @@ export const metadata = {
 
 export default function PrivacyPage() {
   return (
-    <main className="min-h-screen bg-[#050505] text-[#f5f5f5] px-4 sm:px-6 py-12 sm:py-20 max-w-4xl 2xl:max-w-5xl mx-auto">
-      <Link href="/" className="inline-flex items-center gap-2 text-xs font-bold text-red-500 hover:text-white mb-6 sm:mb-8">
-        <ArrowLeft size={16} /> RETURN TO ARENA
-      </Link>
-      <h1 className="font-display text-3xl sm:text-5xl font-black uppercase text-white mb-6">PRIVACY POLICY</h1>
-      <div className="space-y-6 text-sm text-white/70 leading-relaxed border-t border-white/10 pt-6">
-        <p>
-          Welcome to <strong>ELITE ಕನ್ನಡಿಗ</strong>. Your privacy is paramount to our gaming community. This policy details how we collect, protect, and handle player data.
-        </p>
-        <h2 className="font-display text-lg font-bold text-white uppercase">1. Information We Collect</h2>
-        <p>
-          We collect basic gaming profile information such as player IGN, Free Fire UID, username, avatar preferences, and tournament participation history to maintain community leaderboards and tournament brackets.
-        </p>
-        <h2 className="font-display text-lg font-bold text-white uppercase">2. Security & Database Protection</h2>
-        <p>
-          Your authentication credentials and database transactions are secured using Supabase Row Level Security (RLS). We never share or sell personal data to third parties.
-        </p>
-        <h2 className="font-display text-lg font-bold text-white uppercase">3. Community Guidelines & Cookies</h2>
-        <p>
-          We use session cookies solely to preserve your authenticated state across community sessions.
-        </p>
-      </div>
-    </main>
+    <LegalPage
+      kicker="Privacy"
+      title="Privacy policy"
+      description="How ELITE ಕನ್ನಡಿಗ collects, protects, and handles player data."
+    >
+      <p>
+        Welcome to <strong>ELITE ಕನ್ನಡಿಗ</strong>. Your privacy is important to
+        our community. This policy explains what we collect, why we collect it,
+        and how it is protected.
+      </p>
+
+      <h2>1. Information we collect</h2>
+      <p>
+        We collect basic gaming profile information such as your in-game name
+        (IGN), Free Fire UID, username, avatar preference, and tournament
+        participation history. This data is used to maintain leaderboards,
+        verify registrations, and run tournament brackets.
+      </p>
+
+      <h2>2. Security and database protection</h2>
+      <p>
+        Authentication credentials and database transactions are protected with
+        Supabase Row Level Security (RLS). We do not sell or share personal data
+        with third parties for advertising.
+      </p>
+
+      <h2>3. Cookies and sessions</h2>
+      <p>
+        We use session cookies only to keep you signed in and to preserve your
+        authenticated state across community sessions.
+      </p>
+
+      <h2>4. Contact</h2>
+      <p>
+        For privacy questions or data removal requests, contact{' '}
+        <a href="mailto:support@elitekannadiga.com">
+          support@elitekannadiga.com
+        </a>
+        .
+      </p>
+    </LegalPage>
   )
 }

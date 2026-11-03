@@ -1,15 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import {
-  Shield,
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Gamepad,
   Lock,
   Mail,
+  Shield,
   User,
-  Gamepad,
-  CheckCircle2,
-  AlertCircle,
-  Sparkles,
 } from 'lucide-react'
 import {
   supabase,
@@ -24,6 +25,7 @@ interface GlobalAuthGateProps {
 }
 
 export function GlobalAuthGate({ children }: GlobalAuthGateProps) {
+  const pathname = usePathname()
   const [authChecking, setAuthChecking] = useState(true)
   const [userProfile, setUserProfile] = useState<Profile | null>(null)
 
@@ -166,282 +168,357 @@ export function GlobalAuthGate({ children }: GlobalAuthGateProps) {
     }
   }
 
-  // 1. Initial Session Verification Screen
+  // Allow immediate public access to Home Page and public community pages
+  if (pathname === '/' || pathname.startsWith('/tournaments') || pathname.startsWith('/leaderboard') || pathname.startsWith('/live') || pathname.startsWith('/guilds') || pathname.startsWith('/achievements') || pathname.startsWith('/privacy') || pathname.startsWith('/terms') || pathname.startsWith('/guidelines') || pathname.startsWith('/contact')) {
+    return <>{children}</>
+  }
+
+  // 1. Initial session verification
   if (authChecking) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#050505] text-white">
-        <div className="relative flex flex-col items-center">
-          <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full border-2 border-red-600/60 p-1 animate-pulse">
-            <img src="/logo.png" alt="ELITE Kannada" className="h-full w-full rounded-full object-cover" />
-          </div>
-          <p className="mt-4 font-display text-xs sm:text-sm font-black uppercase tracking-widest text-red-500 animate-pulse">
-            VERIFYING ELITE ARENA ACCESS...
-          </p>
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-canvas text-ink">
+        <div className="h-14 w-14 animate-pulse rounded-full border border-line p-1">
+          <img
+            src="/logo.png"
+            alt="ELITE ಕನ್ನಡಿಗ"
+            className="h-full w-full rounded-full object-cover"
+          />
         </div>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-ink-subtle">
+          Verifying arena access...
+        </p>
       </div>
     )
   }
 
-  // 2. If Not Logged In: Block all routes and strictly render the Login Landing Portal
+  // 2. Protected-route login portal
   if (!userProfile) {
     return (
-      <div className="relative min-h-screen bg-[#050505] text-[#f5f5f5] flex items-center justify-center p-4 overflow-hidden">
-        <div className="noise" />
+      <div className="relative min-h-screen overflow-hidden bg-canvas text-ink">
+        <div
+          className="pointer-events-none absolute -right-40 -top-40 h-[520px] w-[520px] rounded-full bg-brand/10 blur-[120px]"
+          aria-hidden="true"
+        />
 
-        {/* Esports Glow Accents */}
-        <div className="absolute top-[10%] left-[15%] h-[350px] w-[350px] rounded-full bg-red-600/10 blur-[140px] pointer-events-none" />
-        <div className="absolute bottom-[10%] right-[15%] h-[400px] w-[400px] rounded-full bg-red-950/25 blur-[150px] pointer-events-none" />
+        <div className="relative mx-auto grid min-h-screen w-full max-w-6xl items-start gap-8 px-4 pb-10 pt-6 sm:gap-10 sm:pt-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-16 lg:px-8">
+          {/* Brand panel */}
+          <div className="hidden lg:block">
+            <a href="/" className="inline-flex items-center gap-3">
+              <span className="grid h-11 w-11 place-items-center overflow-hidden rounded-full border border-line bg-surface">
+                <img src="/logo.png" alt="" className="h-full w-full object-cover" />
+              </span>
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-base font-bold tracking-[0.12em] text-ink">
+                  ELITE
+                </span>
+                <span className="font-kannada text-sm font-semibold text-brand-bright">
+                  ಕನ್ನಡಿಗ
+                </span>
+              </span>
+            </a>
 
-        <div className="relative z-10 w-full max-w-md border border-red-800/60 bg-[#0c0c0e]/95 p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
-          {/* Header Branding */}
-          <div className="mb-6 text-center">
-            <div className="mx-auto mb-3 h-16 w-16 sm:h-20 sm:w-20 rounded-full border-2 border-red-600/80 p-1 shadow-2xl bg-black flex items-center justify-center">
-              <img src="/logo.png" alt="ELITE Kannada" className="h-full w-full rounded-full object-cover" />
-            </div>
-
-            <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-red-500 flex items-center justify-center gap-1.5">
-              <Shield size={14} /> OFFICIAL TOURNAMENT PLATFORM
-            </p>
-            <h1 className="font-display text-2xl sm:text-3xl font-black uppercase text-white tracking-tight mt-1">
-              ELITE <span className="text-metallic">ಕನ್ನಡಿಗ</span>
+            <h1 className="display-hero mt-10 text-ink">
+              Enter the{' '}
+              <span className="block text-brand-bright">arena.</span>
             </h1>
-            <p className="mt-1.5 text-xs text-white/60 max-w-xs mx-auto">
-              Please log in with your Free Fire Game UID or register to unlock access to all tournaments, squads, and your player dashboard.
+            <p className="text-lead mt-5 max-w-md">
+              One player identity for verified tournaments, live standings,
+              guild rosters, and every ELITE ಕನ್ನಡಿಗ event.
             </p>
+
+            <ul className="mt-8 space-y-3.5">
+              {[
+                'Verified tournament brackets and results',
+                'One Free Fire UID across every event',
+                'Secure player and admin access',
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-2.5 text-sm text-ink-muted">
+                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-brand-bright" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+
+            <a
+              href="/"
+              className="mt-10 inline-flex items-center gap-1.5 text-xs font-semibold text-ink-muted transition-colors hover:text-brand-bright"
+            >
+              Back to home
+              <ArrowRight size={14} />
+            </a>
           </div>
 
-          {/* Mode Switcher Tabs */}
-          <div className="mb-6 grid grid-cols-3 border border-white/10 bg-white/5 p-1 gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('player_login')
-                setErrorMsg('')
-                setSuccessMsg('')
-              }}
-              className={`py-2 text-[10px] sm:text-[11px] font-black tracking-wider uppercase transition ${
-                authMode === 'player_login'
-                  ? 'bg-red-600 text-white shadow-lg'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              LOGIN (UID)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('register')
-                setErrorMsg('')
-                setSuccessMsg('')
-              }}
-              className={`py-2 text-[10px] sm:text-[11px] font-black tracking-wider uppercase transition ${
-                authMode === 'register'
-                  ? 'bg-red-600 text-white shadow-lg'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              REGISTER
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('admin_login')
-                setErrorMsg('')
-                setSuccessMsg('')
-              }}
-              className={`py-2 text-[10px] sm:text-[11px] font-black tracking-wider uppercase transition ${
-                authMode === 'admin_login'
-                  ? 'bg-red-600 text-white shadow-lg'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              ADMIN
-            </button>
-          </div>
+          {/* Form */}
+          <div className="mx-auto w-full max-w-md">
+            <a href="/" className="mb-6 flex items-center gap-3 lg:hidden">
+              <span className="grid h-10 w-10 place-items-center overflow-hidden rounded-full border border-line bg-surface">
+                <img src="/logo.png" alt="" className="h-full w-full object-cover" />
+              </span>
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-sm font-bold tracking-[0.12em] text-ink">ELITE</span>
+                <span className="font-kannada text-xs font-semibold text-brand-bright">
+                  ಕನ್ನಡಿಗ
+                </span>
+              </span>
+            </a>
 
-          {errorMsg && (
-            <div className="mb-4 flex items-start gap-2 border border-red-600/40 bg-red-950/40 p-3 text-xs text-red-400">
-              <AlertCircle size={16} className="shrink-0 mt-0.5" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
+            <div className="card p-5 sm:p-7">
+              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink-subtle">
+                <Shield size={14} className="text-brand-bright" />
+                Secure player access
+              </p>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink">
+                {authMode === 'register'
+                  ? 'Create your player account'
+                  : authMode === 'admin_login'
+                    ? 'Administrator login'
+                    : 'Welcome back'}
+              </h2>
+              <p className="mt-1 text-sm text-ink-muted">
+                {authMode === 'register'
+                  ? 'Register with your Free Fire UID and in-game name.'
+                  : authMode === 'admin_login'
+                    ? 'Sign in with your administrator email and password.'
+                    : 'Sign in with your registered Free Fire UID.'}
+              </p>
 
-          {successMsg && (
-            <div className="mb-4 flex items-center gap-2 border border-emerald-500/40 bg-emerald-950/40 p-3 text-xs text-emerald-400">
-              <CheckCircle2 size={16} className="shrink-0" />
-              <span>{successMsg}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* 1. PLAYER LOGIN (UID ONLY) */}
-            {authMode === 'player_login' && (
-              <div>
-                <label className="mb-1 block text-[10px] font-bold tracking-widest text-white/60 uppercase">
-                  FREE FIRE GAME UID *
-                </label>
-                <div className="relative">
-                  <Gamepad className="absolute left-3 top-3 text-white/40" size={16} />
-                  <input
-                    type="text"
-                    required
-                    value={freeFireUid}
-                    onChange={(e) => setFreeFireUid(e.target.value)}
-                    placeholder="Enter your Free Fire UID (e.g. 1928374650)"
-                    className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
-                  />
-                </div>
-                <p className="mt-1.5 text-[10px] text-white/40">
-                  Enter your registered Free Fire UID to open your User Dashboard immediately.
-                </p>
+              <div className="mt-5 grid grid-cols-3 gap-1 rounded-lg border border-line bg-surface-2 p-1">
+                {(
+                  [
+                    ['player_login', 'Login'],
+                    ['register', 'Register'],
+                    ['admin_login', 'Admin'],
+                  ] as const
+                ).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => {
+                      setAuthMode(mode)
+                      setErrorMsg('')
+                      setSuccessMsg('')
+                    }}
+                    className={`min-h-9 min-w-0 rounded-md px-1 text-[11px] font-semibold uppercase tracking-normal transition-colors sm:px-2 sm:text-xs sm:tracking-[0.06em] ${
+                      authMode === mode
+                        ? 'bg-brand text-white'
+                        : 'text-ink-muted hover:bg-surface-3 hover:text-ink'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-            )}
 
-            {/* 2. PLAYER REGISTRATION */}
-            {authMode === 'register' && (
-              <>
-                <div>
-                  <label className="mb-1 block text-[10px] font-bold tracking-widest text-white/60 uppercase">
-                    FREE FIRE GAME UID *
-                  </label>
-                  <div className="relative">
-                    <Gamepad className="absolute left-3 top-3 text-white/40" size={16} />
-                    <input
-                      type="text"
-                      required
-                      value={freeFireUid}
-                      onChange={(e) => setFreeFireUid(e.target.value)}
-                      placeholder="e.g. 1928374650"
-                      className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
-                    />
-                  </div>
-                  <p className="mt-1 text-[9px] text-white/40">
-                    Your Free Fire Game UID will be your unique player identity key.
-                  </p>
+              {errorMsg && (
+                <div
+                  className="mt-4 flex items-start gap-2 rounded-lg border border-brand-border bg-brand-muted p-3 text-xs text-brand-bright"
+                  role="alert"
+                >
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <span>{errorMsg}</span>
                 </div>
+              )}
 
-                <div>
-                  <label className="mb-1 block text-[10px] font-bold tracking-widest text-white/60 uppercase">
-                    PLAYER NAME (IGN) *
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-3 text-white/40" size={16} />
-                    <input
-                      type="text"
-                      required
-                      value={ign}
-                      onChange={(e) => setIgn(e.target.value)}
-                      placeholder="e.g. ELITE_RAHUL"
-                      className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
-                    />
-                  </div>
-                  <p className="mt-1 text-[9px] text-white/40">
-                    Your official in-game name shown on leaderboards and guild rosters.
-                  </p>
+              {successMsg && (
+                <div className="mt-4 flex items-center gap-2 rounded-lg border border-line-strong bg-surface-3 p-3 text-xs text-ink">
+                  <CheckCircle2 size={16} className="shrink-0" />
+                  <span>{successMsg}</span>
                 </div>
-              </>
-            )}
+              )}
 
-            {/* 3. ADMIN LOGIN */}
-            {authMode === 'admin_login' && (
-              <>
-                <div>
-                  <label className="mb-1 block text-[10px] font-bold tracking-widest text-white/60 uppercase">
-                    ADMIN EMAIL ADDRESS *
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 text-white/40" size={16} />
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="admin@elitekannadiga.com"
-                      className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
-                    />
+              <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+                {authMode === 'player_login' && (
+                  <div>
+                    <label className="label mb-1.5 block" htmlFor="login-uid">
+                      Free Fire UID
+                    </label>
+                    <div className="relative">
+                      <Gamepad className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" size={16} />
+                      <input
+                        id="login-uid"
+                        type="text"
+                        required
+                        value={freeFireUid}
+                        onChange={(event) => setFreeFireUid(event.target.value)}
+                        placeholder="e.g. 1928374650"
+                        className="field h-11 pl-10"
+                        autoComplete="username"
+                      />
+                    </div>
+                    <p className="mt-1.5 text-xs text-ink-subtle">
+                      Use the UID registered with ELITE ಕನ್ನಡಿಗ.
+                    </p>
                   </div>
-                </div>
+                )}
 
-                <div>
-                  <label className="mb-1 block text-[10px] font-bold tracking-widest text-white/60 uppercase">
-                    PASSWORD *
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 text-white/40" size={16} />
-                    <input
-                      type="password"
-                      required
-                      minLength={6}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full border border-white/15 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
+                {authMode === 'register' && (
+                  <>
+                    <div>
+                      <label className="label mb-1.5 block" htmlFor="register-uid">
+                        Free Fire UID
+                      </label>
+                      <div className="relative">
+                        <Gamepad className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" size={16} />
+                        <input
+                          id="register-uid"
+                          type="text"
+                          required
+                          value={freeFireUid}
+                          onChange={(event) => setFreeFireUid(event.target.value)}
+                          placeholder="e.g. 1928374650"
+                          className="field h-11 pl-10"
+                          autoComplete="username"
+                        />
+                      </div>
+                      <p className="mt-1.5 text-xs text-ink-subtle">
+                        This becomes your unique player identity.
+                      </p>
+                    </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="mt-6 w-full bg-red-600 py-3.5 font-display text-xs font-black tracking-widest text-white uppercase transition hover:bg-red-500 disabled:opacity-50 shadow-xl shadow-red-900/30"
-            >
-              {loading
-                ? 'VERIFYING CREDENTIALS...'
-                : authMode === 'register'
-                ? 'REGISTER & OPEN USER DASHBOARD'
-                : authMode === 'admin_login'
-                ? 'LOGIN AS ADMIN'
-                : 'LOGIN & OPEN USER DASHBOARD'}
-            </button>
-          </form>
+                    <div>
+                      <label className="label mb-1.5 block" htmlFor="register-ign">
+                        Player name (IGN)
+                      </label>
+                      <div className="relative">
+                        <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" size={16} />
+                        <input
+                          id="register-ign"
+                          type="text"
+                          required
+                          value={ign}
+                          onChange={(event) => setIgn(event.target.value)}
+                          placeholder="e.g. ELITE_RAHUL"
+                          className="field h-11 pl-10"
+                          autoComplete="nickname"
+                        />
+                      </div>
+                      <p className="mt-1.5 text-xs text-ink-subtle">
+                        Shown on leaderboards and guild rosters.
+                      </p>
+                    </div>
+                  </>
+                )}
 
-          {/* Quick Switch Helper */}
-          <div className="mt-6 border-t border-white/10 pt-4 text-center">
-            {authMode === 'register' ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode('player_login')
-                  setErrorMsg('')
-                  setSuccessMsg('')
-                }}
-                className="text-xs font-bold tracking-wider text-white/60 hover:text-red-400 transition"
-              >
-                ALREADY REGISTERED? <span className="text-red-500 underline">LOGIN WITH UID</span>
-              </button>
-            ) : authMode === 'player_login' ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode('register')
-                  setErrorMsg('')
-                  setSuccessMsg('')
-                }}
-                className="text-xs font-bold tracking-wider text-white/60 hover:text-red-400 transition"
-              >
-                NEW PLAYER? <span className="text-red-500 underline">CREATE PLAYER ACCOUNT</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode('player_login')
-                  setErrorMsg('')
-                  setSuccessMsg('')
-                }}
-                className="text-xs font-bold tracking-wider text-white/60 hover:text-red-400 transition"
-              >
-                RETURN TO <span className="text-red-500 underline">PLAYER LOGIN</span>
-              </button>
-            )}
+                {authMode === 'admin_login' && (
+                  <>
+                    <div>
+                      <label className="label mb-1.5 block" htmlFor="admin-email">
+                        Admin email
+                      </label>
+                      <div className="relative">
+                        <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" size={16} />
+                        <input
+                          id="admin-email"
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(event) => setEmail(event.target.value)}
+                          placeholder="admin@elitekannadiga.com"
+                          className="field h-11 pl-10"
+                          autoComplete="email"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="label mb-1.5 block" htmlFor="admin-password">
+                        Password
+                      </label>
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" size={16} />
+                        <input
+                          id="admin-password"
+                          type="password"
+                          required
+                          minLength={6}
+                          value={password}
+                          onChange={(event) => setPassword(event.target.value)}
+                          placeholder="••••••••"
+                          className="field h-11 pl-10"
+                          autoComplete="current-password"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <button type="submit" disabled={loading} className="btn-primary w-full">
+                  {loading
+                    ? 'Verifying...'
+                    : authMode === 'register'
+                      ? 'Create account'
+                      : authMode === 'admin_login'
+                        ? 'Login as admin'
+                        : 'Login'}
+                </button>
+              </form>
+
+              <div className="mt-5 border-t border-line-subtle pt-4 text-center">
+                {authMode === 'register' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('player_login')
+                      setErrorMsg('')
+                      setSuccessMsg('')
+                    }}
+                    className="text-xs font-medium text-ink-muted transition-colors hover:text-brand-bright"
+                  >
+                    Already registered?{' '}
+                    <span className="font-semibold text-brand-bright underline">
+                      Login with UID
+                    </span>
+                  </button>
+                ) : authMode === 'player_login' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('register')
+                      setErrorMsg('')
+                      setSuccessMsg('')
+                    }}
+                    className="text-xs font-medium text-ink-muted transition-colors hover:text-brand-bright"
+                  >
+                    New player?{' '}
+                    <span className="font-semibold text-brand-bright underline">
+                      Create an account
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('player_login')
+                      setErrorMsg('')
+                      setSuccessMsg('')
+                    }}
+                    className="text-xs font-medium text-ink-muted transition-colors hover:text-brand-bright"
+                  >
+                    Return to{' '}
+                    <span className="font-semibold text-brand-bright underline">
+                      player login
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <p className="mt-4 text-center text-xs leading-relaxed text-ink-subtle">
+              By continuing you agree to the{' '}
+              <a href="/terms" className="text-ink-muted underline hover:text-brand-bright">
+                terms of service
+              </a>{' '}
+              and{' '}
+              <a href="/privacy" className="text-ink-muted underline hover:text-brand-bright">
+                privacy policy
+              </a>
+              .
+            </p>
           </div>
         </div>
       </div>
     )
   }
 
-  // 3. User is Authenticated: Render the requested route and children!
   return <>{children}</>
 }

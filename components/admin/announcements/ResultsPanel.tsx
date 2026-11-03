@@ -193,9 +193,9 @@ export function ResultsPanel({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <p className="eyebrow flex items-center gap-2">
-            <Trophy size={13} className="text-amber-500" /> Points Table & Standings
+            <Trophy size={13} className="text-brand-bright" /> Points Table & Standings
           </p>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+          <p className="text-xs font-bold uppercase tracking-widest text-ink-subtle">
             Win = {season.win_points} pts · Tie-breaker: 1. Points → 2. Least Rounds Lost
           </p>
         </div>
@@ -204,16 +204,16 @@ export function ResultsPanel({
 
         {/* Finalize Button - Displayed when all spins and rounds finish or if already finalized */}
         {totalMatches > 0 && completedMatches >= totalMatches ? (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border border-amber-500/50 bg-gradient-to-r from-amber-950/40 via-black to-[#140e04] p-4 rounded shadow-lg shadow-amber-950/30">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-400">
+          <div className="flex flex-col items-start justify-between gap-3 rounded-lg border border-brand bg-brand-muted p-4 sm:flex-row sm:items-center">
+            <div className="flex items-start gap-3">
+              <div className="rounded-md border border-brand bg-brand/15 p-2.5 text-brand-bright">
                 <Trophy size={22} />
               </div>
               <div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-2">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-brand-bright flex items-center gap-2">
                   All Spins &amp; Tournament Rounds Finished ({completedMatches}/{totalMatches} Complete)
                 </h4>
-                <p className="text-[11px] text-white/60">
+                <p className="text-xs text-ink-muted">
                   {playoffBracket
                     ? 'Playoff bracket generated. Top 6 teams are competing in the IPL-style knockout.'
                     : 'All matches have been played. Click Finalize to select the Top 6 teams and launch the IPL Playoff Bracket.'}
@@ -221,26 +221,26 @@ export function ResultsPanel({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
               {playoffBracket ? (
                 <>
                   <button
                     onClick={() => setFinalizeModalOpen(true)}
-                    className="flex-1 sm:flex-initial px-3 py-2 border border-white/20 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-[10px] font-bold uppercase tracking-wider transition rounded"
+                    className="btn-secondary btn-sm w-full sm:w-auto"
                   >
-                    Re-Finalize Top 6
+                    Re-finalize top 6
                   </button>
                   <button
                     onClick={onOpenPlayoffs}
-                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 border border-amber-500 bg-amber-500 hover:bg-amber-400 text-black px-5 py-2 text-xs font-black uppercase tracking-widest transition rounded shadow-lg shadow-amber-950/50"
+                    className="btn-primary btn-sm w-full whitespace-nowrap sm:w-auto"
                   >
-                    <Trophy size={13} /> View Playoff Graph →
+                    <Trophy size={13} /> View playoff graph
                   </button>
                 </>
               ) : (
                 <button
                   onClick={() => setFinalizeModalOpen(true)}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-amber-500 bg-amber-500 hover:bg-amber-400 text-black px-6 py-2.5 text-xs font-black uppercase tracking-widest transition rounded shadow-lg shadow-amber-950/50 animate-pulse hover:animate-none"
+                  className="btn-primary w-full sm:w-auto"
                 >
                   <Trophy size={14} /> Finalize
                 </button>
@@ -248,46 +248,46 @@ export function ResultsPanel({
             </div>
           </div>
         ) : playoffBracket ? (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border border-emerald-500/40 bg-emerald-950/20 p-4 rounded">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border border-line-strong bg-surface-3 p-4 rounded">
             <div className="flex items-center gap-2.5">
-              <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+              <CheckCircle2 size={18} className="text-ink shrink-0" />
               <div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-emerald-300">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-ink">
                   Playoffs Active ({completedMatches}/{totalMatches} matches finished)
                 </h4>
-                <p className="text-[11px] text-white/60">
+                <p className="text-xs text-ink-muted">
                   Top 6 teams have already been finalized into the IPL Playoff Tree.
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
               <button
                 onClick={() => setFinalizeModalOpen(true)}
-                className="flex-1 sm:flex-initial px-3 py-2 border border-white/20 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-[10px] font-bold uppercase tracking-wider transition rounded"
+                className="btn-secondary btn-sm w-full sm:w-auto"
               >
-                Re-Finalize
+                Re-finalize
               </button>
               <button
                 onClick={onOpenPlayoffs}
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 border border-amber-500 bg-amber-500 hover:bg-amber-400 text-black px-4 py-2 text-xs font-black uppercase tracking-widest transition rounded"
+                className="btn-primary btn-sm w-full whitespace-nowrap sm:w-auto"
               >
-                <Trophy size={13} /> View Playoff Graph →
+                <Trophy size={13} /> View playoff graph
               </button>
             </div>
           </div>
         ) : totalMatches > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 border border-white/10 bg-white/[0.02] p-3 text-xs text-white/50 rounded">
+          <div className="flex flex-wrap items-center justify-between gap-2 border border-line-subtle bg-surface p-3 text-xs text-ink-subtle rounded">
             <span>
-              Tournament in progress: <strong className="text-white">{completedMatches} / {totalMatches}</strong> matches finished.
-              The <strong className="text-amber-400">Finalize</strong> button will appear once all spins and rounds finish.
+              Tournament in progress: <strong className="text-ink">{completedMatches} / {totalMatches}</strong> matches finished.
+              The <strong className="text-brand-bright">Finalize</strong> button will appear once all spins and rounds finish.
             </span>
             {standings.length >= 2 && (
               <button
                 onClick={() => setFinalizeModalOpen(true)}
-                className="text-[10px] font-mono text-amber-400/80 hover:text-amber-300 underline"
-                title="Early Finalize preview for testing"
+                className="btn-secondary btn-sm"
+                title="Preview finalization before all matches finish"
               >
-                [Admin Test: Finalize Early]
+                Preview finalization
               </button>
             )}
           </div>
@@ -312,17 +312,17 @@ export function ResultsPanel({
       />
 
       {/* 3. Match Results (Bottom) */}
-      <div className="border border-white/10 bg-white/5 p-4">
+      <div className="border border-line-subtle bg-surface-2 p-4">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white">
-            <BarChart3 size={15} className="text-red-500" /> Match Results
+          <p className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-ink">
+            <BarChart3 size={15} className="text-brand-bright" /> Match Results
           </p>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             <select
               value={roundFilter}
               onChange={(event) => setRoundFilter(event.target.value)}
-              className="border border-white/15 bg-[#111] px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white focus:border-red-500 focus:outline-none"
+              className="border border-line bg-surface px-3 py-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-ink focus:border-brand focus:outline-none"
             >
               <option value="all">All Rounds</option>
               {rounds.map((round) => (
@@ -333,23 +333,23 @@ export function ResultsPanel({
             </select>
 
             <div className="relative">
-              <Search className="absolute left-2.5 top-2 text-white/30" size={13} />
+              <Search className="absolute left-3 top-2.5 text-ink-subtle" size={15} />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search team or match…"
-                className="w-44 border border-white/15 bg-white/5 py-1.5 pl-8 pr-2 text-[11px] text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
+                className="w-52 border border-line bg-surface-2 py-2 pl-9 pr-3 text-xs sm:text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
               />
             </div>
           </div>
         </div>
 
         {matchPairings.length === 0 ? (
-          <div className="border border-white/10 p-8 text-center text-xs text-white/40">
+          <div className="border border-line-subtle p-8 text-center text-sm text-ink-subtle">
             No locked pairings yet. Use the Spin Wheel tab to reveal and lock matches first.
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3.5">
             {matchPairings.map((pairing) => (
               <MatchResultRow
                 key={pairing.id}
@@ -380,11 +380,11 @@ function SummaryCard({
   value: string
 }) {
   return (
-    <div className="border border-white/10 bg-white/5 p-3">
-      <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-white/40">
-        <Icon size={11} className="text-red-500" /> {label}
+    <div className="border border-line-subtle bg-surface-2 p-4 shadow-sm">
+      <p className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-ink-subtle">
+        <Icon size={14} className="text-brand-bright" /> {label}
       </p>
-      <p className="mt-1 font-display text-xl font-black text-white">{value}</p>
+      <p className="mt-1 font-display text-2xl sm:text-3xl font-extrabold text-ink">{value}</p>
     </div>
   )
 }
@@ -510,30 +510,30 @@ function MatchResultRow({
     <form
       onSubmit={handleSubmit}
       className={`border p-3 transition-colors ${
-        saved ? 'border-emerald-500/25 bg-emerald-950/15' : 'border-white/10 bg-white/[0.03]'
+        saved ? 'border-line-strong bg-surface-3' : 'border-line-subtle bg-surface-2'
       }`}
     >
       <div className="flex flex-col gap-3">
         {/* Header row: Match code + saved details */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-subtle pb-2">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] tracking-wider text-amber-400/90 font-bold">
+            <span className="font-mono text-xs tracking-wider text-brand-bright font-bold">
               {pairing.label || `R${pairing.round_number}-M${pairing.match_number}`}
             </span>
             {saved && (
-              <span className="inline-flex items-center gap-1 border border-emerald-500/30 bg-emerald-950/40 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-emerald-400">
+              <span className="inline-flex items-center gap-1 border border-line-strong bg-surface-3 px-1.5 py-0.5 text-xs font-extrabold uppercase tracking-wider text-ink">
                 <CheckCircle2 size={9} /> Saved
               </span>
             )}
           </div>
 
           {saved && result && (
-            <div className="flex items-center gap-2 text-[10px] text-white/50">
-              <span className="font-bold text-white/80">
+            <div className="flex items-center gap-2 text-xs text-ink-subtle">
+              <span className="font-bold text-ink">
                 Score: {result.team_a_score} – {result.team_b_score}
               </span>
               <span>•</span>
-              <span className="text-amber-300 font-bold">
+              <span className="text-brand-bright font-bold">
                 Rounds Lost: {result.team_a_rounds_lost ?? 0} – {result.team_b_rounds_lost ?? 0}
               </span>
             </div>
@@ -544,12 +544,12 @@ function MatchResultRow({
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_1fr] items-center">
           {/* Team A */}
           <div className="flex flex-col md:items-end">
-            <span className="truncate text-xs font-black text-white">{teamAName}</span>
-            <span className="text-[9px] uppercase tracking-wider text-white/40">Team A</span>
+            <span className="truncate text-xs font-extrabold text-ink">{teamAName}</span>
+            <span className="text-xs uppercase tracking-wider text-ink-subtle">Team A</span>
           </div>
 
           {/* Central inputs for Rounds Lost & Score */}
-          <div className="flex flex-col items-center gap-2 bg-black/40 border border-white/10 p-2.5">
+          <div className="flex flex-col items-center gap-2 bg-canvas/40 border border-line-subtle p-2.5">
             {/* Rounds Lost Input Row */}
             <div className="flex flex-col items-center">
               <div className="flex items-center gap-2">
@@ -563,10 +563,10 @@ function MatchResultRow({
                       setError('')
                     }}
                     placeholder="0"
-                    className="w-14 border border-amber-500/30 bg-[#111] px-1 py-1 text-center font-display text-sm font-black text-amber-300 focus:border-amber-400 focus:outline-none"
+                    className="w-14 border border-brand bg-surface px-1 py-1 text-center font-display text-sm font-extrabold text-brand-bright focus:border-brand focus:outline-none"
                   />
                 </div>
-                <span className="text-[10px] font-black text-white/30 uppercase tracking-widest">lost</span>
+                <span className="text-xs font-extrabold text-ink-subtle uppercase tracking-widest">lost</span>
                 <div className="text-center">
                   <input
                     type="number"
@@ -577,17 +577,17 @@ function MatchResultRow({
                       setError('')
                     }}
                     placeholder="0"
-                    className="w-14 border border-amber-500/30 bg-[#111] px-1 py-1 text-center font-display text-sm font-black text-amber-300 focus:border-amber-400 focus:outline-none"
+                    className="w-14 border border-brand bg-surface px-1 py-1 text-center font-display text-sm font-extrabold text-brand-bright focus:border-brand focus:outline-none"
                   />
                 </div>
               </div>
-              <span className="mt-1 text-[9px] font-black uppercase tracking-wider text-amber-400/80">
+              <span className="mt-1 text-xs font-extrabold uppercase tracking-wider text-brand-bright">
                 Rounds Lost (e.g. 4 – 7)
               </span>
             </div>
 
             {/* Score / Points Input Row */}
-            <div className="flex flex-col items-center border-t border-white/10 pt-2 w-full">
+            <div className="flex flex-col items-center border-t border-line-subtle pt-2 w-full">
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -598,9 +598,9 @@ function MatchResultRow({
                     setError('')
                   }}
                   placeholder={winnerId === pairing.team_a_id ? String(winPoints || 3) : '0'}
-                  className="w-14 border border-white/15 bg-[#111] px-1 py-1 text-center font-display text-sm font-black text-white focus:border-red-500 focus:outline-none"
+                  className="w-14 border border-line bg-surface px-1 py-1 text-center font-display text-sm font-extrabold text-ink focus:border-brand focus:outline-none"
                 />
-                <span className="text-[10px] font-bold text-white/30">–</span>
+                <span className="text-xs font-bold text-ink-subtle">–</span>
                 <input
                   type="number"
                   min={0}
@@ -610,10 +610,10 @@ function MatchResultRow({
                     setError('')
                   }}
                   placeholder={winnerId === pairing.team_b_id ? String(winPoints || 3) : '0'}
-                  className="w-14 border border-white/15 bg-[#111] px-1 py-1 text-center font-display text-sm font-black text-white focus:border-red-500 focus:outline-none"
+                  className="w-14 border border-line bg-surface px-1 py-1 text-center font-display text-sm font-extrabold text-ink focus:border-brand focus:outline-none"
                 />
               </div>
-              <span className="mt-1 text-[9px] font-bold uppercase tracking-wider text-white/40">
+              <span className="mt-1 text-xs font-bold uppercase tracking-wider text-ink-subtle">
                 Match Points / Score
               </span>
             </div>
@@ -621,15 +621,15 @@ function MatchResultRow({
 
           {/* Team B */}
           <div className="flex flex-col md:items-start">
-            <span className="truncate text-xs font-black text-white">{teamBName}</span>
-            <span className="text-[9px] uppercase tracking-wider text-white/40">Team B</span>
+            <span className="truncate text-xs font-extrabold text-ink">{teamBName}</span>
+            <span className="text-xs uppercase tracking-wider text-ink-subtle">Team B</span>
           </div>
         </div>
 
         {/* Winner selection & Action buttons */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line-subtle pt-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[9px] font-black uppercase tracking-widest text-white/50">Winner:</span>
+            <span className="text-xs font-extrabold uppercase tracking-widest text-ink-subtle">Winner:</span>
             {[
               { id: pairing.team_a_id, name: teamAName },
               { id: pairing.team_b_id, name: teamBName },
@@ -641,10 +641,10 @@ function MatchResultRow({
                   setManualWinner(team.id)
                   setError('')
                 }}
-                className={`border px-2.5 py-1 text-[9px] font-black uppercase tracking-wider transition ${
+                className={`border px-2.5 py-1 text-xs font-extrabold uppercase tracking-wider transition ${
                   winnerId === team.id
-                    ? 'border-emerald-500 bg-emerald-950/60 text-emerald-300'
-                    : 'border-white/15 text-white/50 hover:border-white/30 hover:text-white'
+                    ? 'border-line-strong bg-surface-3 text-ink'
+                    : 'border-line text-ink-subtle hover:border-line-strong hover:text-ink'
                 }`}
               >
                 {winnerId === team.id && '✓ '}
@@ -657,7 +657,7 @@ function MatchResultRow({
             <button
               type="submit"
               disabled={saving || busy}
-              className="bg-red-600 px-4 py-1.5 text-[9px] font-black uppercase tracking-widest text-white transition hover:bg-red-500 disabled:opacity-50"
+              className="bg-brand px-4 py-1.5 text-xs font-extrabold uppercase tracking-widest text-ink transition hover:bg-brand disabled:opacity-50"
             >
               {saving ? 'Saving…' : saved ? 'Update Result' : 'Save Result'}
             </button>
@@ -665,7 +665,7 @@ function MatchResultRow({
               <button
                 type="button"
                 onClick={onDelete}
-                className="border border-white/10 p-1.5 text-white/45 transition hover:border-red-600 hover:text-red-400"
+                className="border border-line-subtle p-1.5 text-ink-subtle transition hover:border-brand hover:text-brand-bright"
                 title="Delete result"
               >
                 <Trash2 size={12} />
@@ -675,7 +675,7 @@ function MatchResultRow({
         </div>
 
         {error && (
-          <p className="flex items-center gap-1.5 text-[10px] text-red-400">
+          <p className="flex items-center gap-1.5 text-xs text-brand-bright">
             <AlertCircle size={11} /> {error}
           </p>
         )}

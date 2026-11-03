@@ -55,6 +55,9 @@ export interface TopTeamDetail {
   prize?: string
   player_names?: string[]
   player_uids?: string[]
+  team_logo_url?: string
+  champions_image_url?: string
+  results_bgm_url?: string
 }
 
 export interface Tournament {
@@ -78,7 +81,29 @@ export interface Tournament {
   created_by?: string
   created_at: string
   top_3_teams?: TopTeamDetail[]
+  champions_image_url?: string
+  results_bgm_url?: string
 }
+
+export interface BGMOption {
+  id: string
+  label: string
+  url: string
+}
+
+export const PRESET_BGMS: BGMOption[] = [
+  { id: 'kgf-entry', label: '🔥 KGF Entry Theme (MP4 Audio)', url: '/audio/bgm/kgf-entry.mp4' },
+  { id: 'champions-anthem', label: '🏆 Champions Victory Anthem', url: '/audio/bgm/champions-anthem.wav' },
+  { id: 'booyah-glory', label: '🔥 Booyah Glory Esports', url: '/audio/bgm/booyah-glory.wav' },
+  { id: 'epic-arena', label: '⚡ Epic Arena Celebration', url: '/audio/bgm/epic-arena.wav' },
+  { id: 'kannada-warriors', label: '👑 Kannada Warriors Theme', url: '/audio/bgm/kannada-warriors.wav' },
+]
+
+export const PRESET_CHAMPION_IMAGES = [
+  { label: '🥇 Aliens No. 1 Players (Season 1 Champions)', url: '/images/carousel-aliens-champions.jpg' },
+  { label: '👑 Elite Kannadiga King (Throne & Trophy)', url: '/images/carousel-elite-kannadiga.jpg' },
+  { label: '🦁 Elite Army Squad (Golden Lion Crest)', url: '/images/carousel-elite-army.jpg' },
+]
 
 export interface TournamentRegistration {
   id: string

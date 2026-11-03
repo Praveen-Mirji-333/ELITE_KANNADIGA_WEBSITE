@@ -48,49 +48,49 @@ export function TeamPool({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Users size={15} className="text-red-500" />
-          <span className="text-xs font-black uppercase tracking-widest text-white">
+      <div className="flex flex-col gap-3.5 border border-line-subtle bg-surface-2 p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <Users size={18} className="text-brand-bright" />
+          <span className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-ink">
             Wheel Teams ({activeTeams.length})
           </span>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-white/35">
+          <span className="text-xs font-bold uppercase tracking-wider text-ink-subtle">
             {season.matches_per_team} matches each
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={onSync}
             disabled={busy}
-            className="inline-flex items-center gap-1.5 border border-white/15 bg-white/5 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-white/70 transition hover:bg-white/10 disabled:opacity-50"
+            className="inline-flex items-center gap-2 border border-line bg-surface-2 px-3.5 py-2 text-xs font-extrabold uppercase tracking-wider text-ink transition hover:bg-surface-3 disabled:opacity-50"
           >
-            <UserPlus size={12} /> Sync Registrations
+            <UserPlus size={14} /> Sync Registrations
           </button>
           <button
             onClick={onRegenerate}
             disabled={busy || hasLocked}
             title={hasLocked ? 'Unlock or delete all locked/completed pairings first' : 'Re-generate the full schedule'}
-            className="inline-flex items-center gap-1.5 border border-amber-500/40 bg-amber-950/30 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-amber-400 transition hover:bg-amber-500 hover:text-black disabled:opacity-40"
+            className="inline-flex items-center gap-2 border border-brand bg-brand-muted px-3.5 py-2 text-xs font-extrabold uppercase tracking-wider text-brand-bright transition hover:bg-brand hover:text-ink disabled:opacity-40"
           >
-            <RefreshCw size={12} /> Regenerate
+            <RefreshCw size={14} /> Regenerate
           </button>
         </div>
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-2.5 text-white/30" size={14} />
+        <Search className="absolute left-3.5 top-3 text-ink-subtle" size={16} />
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search teams in the wheel…"
-          className="w-full border border-white/10 bg-white/5 py-2 pl-9 pr-3 text-xs text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
+          className="w-full border border-line bg-surface-2 py-2.5 pl-10 pr-4 text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
         />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2.5">
         {visible.length === 0 && (
-          <p className="w-full border border-white/10 p-4 text-center text-xs text-white/40">
+          <p className="w-full border border-line-subtle p-5 text-center text-sm text-ink-subtle">
             No active teams. Sync registrations or restore an excluded team.
           </p>
         )}
@@ -101,23 +101,23 @@ export function TeamPool({
           return (
             <span
               key={team.id}
-              className={`inline-flex max-w-full items-center gap-2 border px-2.5 py-1.5 text-[11px] font-bold ${
+              className={`inline-flex max-w-full items-center gap-2.5 border px-3 py-2 text-xs sm:text-sm font-bold shadow-sm ${
                 complete
-                  ? 'border-emerald-500/30 bg-emerald-950/20 text-emerald-300'
-                  : 'border-white/15 bg-white/5 text-white/80'
+                  ? 'border-line-strong bg-surface-3 text-ink'
+                  : 'border-line bg-surface-2 text-ink'
               }`}
             >
-              <span className="max-w-[180px] truncate">{team.team_name}</span>
-              <span className="font-mono text-[10px] text-white/35">
+              <span className="max-w-[200px] truncate">{team.team_name}</span>
+              <span className="font-mono text-xs text-ink-subtle">
                 {played}/{season.matches_per_team}
               </span>
               <button
                 onClick={() => onExclude(team.registration_id)}
                 disabled={busy}
                 title="Remove this team from the wheel (cancels its open pairings)"
-                className="text-white/30 transition hover:text-red-500 disabled:opacity-40"
+                className="text-ink-subtle transition hover:text-brand-bright p-0.5 disabled:opacity-40"
               >
-                <X size={12} />
+                <X size={14} />
               </button>
             </span>
           )
@@ -125,30 +125,30 @@ export function TeamPool({
       </div>
 
       {excludedTeams.length > 0 && (
-        <div className="space-y-2 border border-red-900/30 bg-red-950/10 p-3">
-          <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-red-400">
-            <UserMinus size={12} /> Excluded / Absent ({excludedTeams.length})
+        <div className="space-y-3 border border-brand-border bg-brand-muted p-4">
+          <p className="flex items-center gap-2 text-xs sm:text-sm font-extrabold uppercase tracking-wider text-brand-bright">
+            <UserMinus size={15} /> Excluded / Absent ({excludedTeams.length})
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2.5">
             {excludedTeams.map((team) => (
               <span
                 key={team.id}
-                className="inline-flex max-w-full items-center gap-2 border border-white/10 bg-black/30 px-2.5 py-1 text-[11px] text-white/45 line-through"
+                className="inline-flex max-w-full items-center gap-2 border border-line-subtle bg-canvas/40 px-3 py-1.5 text-xs text-ink-subtle line-through"
               >
                 <span className="max-w-[180px] truncate">{team.team_name}</span>
                 <button
                   onClick={() => onRestore(team.registration_id)}
                   disabled={busy}
                   title="Restore this team"
-                  className="text-white/40 transition hover:text-emerald-400 disabled:opacity-40"
+                  className="text-ink-subtle transition hover:text-ink p-0.5 disabled:opacity-40"
                 >
-                  <RotateCcw size={12} />
+                  <RotateCcw size={14} />
                 </button>
               </span>
             ))}
           </div>
-          <p className="flex items-start gap-1.5 text-[10px] leading-4 text-white/35">
-            <AlertCircle size={11} className="mt-0.5 shrink-0" />
+          <p className="flex items-start gap-1.5 text-xs leading-4 text-ink-subtle">
+            <AlertCircle size={13} className="mt-0.5 shrink-0" />
             Excluding a team cancels its scheduled/locked pairings. Completed results stay in the standings.
           </p>
         </div>

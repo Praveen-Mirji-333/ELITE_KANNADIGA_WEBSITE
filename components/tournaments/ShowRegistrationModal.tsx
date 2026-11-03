@@ -70,42 +70,42 @@ export function ShowRegistrationModal({
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-3 sm:p-4 backdrop-blur-md overflow-y-auto">
-      <div className="relative my-auto w-full max-w-3xl border border-emerald-600/60 bg-[#0c0c0e] p-5 sm:p-7 shadow-2xl max-h-[92vh] flex flex-col text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4 backdrop-blur-md overflow-y-auto neu-theme">
+      <div className="relative my-auto w-full max-w-3xl modal-panel p-5 sm:p-7 flex flex-col text-ink">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 text-white/60 hover:text-white transition"
+          className="neu-circle absolute right-4 top-4 h-8 w-8 text-ink-muted hover:text-ink transition"
           aria-label="Close"
         >
-          <X size={22} />
+          <X size={16} />
         </button>
 
         {/* Modal Header */}
-        <div className="border-b border-white/10 pb-5">
+        <div className="border-b border-line-subtle pb-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-emerald-500/40 bg-emerald-950/60 text-emerald-400 shrink-0">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-line-strong bg-surface-3 text-ink shrink-0">
                 <Shield size={26} />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/20 border border-emerald-500/50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-300 tracking-wider">
+                  <span className="inline-flex items-center gap-1 rounded bg-surface-3 border border-line-strong px-2 py-0.5 text-xs font-extrabold uppercase text-ink tracking-wider">
                     <CheckCircle2 size={11} /> REGISTERED CONFIRMED
                   </span>
-                  <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                  <span className="text-xs font-bold text-ink-subtle uppercase tracking-widest">
                     {tournament.game_mode}
                   </span>
                 </div>
-                <h3 className="font-display text-xl sm:text-2xl font-black uppercase text-white tracking-wide mt-0.5">
+                <h3 className="font-display text-xl sm:text-2xl font-extrabold uppercase text-ink tracking-wide mt-0.5">
                   {tournament.title}
                 </h3>
               </div>
             </div>
 
             <div className="text-left sm:text-right">
-              <span className="text-[10px] font-bold text-white/40 block">PRIZE POOL</span>
-              <span className="font-display text-lg font-black text-amber-400">
+              <span className="text-xs font-bold text-ink-subtle block">PRIZE POOL</span>
+              <span className="font-display text-lg font-extrabold text-brand-bright">
                 {tournament.prize_pool || '₹10,000'}
               </span>
             </div>
@@ -115,20 +115,20 @@ export function ShowRegistrationModal({
           <div className="flex flex-wrap sm:flex-nowrap gap-1.5 sm:gap-2 mt-4 sm:mt-5">
             <button
               onClick={() => setActiveTab('MY_TEAM')}
-              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-black tracking-wider sm:tracking-widest uppercase transition ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-xs font-extrabold tracking-wider sm:tracking-widest uppercase transition ${
                 activeTab === 'MY_TEAM'
-                  ? 'border-b-2 border-emerald-500 bg-white/5 text-emerald-400'
-                  : 'text-white/50 hover:text-white'
+                  ? 'border-b-2 border-line-strong bg-surface-2 text-ink'
+                  : 'text-ink-subtle hover:text-ink'
               }`}
             >
               <User size={13} /> YOUR SQUAD
             </button>
             <button
               onClick={() => setActiveTab('ALL_TEAMS')}
-              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-black tracking-wider sm:tracking-widest uppercase transition ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-xs font-extrabold tracking-wider sm:tracking-widest uppercase transition ${
                 activeTab === 'ALL_TEAMS'
-                  ? 'border-b-2 border-emerald-500 bg-white/5 text-emerald-400'
-                  : 'text-white/50 hover:text-white'
+                  ? 'border-b-2 border-line-strong bg-surface-2 text-ink'
+                  : 'text-ink-subtle hover:text-ink'
               }`}
             >
               <Users size={13} /> ALL SQUADS ({allRegistrations.length})
@@ -143,18 +143,18 @@ export function ShowRegistrationModal({
               {userRegistration ? (
                 <>
                   {/* Team Card Banner */}
-                  <div className="border border-emerald-600/40 bg-gradient-to-r from-emerald-950/40 via-[#0e1612] to-black p-4 sm:p-5">
+                  <div className="border border-line-strong bg-gradient-to-r from-surface-2 via-surface to-canvas p-4 sm:p-5">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
-                        <span className="text-[10px] font-bold text-emerald-400 tracking-widest uppercase">
+                        <span className="text-xs font-bold text-ink tracking-widest uppercase">
                           SQUAD / TEAM NAME
                         </span>
-                        <h4 className="font-display text-2xl font-black text-white uppercase tracking-wide">
+                        <h4 className="font-display text-2xl font-extrabold text-ink uppercase tracking-wide">
                           {userRegistration.team_name || userRegistration.captain_name || 'REGISTERED TEAM'}
                         </h4>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-900/40 px-3 py-1 text-xs font-bold text-emerald-300">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-3 px-3 py-1 text-xs font-bold text-ink">
                           <CheckCircle2 size={13} /> Slot Confirmed
                         </span>
                       </div>
@@ -162,26 +162,26 @@ export function ShowRegistrationModal({
                   </div>
 
                   {/* Captain Information */}
-                  <div className="border border-white/10 bg-white/5 p-4 sm:p-5 space-y-3">
-                    <h5 className="eyebrow text-emerald-400 flex items-center gap-2">
+                  <div className="border border-line-subtle bg-surface-2 p-4 sm:p-5 space-y-3">
+                    <h5 className="eyebrow text-ink flex items-center gap-2">
                       <Sparkles size={14} /> CAPTAIN / LEADER INTEL
                     </h5>
                     <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="bg-black/40 border border-white/10 p-3">
-                        <span className="text-[10px] font-bold text-white/40 block">GAMER NAME (IGN)</span>
-                        <span className="font-display text-base font-bold text-white">
+                      <div className="bg-canvas/40 border border-line-subtle p-3">
+                        <span className="text-xs font-bold text-ink-subtle block">GAMER NAME (IGN)</span>
+                        <span className="font-display text-base font-bold text-ink">
                           {userRegistration.captain_name}
                         </span>
                       </div>
-                      <div className="bg-black/40 border border-white/10 p-3">
-                        <span className="text-[10px] font-bold text-emerald-400 block">FREE FIRE UID</span>
-                        <span className="font-mono text-base font-bold text-emerald-300">
+                      <div className="bg-canvas/40 border border-line-subtle p-3">
+                        <span className="text-xs font-bold text-ink block">FREE FIRE UID</span>
+                        <span className="font-mono text-base font-bold text-ink">
                           {userRegistration.captain_free_fire_uid || 'N/A'}
                         </span>
                       </div>
-                      <div className="bg-black/40 border border-white/10 p-3">
-                        <span className="text-[10px] font-bold text-white/40 block">WHATSAPP / PHONE</span>
-                        <span className="text-sm font-bold text-white">
+                      <div className="bg-canvas/40 border border-line-subtle p-3">
+                        <span className="text-xs font-bold text-ink-subtle block">WHATSAPP / PHONE</span>
+                        <span className="text-sm font-bold text-ink">
                           {userRegistration.phone_number || 'N/A'}
                         </span>
                       </div>
@@ -190,8 +190,8 @@ export function ShowRegistrationModal({
 
                   {/* Teammates Section */}
                   {isSquad && (
-                    <div className="border border-white/10 bg-white/5 p-4 sm:p-5 space-y-3">
-                      <h5 className="eyebrow text-amber-400 flex items-center gap-2">
+                    <div className="border border-line-subtle bg-surface-2 p-4 sm:p-5 space-y-3">
+                      <h5 className="eyebrow text-brand-bright flex items-center gap-2">
                         <Gamepad2 size={14} /> REGISTERED SQUAD TEAMMATES
                       </h5>
                       <div className="grid gap-3 sm:grid-cols-3">
@@ -199,16 +199,16 @@ export function ShowRegistrationModal({
                           const name = userRegistration.teammate_names?.[idx] || `Teammate ${idx + 2}`
                           const uid = userRegistration.teammate_uids?.[idx] || 'N/A'
                           return (
-                            <div key={idx} className="bg-black/40 border border-white/10 p-3.5 space-y-1">
-                              <span className="text-[10px] font-bold text-white/40 block">
+                            <div key={idx} className="bg-canvas/40 border border-line-subtle p-3.5 space-y-1">
+                              <span className="text-xs font-bold text-ink-subtle block">
                                 PLAYER {idx + 2}
                               </span>
-                              <p className="font-display text-sm font-bold text-white truncate">
+                              <p className="font-display text-sm font-bold text-ink truncate">
                                 {name}
                               </p>
-                              <div className="flex items-center gap-1.5 pt-1 border-t border-white/10">
-                                <span className="text-[9px] font-bold text-amber-400/80">UID:</span>
-                                <span className="font-mono text-xs font-bold text-amber-300">
+                              <div className="flex items-center gap-1.5 pt-1 border-t border-line-subtle">
+                                <span className="text-xs font-bold text-brand-bright">UID:</span>
+                                <span className="font-mono text-xs font-bold text-brand-bright">
                                   {uid}
                                 </span>
                               </div>
@@ -220,17 +220,17 @@ export function ShowRegistrationModal({
                   )}
 
                   {/* Match Day Advisory */}
-                  <div className="border border-amber-500/30 bg-amber-950/20 p-4 text-xs text-amber-200/90 leading-relaxed space-y-1">
-                    <p className="font-bold flex items-center gap-1.5 text-amber-300 uppercase tracking-wide">
+                  <div className="border border-brand bg-brand-muted p-4 text-xs text-brand-bright leading-relaxed space-y-1">
+                    <p className="font-bold flex items-center gap-1.5 text-brand-bright uppercase tracking-wide">
                       <Clock size={14} /> Match Day Check-In Protocol
                     </p>
-                    <p className="text-[11px] text-white/70">
+                    <p className="text-xs text-ink-muted">
                       Room ID & Password will be provided to the captain 15 minutes before the match start time. Ensure all players join with their verified Free Fire UIDs.
                     </p>
                   </div>
                 </>
               ) : (
-                <div className="border border-white/10 bg-white/5 p-8 text-center text-sm text-white/50">
+                <div className="border border-line-subtle bg-surface-2 p-8 text-center text-sm text-ink-subtle">
                   You are not currently registered for this tournament.
                 </div>
               )}
@@ -240,27 +240,27 @@ export function ShowRegistrationModal({
             <div className="space-y-4">
               {/* Search Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <span className="text-xs font-bold text-white/60">
-                  TOTAL REGISTERED TEAMS: <strong className="text-white">{allRegistrations.length}</strong> / {tournament.max_slots}
+                <span className="text-xs font-bold text-ink-muted">
+                  TOTAL REGISTERED TEAMS: <strong className="text-ink">{allRegistrations.length}</strong> / {tournament.max_slots}
                 </span>
                 <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-3 top-2.5 text-white/40" size={14} />
+                  <Search className="absolute left-3 top-2.5 text-ink-subtle" size={14} />
                   <input
                     type="text"
                     placeholder="Search team, captain or UID..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full border border-white/15 bg-black/60 py-1.5 pl-9 pr-3 text-xs text-white placeholder-white/40 focus:border-emerald-500 focus:outline-none"
+                    className="w-full border border-line bg-canvas/60 py-1.5 pl-9 pr-3 text-xs text-ink placeholder-ink-subtle focus:border-line-strong focus:outline-none"
                   />
                 </div>
               </div>
 
               {loadingAll ? (
-                <div className="border border-white/10 p-8 text-center text-xs text-white/50 animate-pulse">
+                <div className="border border-line-subtle p-8 text-center text-xs text-ink-subtle animate-pulse">
                   Loading registered tournament teams...
                 </div>
               ) : filteredTeams.length === 0 ? (
-                <div className="border border-white/10 p-8 text-center text-xs text-white/40">
+                <div className="border border-line-subtle p-8 text-center text-xs text-ink-subtle">
                   {searchQuery ? 'No registered teams match your search.' : 'No teams registered yet for this tournament.'}
                 </div>
               ) : (
@@ -276,36 +276,36 @@ export function ShowRegistrationModal({
                         key={reg.id || idx}
                         className={`p-4 border transition ${
                           isMyTeam
-                            ? 'border-emerald-500/80 bg-emerald-950/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
-                            : 'border-white/10 bg-white/5 hover:bg-white/[0.08]'
+                            ? 'border-line-strong bg-surface-3'
+                            : 'border-line-subtle bg-surface-2 hover:bg-ink/[0.08]'
                         }`}
                       >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-2.5 mb-2.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-line-subtle pb-2.5 mb-2.5">
                           <div className="flex items-center gap-2.5">
-                            <span className="font-display text-base font-black text-red-500">
+                            <span className="font-display text-base font-extrabold text-brand-bright">
                               #{idx + 1}
                             </span>
-                            <h5 className="font-display text-lg font-black uppercase text-white tracking-wide">
+                            <h5 className="font-display text-lg font-extrabold uppercase text-ink tracking-wide">
                               {reg.team_name || reg.captain_name || `Team ${idx + 1}`}
                             </h5>
                             {isMyTeam && (
-                              <span className="rounded bg-emerald-500 px-2 py-0.5 text-[9px] font-black uppercase text-black">
+                              <span className="rounded bg-surface-3 px-2 py-0.5 text-xs font-extrabold uppercase text-ink">
                                 YOUR TEAM
                               </span>
                             )}
                           </div>
-                          <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                          <span className="text-xs font-bold text-ink flex items-center gap-1">
                             <CheckCircle2 size={12} /> CONFIRMED
                           </span>
                         </div>
 
                         {/* Players Grid */}
-                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-[11px]">
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs">
                           {/* Captain */}
-                          <div className="bg-black/50 p-2 border border-white/10 rounded">
-                            <span className="text-[9px] font-bold text-emerald-400 block">👑 CAPTAIN</span>
-                            <span className="font-bold text-white block truncate">{reg.captain_name}</span>
-                            <span className="font-mono text-[9px] text-white/50 block">UID: {reg.captain_free_fire_uid || 'N/A'}</span>
+                          <div className="bg-canvas/50 p-2 border border-line-subtle rounded">
+                            <span className="text-xs font-bold text-ink block">👑 CAPTAIN</span>
+                            <span className="font-bold text-ink block truncate">{reg.captain_name}</span>
+                            <span className="font-mono text-xs text-ink-subtle block">UID: {reg.captain_free_fire_uid || 'N/A'}</span>
                           </div>
 
                           {/* Teammates */}
@@ -313,10 +313,10 @@ export function ShowRegistrationModal({
                             const tmName = reg.teammate_names?.[pIdx] || 'Teammate'
                             const tmUid = reg.teammate_uids?.[pIdx] || 'N/A'
                             return (
-                              <div key={pIdx} className="bg-black/30 p-2 border border-white/5 rounded">
-                                <span className="text-[9px] font-bold text-white/40 block">PLAYER {pIdx + 2}</span>
-                                <span className="font-bold text-white/90 block truncate">{tmName}</span>
-                                <span className="font-mono text-[9px] text-white/50 block">UID: {tmUid}</span>
+                              <div key={pIdx} className="bg-canvas/30 p-2 border border-line-subtle rounded">
+                                <span className="text-xs font-bold text-ink-subtle block">PLAYER {pIdx + 2}</span>
+                                <span className="font-bold text-ink block truncate">{tmName}</span>
+                                <span className="font-mono text-xs text-ink-subtle block">UID: {tmUid}</span>
                               </div>
                             )
                           })}
@@ -331,10 +331,10 @@ export function ShowRegistrationModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="border-t border-white/10 pt-4 flex justify-end">
+        <div className="border-t border-line-subtle pt-4 flex justify-end">
           <button
             onClick={onClose}
-            className="cut-button bg-white/10 px-6 py-2.5 text-xs font-black tracking-widest text-white hover:bg-white/20 transition"
+            className="cut-button bg-surface-3 px-6 py-2.5 text-xs font-extrabold tracking-widest text-ink hover:bg-surface-3 transition"
           >
             CLOSE
           </button>

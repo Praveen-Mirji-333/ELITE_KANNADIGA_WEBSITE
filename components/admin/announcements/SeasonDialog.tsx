@@ -82,31 +82,31 @@ export function SeasonDialog({ isOpen, tournament, nextSeasonNumber, onClose, on
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg border border-red-700/60 bg-[#0c0c0e] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+    <div className="modal-overlay">
+      <div className="modal-panel max-w-lg">
+        <div className="flex items-center justify-between border-b border-line-subtle px-5 py-4">
           <div className="flex items-center gap-2">
-            <Calendar className="text-red-500" size={17} />
-            <h3 className="font-display text-sm font-black uppercase tracking-widest text-white">Create New Season</h3>
+            <Calendar className="text-brand-bright" size={17} />
+            <h3 className="font-display text-sm font-extrabold uppercase tracking-widest text-ink">Create New Season</h3>
           </div>
-          <button onClick={onClose} className="text-white/40 transition hover:text-white" aria-label="Close">
+          <button onClick={onClose} className="text-ink-subtle transition hover:text-ink" aria-label="Close">
             <X size={18} />
           </button>
         </div>
 
         {created ? (
           <div className="space-y-4 p-5">
-            <div className="border border-emerald-500/40 bg-emerald-950/20 p-4">
-              <p className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-emerald-400">
+            <div className="rounded-md border border-line-strong bg-surface-3 p-4">
+              <p className="flex items-center gap-2 text-sm font-extrabold uppercase tracking-widest text-ink">
                 <CheckCircle2 size={17} /> Season Created
               </p>
-              <p className="mt-2 text-xs leading-5 text-white/60">{created.summary}</p>
+              <p className="mt-2 text-xs leading-5 text-ink-muted">{created.summary}</p>
               {created.warnings.length > 0 && (
-                <div className="mt-3 space-y-1.5 border-t border-emerald-500/20 pt-3">
+                <div className="mt-3 space-y-1.5 border-t border-line-strong pt-3">
                   {created.warnings.map((warning) => (
                     <p
                       key={warning}
-                      className="flex items-start gap-1.5 text-[11px] leading-5 text-amber-300/90"
+                      className="flex items-start gap-1.5 text-xs leading-5 text-brand-bright"
                     >
                       <AlertCircle size={12} className="mt-0.5 shrink-0" /> {warning}
                     </p>
@@ -115,48 +115,45 @@ export function SeasonDialog({ isOpen, tournament, nextSeasonNumber, onClose, on
               )}
             </div>
 
-            <p className="text-[11px] leading-5 text-white/40">
+            <p className="text-xs leading-5 text-ink-subtle">
               The full schedule is already generated and waiting in the pairings list. Open the season to review it.
             </p>
 
-            <button
-              onClick={onClose}
-              className="w-full bg-red-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white transition hover:bg-red-500"
-            >
+            <button onClick={onClose} className="btn-primary w-full">
               Open Season
             </button>
           </div>
         ) : (
         <form onSubmit={handleSubmit} className="space-y-4 p-5">
-          <div className="border border-white/10 bg-white/5 p-3 text-xs text-white/60">
-            <span className="font-bold uppercase tracking-widest text-white/40">Tournament:</span>{' '}
-            <span className="font-display font-black text-white">{tournament.title}</span>
-            <span className="ml-3 inline-flex items-center gap-1 text-[11px] text-amber-400">
+          <div className="rounded-md border border-line-subtle bg-surface-2 p-3 text-xs text-ink-muted">
+            <span className="font-bold uppercase tracking-widest text-ink-subtle">Tournament:</span>{' '}
+            <span className="font-display font-extrabold text-ink">{tournament.title}</span>
+            <span className="ml-3 inline-flex items-center gap-1 text-xs text-brand-bright">
               <Users size={12} /> {teamCount === null ? 'counting…' : `${teamCount} registered teams`}
             </span>
           </div>
 
           {error && (
-            <div className="flex items-start gap-2 border border-red-600/40 bg-red-950/40 p-3 text-xs text-red-400">
+            <div className="flex items-start gap-2 rounded-md border border-brand bg-brand-muted p-3 text-xs text-brand-bright">
               <AlertCircle size={15} className="mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           <div>
-            <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-white/50">Season Name</label>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-subtle">Season Name</label>
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
-              className="w-full border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder-white/30 focus:border-red-500 focus:outline-none"
+              className="field h-10 text-sm"
               placeholder={`Season ${nextSeasonNumber}`}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-white/50">
+              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-subtle">
                 Matches Per Team
               </label>
               <input
@@ -165,11 +162,11 @@ export function SeasonDialog({ isOpen, tournament, nextSeasonNumber, onClose, on
                 max={20}
                 value={matchesPerTeam}
                 onChange={(event) => setMatchesPerTeam(event.target.value)}
-                className="w-full border border-white/15 bg-white/5 px-3 py-2 text-sm text-white focus:border-red-500 focus:outline-none"
+                className="field h-10 text-sm"
               />
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-white/50">
+              <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-ink-subtle">
                 Points Per Win
               </label>
               <input
@@ -178,30 +175,30 @@ export function SeasonDialog({ isOpen, tournament, nextSeasonNumber, onClose, on
                 max={10}
                 value={winPoints}
                 onChange={(event) => setWinPoints(event.target.value)}
-                className="w-full border border-white/15 bg-white/5 px-3 py-2 text-sm text-white focus:border-red-500 focus:outline-none"
+                className="field h-10 text-sm"
               />
             </div>
           </div>
 
-          <p className="text-[11px] leading-5 text-white/45">
+          <p className="text-xs leading-5 text-ink-subtle">
             The full schedule is generated up-front: every team gets {matchesPerTeam || 0} unique opponents, no pair
             meets twice, and no team plays twice in one round. Team counts that are even produce an exact schedule;
             odd counts get a catch-up round.
           </p>
 
-          <div className="flex gap-3 pt-1">
+          <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
             <button
               type="button"
               onClick={onClose}
               disabled={busy}
-              className="flex-1 border border-white/15 bg-white/5 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white/70 transition hover:bg-white/10 disabled:opacity-50"
+              className="btn-secondary w-full whitespace-nowrap"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={busy || (teamCount !== null && teamCount < 2)}
-              className="flex flex-1 items-center justify-center gap-2 bg-red-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white transition hover:bg-red-500 disabled:opacity-50"
+              className="btn-primary w-full whitespace-nowrap px-3"
             >
               <Plus size={13} /> {busy ? 'Generating…' : 'Create & Generate'}
             </button>

@@ -12,15 +12,16 @@ interface LeagueChartsProps {
   winPoints: number
 }
 
+// Red and neutral only, with enough contrast to distinguish series.
 const COLORS = [
-  '#dc2626',
-  '#f59e0b',
-  '#16a34a',
-  '#0891b2',
-  '#7c3aed',
-  '#db2777',
-  '#65a30d',
-  '#ea580c',
+  '#FF5A57',
+  '#F5F7FA',
+  '#D3100E',
+  '#A0A7B3',
+  '#FF8A88',
+  '#7B8494',
+  '#8F0B0A',
+  '#C7CDD6',
 ]
 
 export function LeagueCharts({ standings, pairings, results, maxRound, winPoints }: LeagueChartsProps) {
@@ -72,40 +73,46 @@ export function LeagueCharts({ standings, pairings, results, maxRound, winPoints
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <div className="border border-white/10 bg-white/[0.03] p-4">
-        <p className="mb-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white/50">
-          <BarChart3 size={13} className="text-red-500" /> Points By Team
+      <div className="rounded-lg border border-line-subtle bg-surface-2 p-4">
+        <p className="mb-4 flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-ink-subtle">
+          <BarChart3 size={13} className="text-brand-bright" /> Points by team
         </p>
 
         <div className="space-y-2">
           {standings.map((row) => (
-            <div key={row.teamId} className="flex items-center gap-3">
-              <span className="w-5 shrink-0 text-right font-mono text-[10px] text-white/30">{row.rank}</span>
-              <span className="w-32 shrink-0 truncate text-[11px] font-bold text-white/70 sm:w-44">{row.teamName}</span>
-              <div className="h-4 min-w-0 flex-1 bg-white/5">
+            <div key={row.teamId} className="flex items-center gap-2 sm:gap-3">
+              <span className="w-5 shrink-0 text-right font-mono text-xs text-ink-subtle">{row.rank}</span>
+              <span className="w-24 shrink-0 truncate text-xs font-bold text-ink-muted sm:w-44">{row.teamName}</span>
+              <div className="h-4 min-w-0 flex-1 rounded-sm bg-canvas/70">
                 <div
                   className="h-full transition-[width] duration-500"
                   style={{
                     width: `${Math.max((row.points / maxPoints) * 100, row.points > 0 ? 4 : 0)}%`,
                     backgroundColor:
-                      row.rank === 1 ? '#f59e0b' : row.rank === 2 ? '#94a3b8' : row.rank === 3 ? '#ea580c' : '#dc2626',
-                    opacity: row.rank <= 3 ? 1 : 0.65,
+                      row.rank === 1
+                        ? '#FF5A57'
+                        : row.rank === 2
+                          ? '#F5F7FA'
+                          : row.rank === 3
+                            ? '#D3100E'
+                            : '#343A45',
+                    opacity: row.rank <= 3 ? 1 : 0.8,
                   }}
                 />
               </div>
-              <span className="w-10 shrink-0 text-right font-display text-xs font-black text-white">{row.points}</span>
+              <span className="w-10 shrink-0 text-right font-display text-xs font-extrabold text-ink">{row.points}</span>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="border border-white/10 bg-white/[0.03] p-4">
-        <p className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white/50">
-          <TrendingUp size={13} className="text-amber-500" /> Points Progression (Top 8)
+      <div className="rounded-lg border border-line-subtle bg-surface-2 p-4">
+        <p className="mb-2 flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-ink-subtle">
+          <TrendingUp size={13} className="text-brand-bright" /> Points progression (top 8)
         </p>
 
         {progression.series.every((team) => team.total === 0) ? (
-          <div className="flex h-[240px] items-center justify-center text-center text-xs text-white/35">
+          <div className="flex h-[240px] items-center justify-center text-center text-xs text-ink-subtle">
             Enter match results to see the progression graph.
           </div>
         ) : (
@@ -113,7 +120,7 @@ export function LeagueCharts({ standings, pairings, results, maxRound, winPoints
             <ProgressionChart rounds={progression.rounds} series={progression.series} />
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
               {progression.series.map((team) => (
-                <span key={team.teamId} className="inline-flex max-w-[180px] items-center gap-1.5 text-[9px] text-white/50">
+                <span key={team.teamId} className="inline-flex max-w-[180px] items-center gap-1.5 text-xs text-ink-subtle">
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: team.color }} />
                   <span className="truncate">{team.name}</span>
                 </span>
@@ -163,10 +170,10 @@ function ProgressionChart({
             x2={width - padRight}
             y1={y(value)}
             y2={y(value)}
-            stroke="rgba(255,255,255,0.07)"
+            stroke="rgba(255,255,255,0.08)"
             strokeDasharray="3 4"
           />
-          <text x={padLeft - 6} y={y(value) + 3} textAnchor="end" fill="rgba(255,255,255,0.35)" fontSize="8">
+          <text x={padLeft - 6} y={y(value) + 3} textAnchor="end" fill="#7B8494" fontSize="10">
             {value}
           </text>
         </g>
@@ -178,9 +185,9 @@ function ProgressionChart({
           x={x(index)}
           y={height - 8}
           textAnchor="middle"
-          fill="rgba(255,255,255,0.35)"
-          fontSize="8"
-          fontWeight="700"
+          fill="#7B8494"
+          fontSize="10"
+          fontWeight="600"
         >
           R{round}
         </text>

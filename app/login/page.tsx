@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Navbar } from '../../components/Navbar'
+import { SitePage } from '../../components/layout/SitePage'
 import { getUserProfile } from '../../lib/supabase'
 
 export default function LoginPage() {
@@ -10,18 +10,22 @@ export default function LoginPage() {
 
   useEffect(() => {
     async function checkUser() {
-      const prof = await getUserProfile()
-      if (prof) {
-        router.push('/')
-      }
+      const profile = await getUserProfile()
+      if (profile) router.replace('/dashboard')
     }
     checkUser()
   }, [router])
 
   return (
-    <main className="min-h-screen bg-[#050505] text-[#f5f5f5]">
-      <div className="noise" />
-      <Navbar />
-    </main>
+    <SitePage>
+      <div className="site-container flex min-h-[60vh] items-center justify-center py-24">
+        <div className="w-full max-w-sm space-y-3 text-center">
+          <div className="mx-auto h-10 w-10 animate-pulse rounded-full bg-surface-2" />
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-subtle">
+            Checking your session...
+          </p>
+        </div>
+      </div>
+    </SitePage>
   )
 }

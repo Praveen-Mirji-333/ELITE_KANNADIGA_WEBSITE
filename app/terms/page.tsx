@@ -1,5 +1,4 @@
-import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { LegalPage } from '../../components/layout/LegalPage'
 
 export const metadata = {
   title: 'Terms of Service | ELITE ಕನ್ನಡಿಗ',
@@ -8,24 +7,36 @@ export const metadata = {
 
 export default function TermsPage() {
   return (
-    <main className="min-h-screen bg-[#050505] text-[#f5f5f5] px-4 sm:px-6 py-12 sm:py-20 max-w-4xl 2xl:max-w-5xl mx-auto">
-      <Link href="/" className="inline-flex items-center gap-2 text-xs font-bold text-red-500 hover:text-white mb-6 sm:mb-8">
-        <ArrowLeft size={16} /> RETURN TO ARENA
-      </Link>
-      <h1 className="font-display text-3xl sm:text-5xl font-black uppercase text-white mb-6">TERMS OF SERVICE</h1>
-      <div className="space-y-6 text-sm text-white/70 leading-relaxed border-t border-white/10 pt-6">
-        <p>
-          By participating in <strong>ELITE ಕನ್ನಡಿಗ</strong> tournaments, custom rooms, and leaderboards, you agree to follow our Terms of Service and Anti-Cheat Rules.
-        </p>
-        <h2 className="font-display text-lg font-bold text-white uppercase">1. Fair Play & Anti-Cheat Policy</h2>
-        <p>
-          Third-party hacks, scripts, macros, emulator exploits, or teaming in solo tournaments are strictly prohibited. Violators will face an immediate ban and forfeiture of all XP and tournament rewards.
-        </p>
-        <h2 className="font-display text-lg font-bold text-white uppercase">2. Tournament Eligibility</h2>
-        <p>
-          Players must submit accurate Free Fire UIDs to claim prize pools. Placement disputes are reviewed exclusively by official ELITE Kannada tournament moderators.
-        </p>
-      </div>
-    </main>
+    <LegalPage
+      kicker="Terms"
+      title="Terms of service"
+      description="The rules that apply when you register, compete, and use the ELITE ಕನ್ನಡಿಗ platform."
+    >
+      <p>
+        By participating in <strong>ELITE ಕನ್ನಡಿಗ</strong> tournaments, custom
+        rooms, and leaderboards, you agree to these Terms of Service and our
+        anti-cheat rules.
+      </p>
+
+      <h2>1. Fair play and anti-cheat policy</h2>
+      <p>
+        Third-party hacks, scripts, macros, emulator exploits, and teaming in
+        solo tournaments are strictly prohibited. Violations may result in an
+        immediate ban and forfeiture of XP, prizes, and tournament rewards.
+      </p>
+
+      <h2>2. Tournament eligibility</h2>
+      <p>
+        Players must submit accurate Free Fire UIDs to claim prize pools. Placement
+        disputes are reviewed exclusively by official ELITE ಕನ್ನಡಿಗ tournament
+        moderators.
+      </p>
+
+      <h2>3. Account responsibility</h2>
+      <p>
+        You are responsible for keeping your login credentials secure and for all
+        activity performed through your account.
+      </p>
+    </LegalPage>
   )
 }

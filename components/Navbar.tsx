@@ -1,59 +1,61 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import {
-  Database,
-  HelpCircle,
-  LogIn,
-  LogOut,
-  Menu,
-  ShieldCheck,
-  User,
-  X,
-} from 'lucide-react'
-import { Profile } from '../lib/types'
-import { checkSupabaseConnection, fetchSiteSetting, getUserProfile, supabase } from '../lib/supabase'
-import { AuthModal } from './auth/AuthModal'
-import { PlayerDashboard } from './dashboard/PlayerDashboard'
-import { QuizModal } from './qna/QuizModal'
-import { AdminDashboard } from './admin/AdminDashboard'
+import dynamic from 'next/dynamic'
+import { ChevronRight, Menu, Search, User, X } from 'lucide-react'
+import type { Profile } from '../lib/types'
+import { getUserProfile, supabase } from '../lib/supabase'
+
+const AuthModal = dynamic(
+  () => import('./auth/AuthModal').then((mod) => mod.AuthModal),
+  { ssr: false }
+)
+const PlayerDashboard = dynamic(
+  () => import('./dashboard/PlayerDashboard').then((mod) => mod.PlayerDashboard),
+  { ssr: false }
+)
+const AdminDashboard = dynamic(
+  () => import('./admin/AdminDashboard').then((mod) => mod.AdminDashboard),
+  { ssr: false }
+)
 
 const logoUrl = '/logo.png'
+
+const navItems = [
+  { name: 'HOME', path: '/' },
+  { name: 'TOURNAMENTS', path: '/tournaments' },
+  { name: 'LIVE', path: '/live', isLive: true },
+  { name: 'LEADERBOARD', path: '/leaderboard' },
+  { name: 'GUILDS', path: '/guilds' },
+  { name: 'ACHIEVEMENTS', path: '/achievements' },
+]
+
+const searchLinks = [
+  { label: 'Tournaments', description: 'Browse and register for events', href: '/tournaments' },
+  { label: 'Live standings', description: 'Points table and broadcasts', href: '/live' },
+  { label: 'Leaderboard', description: 'Top players and login streaks', href: '/leaderboard' },
+  { label: 'Elite Army Guild', description: 'Roster and guild stats', href: '/guilds' },
+  { label: 'Achievements', description: 'Unlocked badges and XP', href: '/achievements' },
+]
 
 export function Navbar() {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [dbConnected, setDbConnected] = useState<boolean | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [authLoading, setAuthLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<Profile | null>(null)
-  const [showGuildSection, setShowGuildSection] = useState(true)
-  const [showLiveSection, setShowLiveSection] = useState(false)
-
-  // Modals
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [dashboardOpen, setDashboardOpen] = useState(false)
-  const [quizModalOpen, setQuizModalOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
-
-  async function loadSettings() {
-    const [guildSetting, liveSetting] = await Promise.all([
-      fetchSiteSetting('show_guild_section', 'true'),
-      fetchSiteSetting('show_user_dashboard_live_section', 'false'),
-    ])
-    setShowGuildSection(guildSetting)
-    setShowLiveSection(liveSetting)
-  }
 
   useEffect(() => {
     let isMounted = true
 
     async function init() {
       try {
-        const res = await checkSupabaseConnection()
-        if (isMounted) setDbConnected(res.connected)
-        await loadSettings()
         const prof = await getUserProfile()
         if (isMounted) {
           setUserProfile(prof)
@@ -63,14 +65,11 @@ export function Navbar() {
         if (isMounted) setAuthLoading(false)
       }
     }
+
     init()
 
-    const handleSettingsUpdate = () => {
-      loadSettings()
-    }
-
-    const handleOpenDashboard = (e: any) => {
-      const role = e?.detail?.role
+    const handleOpenDashboard = (event: Event) => {
+      const role = (event as CustomEvent<{ role?: string }>).detail?.role
       loadUser()
       if (role === 'admin') {
         setAdminOpen(true)
@@ -82,7 +81,6 @@ export function Navbar() {
     }
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('site_settings_updated', handleSettingsUpdate)
       window.addEventListener('open_player_dashboard', handleOpenDashboard)
     }
 
@@ -100,15 +98,24 @@ export function Navbar() {
       isMounted = false
       subscription.unsubscribe()
       if (typeof window !== 'undefined') {
-        window.removeEventListener('site_settings_updated', handleSettingsUpdate)
         window.removeEventListener('open_player_dashboard', handleOpenDashboard)
       }
     }
   }, [])
 
   useEffect(() => {
-    loadSettings()
-  }, [adminOpen])
+    setMenuOpen(false)
+    setSearchOpen(false)
+  }, [pathname])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const isOverlayOpen = menuOpen || searchOpen
+    document.body.style.overflow = isOverlayOpen ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [menuOpen, searchOpen])
 
   async function loadUser() {
     const prof = await getUserProfile()
@@ -117,7 +124,7 @@ export function Navbar() {
   }
 
   const handleAuthSuccess = async (role: 'admin' | 'user') => {
-    const prof = await loadUser()
+    await loadUser()
     setAuthLoading(false)
     setAuthModalOpen(false)
     if (role === 'admin') {
@@ -130,10 +137,9 @@ export function Navbar() {
   }
 
   const handleProfileClick = () => {
+    setMenuOpen(false)
     if (!userProfile) {
       setAuthModalOpen(true)
-      setDashboardOpen(false)
-      setAdminOpen(false)
       return
     }
     if (userProfile.role === 'admin') {
@@ -151,257 +157,312 @@ export function Navbar() {
     setAdminOpen(false)
     setDashboardOpen(false)
     setAuthLoading(false)
+    setMenuOpen(false)
   }
 
-  // Strict requirement: Player must land on login until registration and login!
-  const isLocked = !authLoading && !userProfile
-
-  // Build nav items dynamically based on live section and guild section settings
-  const filteredNavItems = [
-    { name: 'HOME', path: '/' },
-    { name: 'TOURNAMENTS', path: '/tournaments' },
-    ...(showLiveSection ? [{ name: 'LIVE', path: '/live', isLive: true }] : []),
-    { name: 'LEADERBOARD', path: '/leaderboard' },
-    ...(showGuildSection ? [{ name: 'GUILDS', path: '/guilds' }] : []),
-    { name: 'ACHIEVEMENTS', path: '/achievements' },
-  ]
+  const filteredLinks = searchLinks.filter((item) => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return true
+    return (
+      item.label.toLowerCase().includes(q) ||
+      item.description.toLowerCase().includes(q)
+    )
+  })
 
   return (
     <>
-      <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 bg-[#050505]/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 sm:h-20 2xl:h-24 max-w-[1440px] 2xl:max-w-[1800px] 3xl:max-w-[2200px] items-center justify-between px-3 sm:px-6 lg:px-10 2xl:px-14">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <img
-              src={logoUrl}
-              alt="ELITE Kannada emblem"
-              className="h-9 w-9 sm:h-12 sm:w-12 2xl:h-14 2xl:w-14 rounded-full object-cover transition hover:scale-105"
-            />
-            <div className="leading-tight">
-              <span className="font-display text-sm sm:text-lg 2xl:text-xl font-black tracking-[0.14em] text-white">
+      <header className="fixed inset-x-0 top-0 z-50 h-16 border-b border-line-subtle bg-canvas/90 backdrop-blur-xl sm:h-[68px] lg:h-[72px]">
+        <div className="site-container flex h-full items-center justify-between gap-4">
+          <Link
+            href="/"
+            className="group flex shrink-0 items-center gap-2.5"
+            aria-label="ELITE ಕನ್ನಡಿಗ home"
+          >
+            <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-full border border-line bg-surface sm:h-10 sm:w-10">
+              <img
+                src={logoUrl}
+                alt=""
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            </span>
+            <span className="flex items-baseline gap-1.5 leading-none">
+              <span className="text-sm font-bold tracking-[0.12em] text-ink sm:text-base">
                 ELITE
               </span>
-              <span className="ml-1.5 text-xs sm:text-sm 2xl:text-base font-bold text-red-500">
+              <span className="font-kannada text-xs font-semibold text-brand-bright sm:text-sm">
                 ಕನ್ನಡಿಗ
               </span>
-            </div>
+            </span>
           </Link>
 
-          {/* Navigation Links (Desktop & Ultrawide) */}
-          <nav className="hidden items-center gap-5 xl:gap-7 2xl:gap-10 lg:flex">
-            {filteredNavItems.map((item) => {
-              const isActive = pathname === item.path
+          <nav className="hidden h-full items-center gap-1 xl:flex" aria-label="Primary">
+            {navItems.map((item) => {
+              const isActive =
+                item.path === '/' ? pathname === '/' : pathname.startsWith(item.path)
               return (
                 <Link
                   key={item.name}
                   href={item.path}
-                  className={`nav-link relative py-1 text-xs 2xl:text-sm font-black tracking-widest transition flex items-center gap-1.5 ${
-                    isActive ? 'text-red-500 active' : 'text-white/70 hover:text-white'
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`relative flex h-full items-center gap-2 px-3 text-xs font-semibold tracking-[0.14em] transition-colors ${
+                    isActive
+                      ? 'text-ink'
+                      : 'text-ink-muted hover:text-ink'
                   }`}
                 >
                   {item.isLive && (
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-                    </span>
+                    <span className="live-dot h-1.5 w-1.5" aria-hidden="true" />
                   )}
                   {item.name}
+                  {isActive && (
+                    <span
+                      className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-brand"
+                      aria-hidden="true"
+                    />
+                  )}
                 </Link>
               )
             })}
           </nav>
 
-          {/* Actions */}
-          <div className="flex items-center gap-2 sm:gap-3 2xl:gap-4">
-            {/* DB Status */}
-            <div className="hidden items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] 2xl:text-xs font-bold md:flex">
-              <Database
-                size={12}
-                className={dbConnected ? 'text-emerald-400' : 'text-amber-400'}
-              />
-              <span className="tracking-widest text-white/70">DB:</span>
-              <span
-                className={dbConnected ? 'text-emerald-400' : 'text-amber-400'}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="hidden xl:block">
+              <button
+                type="button"
+                onClick={() => setSearchOpen(true)}
+                className="neu-circle h-9 w-9 text-ink"
+                aria-label="Search"
+                title="Search"
               >
-                {dbConnected === null
-                  ? 'CONNECTING...'
-                  : dbConnected
-                    ? 'CONNECTED'
-                    : 'INITIALIZED'}
-              </span>
+                <Search size={16} />
+              </button>
             </div>
 
-            {/* QnA Arena Button */}
-            <button
-              onClick={() => setQuizModalOpen(true)}
-              className="hidden items-center gap-1.5 border border-amber-500/40 bg-amber-950/40 px-3 py-1.5 text-[10px] 2xl:text-xs font-black tracking-widest text-amber-400 transition hover:bg-amber-500 hover:text-black sm:flex"
-            >
-              <HelpCircle size={13} /> QnA ARENA
-            </button>
-
-            {/* Auth / Account Profile Button & Logout */}
             {userProfile ? (
-              <div className="flex items-center gap-1.5 sm:gap-2.5">
-                {userProfile.role === 'admin' && (
-                  <button
-                    onClick={() => {
-                      setAdminOpen(true)
-                      setDashboardOpen(false)
-                    }}
-                    className="flex items-center gap-1 border border-amber-500 bg-amber-950/60 px-2 py-1 sm:px-3 sm:py-1.5 text-[9px] sm:text-[10px] 2xl:text-xs font-black tracking-widest text-amber-400 transition hover:bg-amber-500 hover:text-black"
-                  >
-                    <ShieldCheck size={12} className="sm:size-[13px]" /> ADMIN
-                  </button>
-                )}
-
-                <button
-                  onClick={handleProfileClick}
-                  className="relative group p-0.5 rounded-full border-2 border-red-600/80 bg-red-950/40 transition hover:border-red-500 hover:scale-105 shadow-md shrink-0"
-                  title={`${userProfile.ign || 'User'} - Open Profile`}
-                >
-                  {userProfile.avatar_url && !userProfile.avatar_url.includes('hebbkx1anhila5yf') && !userProfile.avatar_url.includes('/logo.png') ? (
+              <button
+                type="button"
+                onClick={handleProfileClick}
+                className="neu-raised-sm flex min-h-10 items-center gap-2 !rounded-full px-2.5 py-1 transition-all"
+                title={`${userProfile.ign || userProfile.username} profile`}
+              >
+                <span className="relative grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full border border-black/[0.08] bg-surface-2">
+                  {userProfile.avatar_url &&
+                  !userProfile.avatar_url.includes('hebbkx1anhila5yf') &&
+                  !userProfile.avatar_url.includes('/logo.png') ? (
                     <img
                       src={userProfile.avatar_url}
-                      alt={userProfile.ign || 'User Profile'}
-                      className="h-8 w-8 sm:h-9 sm:w-9 2xl:h-11 2xl:w-11 rounded-full object-cover"
+                      alt=""
+                      className="h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="h-8 w-8 sm:h-9 sm:w-9 2xl:h-11 2xl:w-11 rounded-full bg-red-700 flex items-center justify-center">
-                      <span className="text-[10px] sm:text-[11px] 2xl:text-xs font-black text-white">
-                        {(userProfile.ign || userProfile.username || 'U').slice(0, 2).toUpperCase()}
-                      </span>
-                    </div>
+                    <span className="text-xs font-bold text-brand-bright">
+                      {(userProfile.ign || userProfile.username || 'U')
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </span>
                   )}
-                  <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5 sm:h-3 sm:w-3 items-center justify-center rounded-full bg-emerald-500 border border-black">
+                  <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full border border-surface bg-brand-bright" />
+                </span>
+                <span className="hidden text-left xl:block pr-1">
+                  <span className="block max-w-[110px] truncate text-xs font-semibold text-ink">
+                    {userProfile.ign || userProfile.username}
                   </span>
-                </button>
-
+                  <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-brand-bright">
+                    {userProfile.role === 'admin' ? 'Admin' : 'Player'}
+                  </span>
+                </span>
+              </button>
+            ) : authLoading ? (
+              <span className="h-9 w-9 animate-pulse rounded-full border border-line bg-surface-2" />
+            ) : (
+              <div className="hidden sm:block">
                 <button
-                  onClick={handleLogout}
-                  className="hidden sm:flex items-center gap-1 border border-red-800/80 bg-red-950/60 px-2.5 py-1.5 text-[10px] 2xl:text-xs font-black tracking-widest text-red-400 transition hover:bg-red-600 hover:text-white"
-                  title="Logout"
+                  type="button"
+                  onClick={() => setAuthModalOpen(true)}
+                  className="btn-primary !min-h-9 !py-0 !px-3.5 text-xs"
                 >
-                  <LogOut size={12} /> LOGOUT
+                  <User size={14} />
+                  Sign in
+                </button>
+              </div>
+            )}
+
+            <div className="xl:hidden">
+              <button
+                type="button"
+                onClick={() => setMenuOpen((open) => !open)}
+                className="neu-circle h-9 w-9 text-ink"
+                aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                aria-expanded={menuOpen}
+                aria-controls="mobile-navigation"
+              >
+                {menuOpen ? <X size={18} /> : <Menu size={18} />}
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {menuOpen && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-canvas/60 backdrop-blur-sm xl:hidden"
+            aria-label="Close navigation menu"
+            onClick={() => setMenuOpen(false)}
+          />
+          <div
+            id="mobile-navigation"
+            className="fixed inset-x-0 top-16 z-40 max-h-[calc(100dvh-4rem)] overflow-y-auto border-b border-line bg-canvas px-4 pb-6 pt-3 sm:top-[68px] sm:max-h-[calc(100dvh-4.25rem)] lg:top-[72px] lg:max-h-[calc(100dvh-4.5rem)] xl:hidden"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                setSearchOpen(true)
+              }}
+              className="mb-2 flex min-h-11 w-full items-center gap-3 rounded-lg border border-line bg-surface px-3 text-sm text-ink-muted"
+            >
+              <Search size={17} />
+              Search the arena
+            </button>
+
+            <nav aria-label="Mobile">
+              {navItems.map((item) => {
+                const isActive =
+                  item.path === '/' ? pathname === '/' : pathname.startsWith(item.path)
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.path}
+                    onClick={() => setMenuOpen(false)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`flex min-h-12 items-center justify-between border-b border-line-subtle px-1 text-sm font-semibold tracking-[0.12em] ${
+                      isActive ? 'text-ink' : 'text-ink-muted'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      {item.isLive && <span className="live-dot h-1.5 w-1.5" />}
+                      {item.name}
+                    </span>
+                    <ChevronRight
+                      size={16}
+                      className={isActive ? 'text-brand-bright' : 'text-ink-subtle'}
+                    />
+                  </Link>
+                )
+              })}
+            </nav>
+
+            {userProfile ? (
+              <div className="mt-4 flex items-center justify-between rounded-lg border border-line bg-surface px-3 py-3">
+                <span className="min-w-0 text-xs text-ink-subtle">
+                  Signed in as{' '}
+                  <strong className="block truncate text-sm font-semibold text-ink">
+                    {userProfile.ign || userProfile.username}
+                  </strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="btn-danger btn-sm"
+                >
+                  Log out
                 </button>
               </div>
             ) : (
               <button
-                onClick={() => setAuthModalOpen(true)}
-                className="flex items-center gap-1 sm:gap-1.5 border border-red-700 bg-red-600 px-2.5 py-1.5 sm:px-4 sm:py-2 text-[9px] sm:text-[10px] 2xl:text-xs font-black tracking-wider transition hover:bg-red-500 shrink-0"
-              >
-                <LogIn size={12} className="sm:size-[13px]" />
-                <span>LOGIN</span>
-                <span className="hidden xs:inline">/ SIGNUP</span>
-              </button>
-            )}
-
-            {/* Mobile Hamburger */}
-            <button
-              className="p-1.5 text-white/80 hover:text-white lg:hidden"
-              onClick={() => setMenuOpen(!menuOpen)}
-              aria-label="Toggle navigation menu"
-            >
-              {menuOpen ? <X size={22} /> : <Menu size={22} />}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Navigation Dropdown */}
-        {menuOpen && (
-          <nav className="border-t border-white/10 bg-[#0b0b0d]/98 backdrop-blur-2xl px-5 py-4 lg:hidden max-h-[calc(100vh-4rem)] overflow-y-auto space-y-3">
-            {userProfile && (
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-red-700 flex items-center justify-center font-bold text-sm text-white overflow-hidden border border-red-500">
-                    {userProfile.avatar_url && !userProfile.avatar_url.includes('hebbkx1anhila5yf') && !userProfile.avatar_url.includes('/logo.png') ? (
-                      <img src={userProfile.avatar_url} alt={userProfile.ign} className="h-full w-full object-cover" />
-                    ) : (
-                      (userProfile.ign || 'U').slice(0, 2).toUpperCase()
-                    )}
-                  </div>
-                  <div>
-                    <p className="font-display font-black text-sm text-white">{userProfile.ign || userProfile.username}</p>
-                    <p className="text-[10px] font-mono text-amber-400">UID: {userProfile.free_fire_uid || 'N/A'}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setMenuOpen(false)
-                    handleLogout()
-                  }}
-                  className="flex items-center gap-1 border border-red-800/80 bg-red-950/60 px-3 py-1.5 text-[10px] font-bold text-red-400"
-                >
-                  <LogOut size={12} /> LOGOUT
-                </button>
-              </div>
-            )}
-
-            <div className="space-y-1">
-              {filteredNavItems.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.path}
-                  onClick={() => setMenuOpen(false)}
-                  className={`flex items-center justify-between border-b border-white/5 py-3 text-xs font-bold tracking-widest transition ${
-                    pathname === item.path ? 'text-red-500 pl-2 border-l-2 border-l-red-500' : 'text-white/70 hover:text-white'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    {item.isLive && (
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-                      </span>
-                    )}
-                    {item.name}
-                  </span>
-                  <span className="text-[10px] text-white/20">→</span>
-                </Link>
-              ))}
-            </div>
-
-            <div className="pt-2 flex flex-col gap-2">
-              <button
+                type="button"
                 onClick={() => {
                   setMenuOpen(false)
-                  setQuizModalOpen(true)
+                  setAuthModalOpen(true)
                 }}
-                className="w-full text-center py-2.5 border border-amber-500/50 bg-amber-950/40 text-xs font-bold tracking-widest text-amber-400"
+                className="btn-primary mt-4 w-full"
               >
-                🎮 QnA ARENA (+10 XP)
+                <User size={16} />
+                Sign in / Register
               </button>
+            )}
+          </div>
+        </>
+      )}
 
-              <div className="flex items-center justify-between px-2 py-2 text-[10px] font-bold text-white/50 border border-white/5">
-                <span className="flex items-center gap-1.5">
-                  <Database size={11} className={dbConnected ? 'text-emerald-400' : 'text-amber-400'} />
-                  DATABASE STATUS
-                </span>
-                <span className={dbConnected ? 'text-emerald-400' : 'text-amber-400'}>
-                  {dbConnected ? 'ONLINE & CONNECTED' : 'INITIALIZED'}
-                </span>
-              </div>
+      {searchOpen && (
+        <div
+          className="modal-overlay items-start pt-24"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Search ELITE Kannada"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) setSearchOpen(false)
+          }}
+        >
+          <div className="modal-panel max-w-xl p-0">
+            <div className="flex items-center gap-3 border-b border-line px-4 py-3">
+              <Search size={18} className="shrink-0 text-ink-subtle" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search pages, tournaments, players..."
+                className="h-10 w-full border-0 bg-transparent px-0 text-sm text-ink shadow-none focus:shadow-none"
+                autoFocus
+                aria-label="Search"
+              />
+              <button
+                type="button"
+                onClick={() => setSearchOpen(false)}
+                className="btn-ghost h-9 w-9 shrink-0 px-0"
+                aria-label="Close search"
+              >
+                <X size={18} />
+              </button>
             </div>
-          </nav>
-        )}
-      </header>
+            <div className="max-h-[50vh] overflow-y-auto p-2">
+              {filteredLinks.length === 0 ? (
+                <p className="px-3 py-8 text-center text-sm text-ink-subtle">
+                  No pages match “{searchQuery}”.
+                </p>
+              ) : (
+                filteredLinks.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setSearchOpen(false)}
+                    className="flex items-center justify-between gap-4 rounded-lg px-3 py-3 transition-colors hover:bg-surface-2"
+                  >
+                    <span>
+                      <span className="block text-sm font-semibold text-ink">
+                        {item.label}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-ink-subtle">
+                        {item.description}
+                      </span>
+                    </span>
+                    <ChevronRight size={16} className="shrink-0 text-ink-subtle" />
+                  </Link>
+                ))
+              )}
+            </div>
+            <div className="border-t border-line px-4 py-2.5">
+              <p className="text-xs text-ink-subtle">
+                Tip: use the page search on Tournaments to filter live events.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Shared Modals */}
       <AuthModal
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         onSuccess={handleAuthSuccess}
       />
-
       <PlayerDashboard
         isOpen={dashboardOpen}
         onClose={() => setDashboardOpen(false)}
         profile={userProfile}
         onProfileUpdated={() => loadUser()}
-      />
-      <QuizModal
-        isOpen={quizModalOpen}
-        onClose={() => setQuizModalOpen(false)}
-        onXPClaimed={() => loadUser()}
       />
       <AdminDashboard isOpen={adminOpen} onClose={() => setAdminOpen(false)} />
     </>

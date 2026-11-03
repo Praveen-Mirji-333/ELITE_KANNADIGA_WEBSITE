@@ -1,118 +1,155 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Navbar } from '../../components/Navbar'
-import { Footer } from '../../components/Footer'
-import { Shield, Sparkles } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Shield, Sparkles, Trophy } from 'lucide-react'
+import { SitePage } from '../../components/layout/SitePage'
+import { PageHeader } from '../../components/layout/PageHeader'
 import { fetchAchievements } from '../../lib/supabase'
-import { Achievement } from '../../lib/types'
+import type { Achievement } from '../../lib/types'
 import { UserAvatar } from '../../components/ui/UserAvatar'
 
 export default function AchievementsPage() {
   const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
-      const data = await fetchAchievements()
-      setAchievements(data)
+      try {
+        setAchievements(await fetchAchievements())
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])
 
   return (
-    <main className="min-h-screen bg-[#050505] text-[#f5f5f5]">
-      <div className="noise" />
-      <Navbar />
+    <SitePage>
+      <div className="site-container pb-20 pt-16 sm:pt-20 lg:pb-28">
+        <PageHeader
+          kicker="Hall of fame"
+          title={
+            <>
+              Legacy <span className="text-brand-bright">achievements</span>
+            </>
+          }
+          description="Unlock achievement cards by competing in tournaments, maintaining login streaks, and taking part in live community activities."
+          meta={
+            <>
+              <span className="badge">
+                {achievements.length} {achievements.length === 1 ? 'badge' : 'badges'}
+              </span>
+              <span className="badge">Verified unlocks</span>
+            </>
+          }
+        />
 
-      <div className="site-container pt-24 sm:pt-32 pb-20 sm:pb-28">
-        {/* Page Header */}
-        <div className="mb-8 sm:mb-12 border-b border-white/10 pb-6 sm:pb-8">
-          <p className="eyebrow mb-2 sm:mb-3 flex items-center gap-3">
-            <span className="h-px w-8 bg-red-600" /> HALL OF FAME
-          </p>
-          <h1 className="font-display text-3xl font-black uppercase text-white sm:text-5xl lg:text-6xl 2xl:text-7xl tracking-tight">
-            LEGACY <span className="text-metallic">ACHIEVEMENTS</span>
-          </h1>
-          <p className="mt-3 sm:mt-4 max-w-2xl text-xs leading-relaxed text-white/60 sm:text-sm 2xl:text-base">
-            Unlock dynamic achievement cards by playing tournaments, maintaining login streaks, and participating in live QnA quizzes.
-          </p>
-        </div>
+        {loading ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            {[0, 1, 2, 3].map((item) => (
+              <div key={item} className="card h-64 animate-pulse bg-surface-2" />
+            ))}
+          </div>
+        ) : achievements.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-line bg-surface px-6 py-16 text-center">
+            <span className="grid h-12 w-12 place-items-center rounded-lg border border-line bg-surface-2 text-ink-subtle">
+              <Trophy size={22} />
+            </span>
+            <h2 className="mt-4 text-base font-semibold text-ink">No achievements published</h2>
+            <p className="mt-1 max-w-sm text-sm text-ink-muted">
+              Badges will appear here as the community unlocks them.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5">
+            {achievements.map((achievement) => {
+              const isLegendary = achievement.rarity === 'LEGENDARY'
+              const isEpic = achievement.rarity === 'EPIC'
 
-        {/* Achievements Grid */}
-        <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5">
-          {achievements.map((a) => (
-            <div
-              key={a.id}
-              className="achievement unlocked p-5 sm:p-7 flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="badge-icon">
-                    {a.icon_url ? (
-                      <img src={a.icon_url} alt={a.name} className="h-7 w-7 sm:h-8 sm:w-8 object-contain" />
-                    ) : (
-                      <Shield size={24} />
-                    )}
+              return (
+                <article
+                  key={achievement.id}
+                  className={`card flex flex-col p-5 transition-colors hover:border-line-strong sm:p-6 ${
+                    isLegendary ? 'border-brand-border bg-brand-muted' : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span
+                      className={`grid h-11 w-11 place-items-center overflow-hidden rounded-lg border ${
+                        isLegendary
+                          ? 'border-brand-border bg-brand/15 text-brand-bright'
+                          : 'border-line bg-surface-2 text-ink-muted'
+                      }`}
+                    >
+                      {achievement.icon_url ? (
+                        <img
+                          src={achievement.icon_url}
+                          alt=""
+                          className="h-7 w-7 object-contain"
+                        />
+                      ) : (
+                        <Shield size={22} />
+                      )}
+                    </span>
+                    <span
+                      className={`badge ${
+                        isLegendary
+                          ? 'border-brand-border bg-brand/15 text-brand-bright'
+                          : isEpic
+                            ? 'border-line-strong text-ink'
+                            : ''
+                      }`}
+                    >
+                      {achievement.rarity}
+                    </span>
                   </div>
-                  <span
-                    className={`text-[9px] font-black tracking-widest px-2.5 py-1 border ${
-                      a.rarity === 'LEGENDARY'
-                        ? 'border-amber-500/40 bg-amber-950/40 text-amber-400'
-                        : a.rarity === 'EPIC'
-                        ? 'border-purple-500/40 bg-purple-950/40 text-purple-400'
-                        : 'border-red-500/40 bg-red-950/40 text-red-400'
-                    }`}
-                  >
-                    {a.rarity}
-                  </span>
-                </div>
 
-                <h3 className="mt-6 sm:mt-8 font-display text-lg sm:text-xl font-black text-white">
-                  {a.name}
-                </h3>
+                  <h2 className="mt-5 text-lg font-semibold tracking-tight text-ink">
+                    {achievement.name}
+                  </h2>
 
-                {(a.player_name || a.player_uid) && (
-                  <div className="mt-3 rounded border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-xs flex items-center gap-3">
-                    <UserAvatar
-                      src={a.avatar_url}
-                      name={a.player_name}
-                      size="sm"
-                      className="h-9 w-9 sm:h-10 sm:w-10 border-2 border-amber-500/60 shadow-md shadow-amber-950/60 shrink-0"
-                    />
-                    <div className="min-w-0">
-                      {a.player_name && (
-                        <p className="font-bold text-amber-300 truncate text-xs">
-                          PLAYER: <span className="text-white">{a.player_name}</span>
-                        </p>
-                      )}
-                      {a.player_uid && (
-                        <p className="font-mono text-[10px] text-amber-400/90 mt-0.5 truncate">
-                          FF UID: {a.player_uid}
-                        </p>
-                      )}
+                  {(achievement.player_name || achievement.player_uid) && (
+                    <div className="mt-3 flex items-center gap-3 rounded-lg border border-line-subtle bg-surface-2 p-2.5">
+                      <UserAvatar
+                        src={achievement.avatar_url}
+                        name={achievement.player_name}
+                        size="sm"
+                        className="h-9 w-9 shrink-0 border border-line"
+                      />
+                      <div className="min-w-0">
+                        {achievement.player_name && (
+                          <p className="truncate text-xs font-semibold text-ink">
+                            {achievement.player_name}
+                          </p>
+                        )}
+                        {achievement.player_uid && (
+                          <p className="truncate font-mono text-xs text-brand-bright">
+                            UID {achievement.player_uid}
+                          </p>
+                        )}
+                      </div>
                     </div>
+                  )}
+
+                  <p className="mt-3 text-xs leading-relaxed text-ink-muted">
+                    {achievement.description}
+                  </p>
+
+                  <div className="mt-auto flex items-center justify-between border-t border-line-subtle pt-4">
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-brand-bright">
+                      <Sparkles size={14} />
+                      +{achievement.xp_reward} XP
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-[0.1em] text-ink-subtle">
+                      Active badge
+                    </span>
                   </div>
-                )}
-
-                <p className="mt-2 text-[10px] sm:text-[11px] font-bold tracking-widest text-white/40">
-                  {a.description}
-                </p>
-              </div>
-
-              <div className="mt-6 sm:mt-8 border-t border-white/10 pt-3.5 sm:pt-4 flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
-                  <Sparkles size={14} /> +{a.xp_reward} XP
-                </span>
-                <span className="text-[9px] sm:text-[10px] font-bold tracking-widest uppercase text-white/50">
-                  ACTIVE BADGE
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
       </div>
-
-      <Footer />
-    </main>
+    </SitePage>
   )
 }
