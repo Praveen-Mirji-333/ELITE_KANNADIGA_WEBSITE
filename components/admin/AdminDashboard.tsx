@@ -67,7 +67,7 @@ import {
   updateGuildMemberGlory,
   updateGuildMember,
   fetchRegisteredPlayers,
-  addGuildMember,
+  addOrRegisterGuildMember,
   updateGuildMemberDetails,
   deleteGuildMember,
   GUILD_ROLES,
@@ -190,9 +190,11 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
   const [playerSearchQuery, setPlayerSearchQuery] = useState<string>('')
   const [newMemberRanking, setNewMemberRanking] = useState<string>('1')
   const [newMemberKills, setNewMemberKills] = useState<string>('0')
+  const [newMemberUid, setNewMemberUid] = useState('')
   const [newMemberName, setNewMemberName] = useState('')
   const [newMemberGlory, setNewMemberGlory] = useState('1000')
   const [newMemberRank, setNewMemberRank] = useState('👤 Member')
+  const [addingGuildMember, setAddingGuildMember] = useState(false)
   const [editingMember, setEditingMember] = useState<any | null>(null)
 
   // Guild Visibility Toggle State
@@ -1006,27 +1008,78 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
   // ==========================================
   // 4. ELITE ARMY GUILD HANDLERS (Add & Edit)
   // ==========================================
+  const handleSelectRegisteredPlayer = (playerId: string) => {
+    setSelectedPlayerId(playerId)
+    if (!playerId) return
+    const sel = registeredPlayers.find((p) => p.id === playerId)
+    if (sel) {
+      setNewMemberUid(sel.free_fire_uid || '')
+      setNewMemberName(sel.ign || sel.username || '')
+    }
+  }
+
+  const handleGuildUidChange = (uidVal: string) => {
+    const prevSelected = registeredPlayers.find((p) => p.id === selectedPlayerId)
+    setNewMemberUid(uidVal)
+    const trimmed = uidVal.trim()
+    if (!trimmed) {
+      if (prevSelected?.free_fire_uid) {
+        setSelectedPlayerId('')
+      }
+      return
+    }
+    const matched = registeredPlayers.find((p) => p.free_fire_uid?.trim() === trimmed)
+    if (matched) {
+      setSelectedPlayerId(matched.id)
+      if (!newMemberName.trim() || (prevSelected && newMemberName.trim() === (prevSelected.ign || prevSelected.username || '').trim())) {
+        setNewMemberName(matched.ign || matched.username || '')
+      }
+    } else if (prevSelected && prevSelected.free_fire_uid?.trim() && prevSelected.free_fire_uid.trim() !== trimmed) {
+      setSelectedPlayerId('')
+    }
+  }
+
   const handleAddGuildPlayer = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedPlayerId || !guildInfo) {
-      showNotification('Please select a registered player from the list!', 'error')
+    if (!guildInfo) {
+      showNotification('Guild record not loaded yet. Please wait or refresh.', 'error')
+      return
+    }
+    if (!selectedPlayerId && !newMemberUid.trim()) {
+      showNotification('Please select a registered player or enter a Free Fire UID!', 'error')
+      return
+    }
+    if (!newMemberName.trim()) {
+      showNotification('Please enter the Name of the Player!', 'error')
       return
     }
 
-    const selectedPlayer = registeredPlayers.find((p) => p.id === selectedPlayerId)
-    const res = await addGuildMember({
+    setAddingGuildMember(true)
+    const res = await addOrRegisterGuildMember({
       guildId: guildInfo.id,
-      userId: selectedPlayerId,
+      selectedPlayerId,
+      uid: newMemberUid,
+      playerName: newMemberName,
       role: newMemberRank as any,
       glory: parseInt(newMemberGlory) || 1000,
       ranking: parseInt(newMemberRanking) || (guildMembers.length + 1),
       kills: parseInt(newMemberKills) || 0,
     })
+    setAddingGuildMember(false)
 
     if (res.success) {
-      showNotification(`Player ${selectedPlayer?.ign || selectedPlayer?.username || 'Member'} added to ELITE ARMY!`)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('site_settings_updated'))
+      }
+      showNotification(
+        res.wasNewlyRegistered
+          ? `UID ${newMemberUid.trim()} automatically registered as ${res.playerName || newMemberName.trim()} and added to ELITE ARMY!`
+          : `Player ${res.playerName || newMemberName.trim()} added to ELITE ARMY!`
+      )
       setSelectedPlayerId('')
       setPlayerSearchQuery('')
+      setNewMemberUid('')
+      setNewMemberName('')
       setNewMemberGlory('1000')
       setNewMemberKills('0')
       loadAllAdminData()
@@ -1045,9 +1098,13 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
       ranking: parseInt(String(editingMember.ranking)) || 1,
       kills: parseInt(String(editingMember.kills)) || 0,
       userId: editingMember.user_id,
+      playerName: editingMember.player_name,
     })
 
     if (res.success) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('site_settings_updated'))
+      }
       showNotification('Guild player details updated!')
       setEditingMember(null)
       loadAllAdminData()
@@ -1060,6 +1117,9 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
     if (!confirm('Are you sure you want to remove this player from ELITE ARMY?')) return
     const res = await deleteGuildMember(memberId, userId)
     if (res.success) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('site_settings_updated'))
+      }
       showNotification('Player removed from ELITE ARMY.')
       loadAllAdminData()
     } else {
@@ -1889,21 +1949,21 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
               {/* Add Guild Member */}
               <form onSubmit={handleAddGuildPlayer} className="border border-line-subtle bg-surface-2 p-5 space-y-4">
                 <h4 className="eyebrow flex items-center gap-2">
-                  <Plus size={14} /> ADD REGISTERED PLAYER TO ELITE ARMY
+                  <Plus size={14} /> ADD PLAYER TO ELITE ARMY (SELECT REGISTERED OR ENTER NEW UID & NAME)
                 </h4>
 
-                {/* Registered Player Selection */}
-                <div className="space-y-2 border border-line-subtle bg-canvas/40 p-4 rounded">
+                {/* Registered Player Quick Select + Direct UID & Player Name Fields */}
+                <div className="space-y-3 border border-line-subtle bg-canvas/40 p-4 rounded">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <label className="text-xs font-bold uppercase tracking-wider text-brand-bright">
-                      1. SELECT REGISTERED PLAYER *
+                      1. SELECT REGISTERED PLAYER (OPTIONAL) OR ENTER UID & NAME BELOW
                     </label>
                     <span className="text-xs text-ink-subtle">
                       Total Registered: {registeredPlayers.length} Players
                     </span>
                   </div>
 
-                  <div className="relative">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <input
                       type="text"
                       placeholder="Search registered player by IGN, UID, or ID..."
@@ -1911,48 +1971,104 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                       onChange={(e) => setPlayerSearchQuery(e.target.value)}
                       className="w-full border border-line bg-surface-2 px-3 py-2 text-xs text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
                     />
+
+                    <select
+                      value={selectedPlayerId}
+                      onChange={(e) => handleSelectRegisteredPlayer(e.target.value)}
+                      className="w-full border border-line bg-surface px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none"
+                    >
+                      <option value="">-- Choose Registered Player (Optional) --</option>
+                      {registeredPlayers
+                        .filter((p) => {
+                          if (!playerSearchQuery.trim()) return true
+                          const q = playerSearchQuery.toLowerCase()
+                          return (
+                            (p.ign && p.ign.toLowerCase().includes(q)) ||
+                            (p.username && p.username.toLowerCase().includes(q)) ||
+                            (p.player_id && p.player_id.toLowerCase().includes(q)) ||
+                            (p.free_fire_uid && p.free_fire_uid.toLowerCase().includes(q))
+                          )
+                        })
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.ign || p.username} ({p.player_id || 'ID N/A'} • UID: {p.free_fire_uid || 'N/A'})
+                          </option>
+                        ))}
+                    </select>
                   </div>
 
-                  <select
-                    required
-                    value={selectedPlayerId}
-                    onChange={(e) => setSelectedPlayerId(e.target.value)}
-                    className="w-full border border-line bg-surface px-3 py-2.5 text-xs text-ink focus:border-brand focus:outline-none"
-                  >
-                    <option value="">-- Choose from Registered Players List --</option>
-                    {registeredPlayers
-                      .filter((p) => {
-                        if (!playerSearchQuery.trim()) return true
-                        const q = playerSearchQuery.toLowerCase()
-                        return (
-                          (p.ign && p.ign.toLowerCase().includes(q)) ||
-                          (p.username && p.username.toLowerCase().includes(q)) ||
-                          (p.player_id && p.player_id.toLowerCase().includes(q)) ||
-                          (p.free_fire_uid && p.free_fire_uid.toLowerCase().includes(q))
-                        )
-                      })
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.ign || p.username} ({p.player_id || 'ID N/A'} • UID: {p.free_fire_uid || 'N/A'})
-                        </option>
-                      ))}
-                  </select>
+                  {/* Direct UID & Name of the Player Inputs */}
+                  <div className="grid gap-3 sm:grid-cols-2 pt-2 border-t border-line-subtle">
+                    <div>
+                      <label className="mb-1 block label !text-brand-bright">
+                        FREE FIRE UID {!selectedPlayerId ? '*' : ''}
+                      </label>
+                      <input
+                        type="text"
+                        required={!selectedPlayerId}
+                        placeholder="e.g. 1928374650"
+                        value={newMemberUid}
+                        onChange={(e) => handleGuildUidChange(e.target.value)}
+                        className="w-full border border-line bg-surface-2 px-3 py-2 text-xs text-ink placeholder-ink-subtle font-mono focus:border-brand focus:outline-none"
+                      />
+                      <span className="text-[11px] text-ink-subtle">
+                        If not registered yet, this UID will be registered automatically
+                      </span>
+                    </div>
 
-                  {/* Selected Player Preview */}
-                  {selectedPlayerId && (() => {
-                    const sel = registeredPlayers.find((p) => p.id === selectedPlayerId)
-                    if (!sel) return null
-                    return (
-                      <div className="flex items-center gap-3 pt-2 border-t border-line-subtle mt-2">
-                        <UserAvatar src={sel.avatar_url} name={sel.ign || sel.username} size="sm" />
-                        <div>
-                          <p className="text-xs font-bold text-ink">{sel.ign || sel.username}</p>
-                          <p className="text-xs text-ink-subtle">
-                            ID: {sel.player_id || 'N/A'} • Free Fire UID: {sel.free_fire_uid || 'N/A'} • Level: {sel.level || 1}
+                    <div>
+                      <label className="mb-1 block label !text-brand-bright">
+                        NAME OF THE PLAYER *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Enter player name (shown in Guild section)..."
+                        value={newMemberName}
+                        onChange={(e) => setNewMemberName(e.target.value)}
+                        className="w-full border border-line bg-surface-2 px-3 py-2 text-xs text-ink placeholder-ink-subtle font-semibold focus:border-brand focus:outline-none"
+                      />
+                      <span className="text-[11px] text-ink-subtle">
+                        Displayed in the user Guild section & roster
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Match / Auto-Register Status Preview */}
+                  {(() => {
+                    const sel = selectedPlayerId
+                      ? registeredPlayers.find((p) => p.id === selectedPlayerId)
+                      : newMemberUid.trim()
+                      ? registeredPlayers.find((p) => p.free_fire_uid?.trim() === newMemberUid.trim())
+                      : null
+
+                    if (sel) {
+                      return (
+                        <div className="flex items-center gap-3 pt-2 border-t border-line-subtle mt-1">
+                          <UserAvatar src={sel.avatar_url} name={newMemberName || sel.ign || sel.username} size="sm" />
+                          <div>
+                            <p className="text-xs font-bold text-ink">
+                              ✓ Registered Player Found: {sel.ign || sel.username}
+                            </p>
+                            <p className="text-xs text-ink-subtle">
+                              ID: {sel.player_id || 'N/A'} • Free Fire UID: {sel.free_fire_uid || newMemberUid || 'N/A'} • Level: {sel.level || 1}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    if (newMemberUid.trim()) {
+                      return (
+                        <div className="pt-2 border-t border-line-subtle mt-1">
+                          <p className="text-xs font-semibold text-brand-bright">
+                            New Player UID ({newMemberUid.trim()}) — will be automatically registered to the application and added as &ldquo;{newMemberName.trim() || 'Player'}&rdquo;.
                           </p>
                         </div>
-                      </div>
-                    )
+                      )
+                    }
+
+                    return null
                   })()}
                 </div>
 
@@ -2024,9 +2140,10 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
                 <button
                   type="submit"
-                  className="bg-brand px-6 py-2.5 text-xs font-extrabold tracking-widest text-ink uppercase hover:bg-brand transition shadow-lg"
+                  disabled={addingGuildMember}
+                  className="bg-brand px-6 py-2.5 text-xs font-extrabold tracking-widest text-ink uppercase hover:bg-brand transition shadow-lg disabled:opacity-60"
                 >
-                  ADD PLAYER TO ELITE ARMY
+                  {addingGuildMember ? 'REGISTERING & ADDING...' : 'ADD PLAYER TO ELITE ARMY'}
                 </button>
               </form>
 
@@ -2080,7 +2197,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                             <div className="flex items-center gap-2 flex-wrap text-xs font-bold text-ink-subtle mt-0.5">
                               <span>ID: {m.profiles?.player_id || 'N/A'}</span>
                               <span>•</span>
-                              <span>UID: {m.profiles?.free_fire_uid || 'N/A'}</span>
+                              <span>UID: {m.profiles?.free_fire_uid || m.free_fire_uid || 'N/A'}</span>
                             </div>
                           </div>
                         </div>
@@ -3491,6 +3608,21 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
               </p>
             </div>
             <form onSubmit={handleSaveEditedMember} className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase text-brand-bright">
+                  NAME OF THE PLAYER *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingMember.player_name ?? editingMember.profiles?.ign ?? ''}
+                  onChange={(e) =>
+                    setEditingMember({ ...editingMember, player_name: e.target.value })
+                  }
+                  className="field h-10"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1 block text-xs font-bold uppercase text-brand-bright">

@@ -159,6 +159,7 @@ export interface GuildMember {
   profile?: Profile
   profiles?: Profile
   player_name?: string
+  free_fire_uid?: string
   ranking?: number
   kills?: number
 }

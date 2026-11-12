@@ -1418,6 +1418,186 @@ export function mapToDbGuildRole(role: string): 'leader' | 'officer' | 'member' 
   return 'member'
 }
 
+type GuildMemberMetaRecord = {
+  ranking?: number
+  kills?: number
+  guild_role?: string
+  player_name?: string
+  free_fire_uid?: string
+}
+
+function createEphemeralSupabaseClient() {
+  return createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      storageKey: 'ephemeral-admin-register-player',
+    },
+  })
+}
+
+async function findProfileByUidOrId(cleanUid: string, userId?: string | null) {
+  if (cleanUid) {
+    const { data: byUid } = await supabase
+      .from('profiles')
+      .select('id, player_id, username, ign, free_fire_uid, avatar_url, level')
+      .eq('free_fire_uid', cleanUid)
+      .limit(1)
+    if (byUid && byUid.length > 0) return byUid[0] as Profile
+  }
+  if (userId) {
+    const { data: byId } = await supabase
+      .from('profiles')
+      .select('id, player_id, username, ign, free_fire_uid, avatar_url, level')
+      .eq('id', userId)
+      .limit(1)
+    if (byId && byId.length > 0) return byId[0] as Profile
+  }
+  return null
+}
+
+async function signInAndSyncEphemeralProfile(
+  eph: ReturnType<typeof createEphemeralSupabaseClient>,
+  email: string,
+  password: string,
+  cleanUid: string,
+  cleanName: string
+): Promise<string | null> {
+  const { data: ephLogin } = await eph.auth.signInWithPassword({ email, password })
+  if (!ephLogin?.user) return null
+  await eph
+    .from('profiles')
+    .update({ free_fire_uid: cleanUid, ign: cleanName, username: cleanName })
+    .eq('id', ephLogin.user.id)
+  return ephLogin.user.id
+}
+
+export async function ensurePlayerAccountByUid(
+  gameUid: string,
+  playerName: string
+): Promise<{
+  success: boolean
+  userId?: string
+  profile?: Profile
+  wasNewlyRegistered?: boolean
+  error?: string
+}> {
+  try {
+    const cleanUid = gameUid.trim()
+    const cleanName = playerName.trim()
+
+    if (!cleanUid) {
+      return { success: false, error: 'Free Fire UID is required.' }
+    }
+    if (/\s/.test(cleanUid)) {
+      return { success: false, error: 'Free Fire UID cannot contain spaces.' }
+    }
+
+    // 1. Check if UID already exists in profiles
+    const existing = await findProfileByUidOrId(cleanUid)
+    if (existing) {
+      return {
+        success: true,
+        userId: existing.id,
+        profile: existing,
+        wasNewlyRegistered: false,
+      }
+    }
+
+    if (!cleanName) {
+      return { success: false, error: 'Name of the player is required to register a new UID.' }
+    }
+
+    const { syntheticEmail, syntheticPassword } = getUidCredentials(cleanUid)
+    const eph = createEphemeralSupabaseClient()
+    let userId: string | null = null
+    let wasNewlyRegistered = false
+
+    // 2. Register via create_player_account RPC (does not alter admin browser session)
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('create_player_account', {
+      p_email: syntheticEmail,
+      p_password: syntheticPassword,
+      p_ign: cleanName,
+      p_uid: cleanUid,
+    })
+
+    const rpcErrMsg = rpcErr?.message || (rpcData && rpcData.success === false ? rpcData.error : '') || ''
+
+    if (!rpcErr && (!rpcData || rpcData.success !== false)) {
+      wasNewlyRegistered = true
+      userId =
+        (typeof rpcData === 'string' ? rpcData : null) ||
+        rpcData?.user_id ||
+        rpcData?.id ||
+        (Array.isArray(rpcData) ? rpcData[0]?.user_id || rpcData[0]?.id : null)
+    } else if (
+      rpcErrMsg.includes('UID_ALREADY_EXISTS') ||
+      rpcErrMsg.toLowerCase().includes('already') ||
+      rpcErrMsg.toLowerCase().includes('duplicate')
+    ) {
+      userId = await signInAndSyncEphemeralProfile(eph, syntheticEmail, syntheticPassword, cleanUid, cleanName)
+    } else {
+      // Fallback to isolated signUp on ephemeral client so Admin stays logged in
+      const { data: authData, error: authErr } = await eph.auth.signUp({
+        email: syntheticEmail,
+        password: syntheticPassword,
+        options: {
+          data: {
+            ign: cleanName,
+            free_fire_uid: cleanUid,
+            username: cleanName,
+          },
+        },
+      })
+
+      if (authErr) {
+        if (authErr.message?.toLowerCase().includes('already')) {
+          userId = await signInAndSyncEphemeralProfile(eph, syntheticEmail, syntheticPassword, cleanUid, cleanName)
+        } else {
+          return { success: false, error: authErr.message || 'Failed to register player UID.' }
+        }
+      } else {
+        wasNewlyRegistered = true
+        userId = authData.user?.id || null
+        if (userId && authData.session) {
+          await eph
+            .from('profiles')
+            .update({ free_fire_uid: cleanUid, ign: cleanName, username: cleanName })
+            .eq('id', userId)
+        }
+      }
+    }
+
+    // 3. Ensure profile row is visible and properly populated with free_fire_uid & ign
+    let profile = await findProfileByUidOrId(cleanUid, userId)
+    if (!profile || !profile.free_fire_uid || profile.free_fire_uid !== cleanUid || !profile.ign) {
+      const syncedId = await signInAndSyncEphemeralProfile(eph, syntheticEmail, syntheticPassword, cleanUid, cleanName)
+      if (syncedId) {
+        userId = syncedId
+        profile = await findProfileByUidOrId(cleanUid, syncedId)
+      }
+    }
+
+    const resolvedUserId = profile?.id || userId
+    if (!resolvedUserId) {
+      return {
+        success: false,
+        error: 'UID could not be registered automatically. Please check Supabase player registration setup.',
+      }
+    }
+
+    return {
+      success: true,
+      userId: resolvedUserId,
+      profile: profile || undefined,
+      wasNewlyRegistered,
+    }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to auto-register player UID.' }
+  }
+}
+
 export async function fetchEliteArmyGuild() {
   try {
     let { data: guild, error } = await supabase
@@ -1442,9 +1622,9 @@ export async function fetchEliteArmyGuild() {
       .eq('guild_id', guild.id)
       .order('glory_contributed', { ascending: false })
 
-    // Fetch ranking, kills and role metadata from site_settings
-    const rawMeta = await fetchSiteSettingJson<Record<string, { ranking?: number; kills?: number; guild_role?: string }>>('guild_member_meta', {})
-    const memberMeta: Record<string, { ranking?: number; kills?: number; guild_role?: string }> =
+    // Fetch ranking, kills, name and role metadata from site_settings
+    const rawMeta = await fetchSiteSettingJson<Record<string, GuildMemberMetaRecord>>('guild_member_meta', {})
+    const memberMeta: Record<string, GuildMemberMetaRecord> =
       rawMeta && typeof rawMeta === 'object' && !Array.isArray(rawMeta) ? rawMeta : {}
 
     const mappedMembers: GuildMember[] = (members || []).map((m: any, idx: number) => {
@@ -1452,7 +1632,8 @@ export async function fetchEliteArmyGuild() {
       return {
         ...m,
         guild_role: normalizeGuildRole(meta.guild_role || m.guild_role),
-        player_name: m.profiles?.ign || m.profiles?.username || m.player_name || 'ELITE PLAYER',
+        player_name: meta.player_name || m.profiles?.ign || m.profiles?.username || m.player_name || 'ELITE PLAYER',
+        free_fire_uid: m.profiles?.free_fire_uid || meta.free_fire_uid || '',
         ranking: typeof meta.ranking === 'number' ? meta.ranking : (idx + 1),
         kills: typeof meta.kills === 'number' ? meta.kills : 0,
       }
@@ -1485,6 +1666,8 @@ export async function addGuildMember(params: {
   glory: number
   ranking?: number
   kills?: number
+  playerName?: string
+  freeFireUid?: string
 }) {
   try {
     const dbRole = mapToDbGuildRole(params.role)
@@ -1528,15 +1711,23 @@ export async function addGuildMember(params: {
       memberId = data[0].id
     }
 
-    // 2. Persist ranking, kills and custom role with emojis in site_settings
-    const rawMeta = await fetchSiteSettingJson<Record<string, { ranking?: number; kills?: number; guild_role?: string }>>('guild_member_meta', {})
-    const memberMeta: Record<string, { ranking?: number; kills?: number; guild_role?: string }> =
+    // 2. Persist ranking, kills, player name, UID and custom role with emojis in site_settings
+    const rawMeta = await fetchSiteSettingJson<Record<string, GuildMemberMetaRecord>>('guild_member_meta', {})
+    const memberMeta: Record<string, GuildMemberMetaRecord> =
       rawMeta && typeof rawMeta === 'object' && !Array.isArray(rawMeta) ? { ...rawMeta } : {}
 
     const rankingVal = typeof params.ranking === 'number' && !isNaN(params.ranking) ? params.ranking : 1
     const killsVal = typeof params.kills === 'number' && !isNaN(params.kills) ? params.kills : 0
+    const cleanName = params.playerName?.trim()
+    const cleanUid = params.freeFireUid?.trim()
 
-    const record = { ranking: rankingVal, kills: killsVal, guild_role: params.role }
+    const record: GuildMemberMetaRecord = {
+      ranking: rankingVal,
+      kills: killsVal,
+      guild_role: params.role,
+      ...(cleanName ? { player_name: cleanName } : {}),
+      ...(cleanUid ? { free_fire_uid: cleanUid } : {}),
+    }
     memberMeta[memberId] = record
     if (params.userId) {
       memberMeta[params.userId] = record
@@ -1550,6 +1741,110 @@ export async function addGuildMember(params: {
   }
 }
 
+export async function addOrRegisterGuildMember(params: {
+  guildId: string
+  selectedPlayerId?: string
+  uid?: string
+  playerName?: string
+  role: string
+  glory: number
+  ranking?: number
+  kills?: number
+}): Promise<{
+  success: boolean
+  memberId?: string
+  userId?: string
+  playerName?: string
+  freeFireUid?: string
+  wasNewlyRegistered?: boolean
+  error?: string
+}> {
+  try {
+    const cleanUid = (params.uid || '').trim()
+    const cleanName = (params.playerName || '').trim()
+
+    let targetUserId = params.selectedPlayerId || ''
+    let resolvedUid = cleanUid
+    let resolvedName = cleanName
+    let wasNewlyRegistered = false
+
+    if (cleanUid) {
+      if (/\s/.test(cleanUid)) {
+        return { success: false, error: 'Free Fire UID cannot contain spaces.' }
+      }
+
+      // Check if this UID is already registered in profiles
+      const existingByUid = await findProfileByUidOrId(cleanUid)
+      if (existingByUid) {
+        targetUserId = existingByUid.id
+        resolvedUid = existingByUid.free_fire_uid || cleanUid
+        resolvedName = cleanName || existingByUid.ign || existingByUid.username || 'ELITE PLAYER'
+      } else if (targetUserId) {
+        const selectedProf = await findProfileByUidOrId('', targetUserId)
+        if (selectedProf && selectedProf.free_fire_uid && selectedProf.free_fire_uid !== cleanUid) {
+          // Admin entered a different UID that is not registered yet
+          targetUserId = ''
+        } else if (selectedProf) {
+          resolvedName = cleanName || selectedProf.ign || selectedProf.username || 'ELITE PLAYER'
+        }
+      }
+
+      if (!targetUserId) {
+        if (!cleanName) {
+          return { success: false, error: 'Name of the player is required to register a new UID.' }
+        }
+        const regRes = await ensurePlayerAccountByUid(cleanUid, cleanName)
+        if (!regRes.success || !regRes.userId) {
+          return { success: false, error: regRes.error || 'Failed to register player UID.' }
+        }
+        targetUserId = regRes.userId
+        resolvedUid = regRes.profile?.free_fire_uid || cleanUid
+        resolvedName = cleanName || regRes.profile?.ign || regRes.profile?.username || 'ELITE PLAYER'
+        wasNewlyRegistered = !!regRes.wasNewlyRegistered
+      }
+    } else if (targetUserId) {
+      const selectedProf = await findProfileByUidOrId('', targetUserId)
+      if (!selectedProf) {
+        return { success: false, error: 'Selected player profile not found.' }
+      }
+      resolvedUid = selectedProf.free_fire_uid || ''
+      resolvedName = cleanName || selectedProf.ign || selectedProf.username || 'ELITE PLAYER'
+    } else {
+      return { success: false, error: 'Please enter a Free Fire UID or select a registered player.' }
+    }
+
+    if (!resolvedName) {
+      return { success: false, error: 'Name of the player is required.' }
+    }
+
+    const addRes = await addGuildMember({
+      guildId: params.guildId,
+      userId: targetUserId,
+      role: params.role,
+      glory: params.glory,
+      ranking: params.ranking,
+      kills: params.kills,
+      playerName: resolvedName,
+      freeFireUid: resolvedUid,
+    })
+
+    if (!addRes.success) {
+      return addRes
+    }
+
+    return {
+      success: true,
+      memberId: addRes.memberId,
+      userId: targetUserId,
+      playerName: resolvedName,
+      freeFireUid: resolvedUid,
+      wasNewlyRegistered,
+    }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to add member to guild.' }
+  }
+}
+
 export async function updateGuildMemberDetails(
   memberId: string,
   updates: {
@@ -1558,6 +1853,7 @@ export async function updateGuildMemberDetails(
     ranking?: number
     kills?: number
     userId?: string
+    playerName?: string
   }
 ) {
   try {
@@ -1574,16 +1870,19 @@ export async function updateGuildMemberDetails(
       await supabase.from('guild_members').update(gmUpdates).eq('id', memberId)
     }
 
-    // 2. Update ranking, kills and custom role in site_settings
-    const rawMeta = await fetchSiteSettingJson<Record<string, { ranking?: number; kills?: number; guild_role?: string }>>('guild_member_meta', {})
-    const memberMeta: Record<string, { ranking?: number; kills?: number; guild_role?: string }> =
+    // 2. Update ranking, kills, player name and custom role in site_settings
+    const rawMeta = await fetchSiteSettingJson<Record<string, GuildMemberMetaRecord>>('guild_member_meta', {})
+    const memberMeta: Record<string, GuildMemberMetaRecord> =
       rawMeta && typeof rawMeta === 'object' && !Array.isArray(rawMeta) ? { ...rawMeta } : {}
 
     const existing = memberMeta[memberId] || (updates.userId ? memberMeta[updates.userId] : {}) || {}
-    const updatedMeta = {
+    const cleanName = updates.playerName !== undefined ? updates.playerName.trim() : existing.player_name
+    const updatedMeta: GuildMemberMetaRecord = {
+      ...existing,
       ranking: typeof updates.ranking === 'number' && !isNaN(updates.ranking) ? updates.ranking : (existing.ranking ?? 1),
       kills: typeof updates.kills === 'number' && !isNaN(updates.kills) ? updates.kills : (existing.kills ?? 0),
       guild_role: updates.role || existing.guild_role || '👤 Member',
+      ...(cleanName ? { player_name: cleanName } : {}),
     }
 
     memberMeta[memberId] = updatedMeta
