@@ -5,6 +5,8 @@ import type {
   TournamentRegistration,
   Guild,
   GuildMember,
+  GuildChallenge,
+  GuildChallengeStatus,
   XPTransaction,
   Achievement,
   QnAQuestion,
@@ -13,6 +15,7 @@ import type {
   LeaderboardSection,
   TopTeamDetail,
 } from './types'
+import { canMemberChallengeTarget } from './guild-challenges'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey =
@@ -1928,6 +1931,249 @@ export async function updateGuildMember(memberId: string, updates: Partial<Guild
     kills: updates.kills,
     userId: updates.user_id,
   })
+}
+
+function isMissingRelationError(err: any): boolean {
+  if (!err) return false
+  const msg = String(err.message || '').toLowerCase()
+  return (
+    err.code === '42P01' ||
+    err.code === 'PGRST205' ||
+    msg.includes('does not exist') ||
+    msg.includes('schema cache') ||
+    msg.includes('could not find the table')
+  )
+}
+
+export async function fetchGuildChallenges(guildId?: string): Promise<GuildChallenge[]> {
+  try {
+    let query = supabase
+      .from('guild_challenges')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (guildId) {
+      query = query.eq('guild_id', guildId)
+    }
+
+    const { data, error } = await query
+    if (!error && Array.isArray(data)) {
+      return data as GuildChallenge[]
+    }
+
+    if (error && !isMissingRelationError(error)) {
+      console.warn('fetchGuildChallenges notice:', error.message)
+    }
+
+    const raw = await fetchSiteSettingJson<GuildChallenge[]>('guild_challenges', [])
+    const list = Array.isArray(raw) ? raw : []
+    return list
+      .filter((c) => !guildId || c.guild_id === guildId)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  } catch {
+    return []
+  }
+}
+
+export async function submitGuildChallenge(params: {
+  guildId: string
+  challengerMemberId: string
+  defenderMemberId: string
+  note?: string
+}): Promise<{ success: boolean; data?: GuildChallenge; error?: string }> {
+  try {
+    const [guildRes, existingChallenges] = await Promise.all([
+      fetchEliteArmyGuild(),
+      fetchGuildChallenges(params.guildId),
+    ])
+
+    const members = guildRes.members || []
+    const challenger = members.find((m) => m.id === params.challengerMemberId)
+    if (!challenger) {
+      return { success: false, error: 'Challenger is not an active member of this guild.' }
+    }
+
+    let defender = members.find((m) => m.id === params.defenderMemberId)
+    if (!defender && params.defenderMemberId === 'guild-owner-leader') {
+      defender = {
+        id: 'guild-owner-leader',
+        guild_id: params.guildId,
+        user_id: guildRes.guild?.leader_id || 'guild-owner-leader',
+        guild_role: '👑 Leader',
+        glory_contributed: 1000,
+        joined_at: new Date().toISOString(),
+        status: 'active',
+        player_name: 'ELITE ಕನ್ನಡಿಗ',
+        free_fire_uid: '1969913248',
+      }
+    }
+
+    if (!defender) {
+      return { success: false, error: 'Target defender not found in guild roster.' }
+    }
+
+    const check = canMemberChallengeTarget({
+      challenger,
+      target: defender,
+      allMembers: members,
+      existingChallenges,
+    })
+
+    if (!check.allowed) {
+      return { success: false, error: check.reason || 'Challenge not permitted by guild rules.' }
+    }
+
+    const now = new Date().toISOString()
+    const record: GuildChallenge = {
+      id:
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `ch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      guild_id: params.guildId,
+      challenger_member_id: challenger.id,
+      challenger_user_id: challenger.user_id,
+      challenger_name: challenger.player_name || challenger.profiles?.ign || 'ELITE PLAYER',
+      challenger_uid: challenger.profiles?.free_fire_uid || challenger.free_fire_uid || '',
+      challenger_role: normalizeGuildRole(challenger.guild_role),
+      challenger_glory: challenger.glory_contributed ?? 0,
+      defender_member_id: defender.id,
+      defender_user_id: defender.user_id,
+      defender_name: defender.player_name || defender.profiles?.ign || 'ELITE PLAYER',
+      defender_uid: defender.profiles?.free_fire_uid || defender.free_fire_uid || '',
+      defender_role: normalizeGuildRole(defender.guild_role),
+      defender_glory: defender.glory_contributed ?? 0,
+      status: 'pending',
+      note: params.note?.trim() || undefined,
+      created_at: now,
+      updated_at: now,
+    }
+
+    // Try dedicated guild_challenges table first
+    const { data: inserted, error: insertErr } = await supabase
+      .from('guild_challenges')
+      .insert([record])
+      .select()
+
+    if (!insertErr && inserted && inserted.length > 0) {
+      return { success: true, data: inserted[0] as GuildChallenge }
+    }
+
+    if (insertErr && !isMissingRelationError(insertErr)) {
+      return { success: false, error: insertErr.message }
+    }
+
+    // Fallback to site_settings JSON store
+    const currentList = await fetchSiteSettingJson<GuildChallenge[]>('guild_challenges', [])
+    const safeList = Array.isArray(currentList) ? [...currentList] : []
+    safeList.unshift(record)
+    const saveRes = await updateSiteSettingJson('guild_challenges', safeList)
+    if (!saveRes.success) {
+      return { success: false, error: saveRes.error || 'Failed to save challenge.' }
+    }
+
+    return { success: true, data: record }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to submit challenge.' }
+  }
+}
+
+export async function resolveGuildChallenge(
+  challengeId: string,
+  nextStatus: GuildChallengeStatus,
+  options?: { swapRanksOnWin?: boolean }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const now = new Date().toISOString()
+    let targetChallenge: GuildChallenge | undefined
+
+    // 1. Update in guild_challenges table or site_settings fallback
+    const { data: tableRow, error: fetchTableErr } = await supabase
+      .from('guild_challenges')
+      .select('*')
+      .eq('id', challengeId)
+      .maybeSingle()
+
+    if (!fetchTableErr && tableRow) {
+      targetChallenge = tableRow as GuildChallenge
+      const { error: updErr } = await supabase
+        .from('guild_challenges')
+        .update({ status: nextStatus, updated_at: now })
+        .eq('id', challengeId)
+      if (updErr) return { success: false, error: updErr.message }
+    } else if (fetchTableErr && !isMissingRelationError(fetchTableErr)) {
+      return { success: false, error: fetchTableErr.message }
+    } else {
+      const currentList = await fetchSiteSettingJson<GuildChallenge[]>('guild_challenges', [])
+      const safeList = Array.isArray(currentList) ? [...currentList] : []
+      const idx = safeList.findIndex((c) => c.id === challengeId)
+      if (idx === -1) {
+        return { success: false, error: 'Challenge record not found.' }
+      }
+      targetChallenge = safeList[idx]
+      safeList[idx] = { ...targetChallenge, status: nextStatus, updated_at: now }
+      const saveRes = await updateSiteSettingJson('guild_challenges', safeList)
+      if (!saveRes.success) {
+        return { success: false, error: saveRes.error || 'Failed to update challenge status.' }
+      }
+    }
+
+    // 2. If Challenger Won and role swap requested, swap roles & roster rankings
+    if (nextStatus === 'challenger_won' && options?.swapRanksOnWin !== false && targetChallenge) {
+      const guildRes = await fetchEliteArmyGuild()
+      const challenger = guildRes.members.find(
+        (m) => m.id === targetChallenge!.challenger_member_id
+      )
+      const defender = guildRes.members.find(
+        (m) => m.id === targetChallenge!.defender_member_id
+      )
+
+      if (challenger && defender) {
+        const challengerRole = normalizeGuildRole(challenger.guild_role)
+        const defenderRole = normalizeGuildRole(defender.guild_role)
+        const challengerRank = challenger.ranking
+        const defenderRank = defender.ranking
+
+        await Promise.all([
+          updateGuildMemberDetails(challenger.id, {
+            role: defenderRole,
+            ranking: defenderRank,
+            userId: challenger.user_id,
+          }),
+          updateGuildMemberDetails(defender.id, {
+            role: challengerRole,
+            ranking: challengerRank,
+            userId: defender.user_id,
+          }),
+        ])
+      }
+    }
+
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to update challenge.' }
+  }
+}
+
+export async function deleteGuildChallenge(challengeId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.from('guild_challenges').delete().eq('id', challengeId)
+    if (!error) return { success: true }
+    if (!isMissingRelationError(error)) {
+      return { success: false, error: error.message }
+    }
+
+    const currentList = await fetchSiteSettingJson<GuildChallenge[]>('guild_challenges', [])
+    const safeList = (Array.isArray(currentList) ? currentList : []).filter(
+      (c) => c.id !== challengeId
+    )
+    const saveRes = await updateSiteSettingJson('guild_challenges', safeList)
+    if (!saveRes.success) {
+      return { success: false, error: saveRes.error || 'Failed to delete challenge.' }
+    }
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to delete challenge.' }
+  }
 }
 
 export async function updateTournament(tourneyId: string, updates: Partial<Tournament>) {

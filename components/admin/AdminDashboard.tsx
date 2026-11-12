@@ -35,6 +35,7 @@ import {
   Play,
   Pause,
   RefreshCw,
+  Swords,
 } from 'lucide-react'
 import {
   HomeCard,
@@ -45,6 +46,8 @@ import {
   CommunityClip,
   TopTeamDetail,
   Profile,
+  GuildChallenge,
+  GuildChallengeStatus,
   PRESET_CHAMPION_IMAGES,
   PRESET_BGMS,
 } from '../../lib/types'
@@ -70,6 +73,9 @@ import {
   addOrRegisterGuildMember,
   updateGuildMemberDetails,
   deleteGuildMember,
+  fetchGuildChallenges,
+  resolveGuildChallenge,
+  deleteGuildChallenge,
   GUILD_ROLES,
   normalizeGuildRole,
   fetchAchievements,
@@ -90,6 +96,7 @@ import {
   fetchSiteSettingJson,
   updateSiteSettingJson,
 } from '../../lib/supabase'
+import { MIN_CHALLENGE_GLORY } from '../../lib/guild-challenges'
 import { UserAvatar } from '../ui/UserAvatar'
 import { AnnouncementsTab } from './announcements/AnnouncementsTab'
 
@@ -189,13 +196,14 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('')
   const [playerSearchQuery, setPlayerSearchQuery] = useState<string>('')
   const [newMemberRanking, setNewMemberRanking] = useState<string>('1')
-  const [newMemberKills, setNewMemberKills] = useState<string>('0')
   const [newMemberUid, setNewMemberUid] = useState('')
   const [newMemberName, setNewMemberName] = useState('')
   const [newMemberGlory, setNewMemberGlory] = useState('1000')
   const [newMemberRank, setNewMemberRank] = useState('👤 Member')
   const [addingGuildMember, setAddingGuildMember] = useState(false)
   const [editingMember, setEditingMember] = useState<any | null>(null)
+  const [guildChallenges, setGuildChallenges] = useState<GuildChallenge[]>([])
+  const [resolvingChallengeId, setResolvingChallengeId] = useState<string | null>(null)
 
   // Guild Visibility Toggle State
   const [showGuildSection, setShowGuildSection] = useState<boolean>(true)
@@ -389,6 +397,9 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
     setGuildInfo(guildRes.guild)
     setGuildMembers(guildRes.members)
     setNewMemberRanking(String((guildRes.members?.length || 0) + 1))
+
+    const challengeList = await fetchGuildChallenges(guildRes.guild?.id)
+    setGuildChallenges(challengeList)
 
     // Load Registered Players
     const regPlayers = await fetchRegisteredPlayers()
@@ -1063,7 +1074,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
       role: newMemberRank as any,
       glory: parseInt(newMemberGlory) || 1000,
       ranking: parseInt(newMemberRanking) || (guildMembers.length + 1),
-      kills: parseInt(newMemberKills) || 0,
+      kills: 0,
     })
     setAddingGuildMember(false)
 
@@ -1081,7 +1092,6 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
       setNewMemberUid('')
       setNewMemberName('')
       setNewMemberGlory('1000')
-      setNewMemberKills('0')
       loadAllAdminData()
     } else {
       showNotification(res.error || 'Failed to add player to guild', 'error')
@@ -1124,6 +1134,51 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
       loadAllAdminData()
     } else {
       showNotification(res.error || 'Failed to remove player', 'error')
+    }
+  }
+
+  const handleResolveGuildChallenge = async (challengeId: string, nextStatus: GuildChallengeStatus) => {
+    if (
+      nextStatus === 'challenger_won' &&
+      !confirm('Confirm challenger won this duel? This will swap the ranks of challenger and defender.')
+    ) {
+      return
+    }
+    setResolvingChallengeId(challengeId)
+    const res = await resolveGuildChallenge(challengeId, nextStatus, {
+      swapRanksOnWin: nextStatus === 'challenger_won',
+    })
+    setResolvingChallengeId(null)
+
+    if (res.success) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('site_settings_updated'))
+      }
+      showNotification(
+        nextStatus === 'challenger_won'
+          ? 'Challenge resolved & player ranks swapped!'
+          : `Challenge marked as ${nextStatus.replace('_', ' ')}.`
+      )
+      loadAllAdminData()
+    } else {
+      showNotification(res.error || 'Failed to resolve challenge', 'error')
+    }
+  }
+
+  const handleDeleteGuildChallengeRecord = async (challengeId: string) => {
+    if (!confirm('Delete this rank challenge record?')) return
+    setResolvingChallengeId(challengeId)
+    const res = await deleteGuildChallenge(challengeId)
+    setResolvingChallengeId(null)
+
+    if (res.success) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('site_settings_updated'))
+      }
+      showNotification('Challenge record deleted.')
+      loadAllAdminData()
+    } else {
+      showNotification(res.error || 'Failed to delete challenge', 'error')
     }
   }
 
@@ -2072,7 +2127,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                   })()}
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-4 sm:grid-cols-3">
                   <div>
                     <label className="mb-1 block label !text-brand-bright">
                       2. ASSIGN RANKING *
@@ -2090,24 +2145,8 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                   </div>
 
                   <div>
-                    <label className="mb-1 block label !text-brand-bright">
-                      3. PLAYER KILLS *
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      required
-                      placeholder="e.g. 250"
-                      value={newMemberKills}
-                      onChange={(e) => setNewMemberKills(e.target.value)}
-                      className="w-full border border-line bg-surface-2 px-3 py-2 text-xs text-brand-bright font-bold focus:outline-none"
-                    />
-                    <span className="text-xs text-ink-subtle">Total verified kills</span>
-                  </div>
-
-                  <div>
                     <label className="mb-1 block label uppercase">
-                      4. INITIAL GLORY POINTS *
+                      3. INITIAL GLORY POINTS *
                     </label>
                     <input
                       type="number"
@@ -2121,7 +2160,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
                   <div>
                     <label className="mb-1 block label uppercase">
-                      5. GUILD ROLE
+                      4. GUILD ROLE
                     </label>
                     <select
                       value={newMemberRank}
@@ -2208,7 +2247,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                               ⚔️ {(m.kills || 0).toLocaleString()} KILLS
                             </span>
                             <p className="text-xs font-bold text-brand-bright mt-0.5">
-                              {(m.glory_contributed || 1000).toLocaleString()} GP
+                              {(m.glory_contributed ?? 0).toLocaleString()} GP
                             </p>
                           </div>
 
@@ -2235,6 +2274,130 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     ))
                   )}
                 </div>
+              </div>
+
+              {/* Guild Rank Challenges Management */}
+              <div className="border border-line-subtle bg-surface-2 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <div>
+                    <h4 className="eyebrow flex items-center gap-2">
+                      <Swords size={14} className="text-brand-bright" /> GUILD RANK CHALLENGES ({guildChallenges.length})
+                    </h4>
+                    <p className="text-xs text-ink-subtle mt-1">
+                      1-rank-above challenges ({MIN_CHALLENGE_GLORY.toLocaleString()}+ GP min, #1 Glory Member → Elder). Resolving as &ldquo;Challenger Won&rdquo; swaps roles &amp; roster rankings.
+                    </p>
+                  </div>
+                  <span className="border border-line px-2.5 py-1 text-xs font-bold uppercase text-brand-bright">
+                    {guildChallenges.filter((c) => c.status === 'pending' || c.status === 'accepted').length} ACTIVE
+                  </span>
+                </div>
+
+                {guildChallenges.length === 0 ? (
+                  <p className="text-center text-ink-subtle py-8 text-xs font-bold uppercase">
+                    No rank challenges issued yet.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {guildChallenges.map((c) => {
+                      const isBusy = resolvingChallengeId === c.id
+                      const canAcceptOrDecline = c.status === 'pending'
+                      const canResolve = c.status === 'pending' || c.status === 'accepted'
+
+                      return (
+                        <div
+                          key={c.id}
+                          className="border border-line bg-surface-1 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={`border px-2 py-0.5 text-xs font-extrabold uppercase tracking-wider rounded ${
+                                  c.status === 'pending' || c.status === 'accepted'
+                                    ? 'border-brand bg-brand/15 text-brand-bright'
+                                    : 'border-line bg-surface-3 text-ink-muted'
+                                }`}
+                              >
+                                {c.status.replace('_', ' ')}
+                              </span>
+                              <span className="text-xs text-ink-subtle font-bold">
+                                {new Date(c.created_at).toLocaleString()}
+                              </span>
+                            </div>
+
+                            <p className="mt-1.5 text-sm font-bold text-ink">
+                              {c.challenger_name}{' '}
+                              <span className="text-xs font-semibold text-ink-muted">
+                                ({c.challenger_role} · {c.challenger_glory.toLocaleString()} GP)
+                              </span>{' '}
+                              <span className="text-brand-bright">→</span> {c.defender_name}{' '}
+                              <span className="text-xs font-semibold text-ink-muted">
+                                ({c.defender_role})
+                              </span>
+                            </p>
+
+                            {c.note && (
+                              <p className="mt-1 text-xs italic text-ink-subtle">
+                                &ldquo;{c.note}&rdquo;
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            {canAcceptOrDecline && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => handleResolveGuildChallenge(c.id, 'accepted')}
+                                  className="btn-secondary px-2.5 py-1.5 text-xs font-bold uppercase"
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => handleResolveGuildChallenge(c.id, 'declined')}
+                                  className="btn-secondary px-2.5 py-1.5 text-xs font-bold uppercase"
+                                >
+                                  Decline
+                                </button>
+                              </>
+                            )}
+                            {canResolve && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => handleResolveGuildChallenge(c.id, 'challenger_won')}
+                                  className="btn-primary px-2.5 py-1.5 text-xs font-bold uppercase"
+                                >
+                                  Challenger Won · Swap
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => handleResolveGuildChallenge(c.id, 'defender_won')}
+                                  className="btn-secondary px-2.5 py-1.5 text-xs font-bold uppercase"
+                                >
+                                  Defender Won
+                                </button>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleDeleteGuildChallengeRecord(c.id)}
+                              className="text-ink-subtle hover:text-brand-bright p-2 rounded hover:bg-surface-2 transition"
+                              title="Delete Challenge Record"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}

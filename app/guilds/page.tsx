@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { SitePage } from '../../components/layout/SitePage'
 import { PageHeader } from '../../components/layout/PageHeader'
-import { Shield, Plus, Edit2, Trash2, X, ShieldCheck, Swords, Search, CheckCircle2, AlertCircle, Crown } from 'lucide-react'
+import { Shield, Plus, Edit2, Trash2, X, ShieldCheck, Swords, Search, CheckCircle2, AlertCircle, Crown, Trophy, Flame } from 'lucide-react'
 import {
   fetchEliteArmyGuild,
   fetchSiteSetting,
@@ -13,19 +13,33 @@ import {
   updateGuildMemberDetails,
   deleteGuildMember,
   findPlayerProfileByUid,
+  fetchGuildChallenges,
+  submitGuildChallenge,
+  resolveGuildChallenge,
+  deleteGuildChallenge,
   GUILD_ROLES,
   normalizeGuildRole,
 } from '../../lib/supabase'
 import { UserAvatar } from '../../components/ui/UserAvatar'
-import { Profile, GuildMember } from '../../lib/types'
+import { Profile, GuildMember, GuildChallenge, GuildChallengeStatus } from '../../lib/types'
+import {
+  MIN_CHALLENGE_GLORY,
+  GUILD_RANK_TIERS,
+  getGuildRoleRank,
+  getHighestGloryMember,
+  canMemberChallengeTarget,
+  getMemberChallengeSummary,
+} from '../../lib/guild-challenges'
 
 export default function GuildsPage() {
   const [guildInfo, setGuildInfo] = useState<{ guild: any; members: GuildMember[] } | null>(null)
   const [loading, setLoading] = useState(true)
   const [showGuildSection, setShowGuildSection] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null)
   const [registeredPlayers, setRegisteredPlayers] = useState<Profile[]>([])
   const [ownerProfile, setOwnerProfile] = useState<{ ign?: string; avatar_url?: string | null; level?: number; player_id?: string } | null>(null)
+  const [challenges, setChallenges] = useState<GuildChallenge[]>([])
 
   // Admin Modals & Controls State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -35,11 +49,16 @@ export default function GuildsPage() {
   const [newUid, setNewUid] = useState('')
   const [newPlayerName, setNewPlayerName] = useState('')
   const [newRanking, setNewRanking] = useState('1')
-  const [newKills, setNewKills] = useState('0')
   const [newGlory, setNewGlory] = useState('1000')
   const [newRole, setNewRole] = useState<string>('👤 Member')
   const [submitting, setSubmitting] = useState(false)
   const [notification, setNotification] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+
+  // Guild Challenge Modal & Action State
+  const [challengeTarget, setChallengeTarget] = useState<GuildMember | null>(null)
+  const [challengeNote, setChallengeNote] = useState('')
+  const [submittingChallenge, setSubmittingChallenge] = useState(false)
+  const [resolvingChallengeId, setResolvingChallengeId] = useState<string | null>(null)
 
   const showNotification = (text: string, type: 'success' | 'error' = 'success') => {
     setNotification({ text, type })
@@ -55,11 +74,14 @@ export default function GuildsPage() {
         fetchRegisteredPlayers(),
         findPlayerProfileByUid('1969913248'),
       ])
+      const challengeList = await fetchGuildChallenges(data?.guild?.id)
       setShowGuildSection(isVisible)
+      setCurrentUserProfile(prof)
       setIsAdmin(prof?.role === 'admin')
       setGuildInfo(data as any)
       setRegisteredPlayers(players || [])
       setOwnerProfile(owner)
+      setChallenges(challengeList || [])
       setNewRanking(String((data?.members?.length || 0) + 1))
       setLoading(false)
     } catch (err) {
@@ -141,7 +163,7 @@ export default function GuildsPage() {
       role: newRole,
       glory: parseInt(newGlory) || 1000,
       ranking: parseInt(newRanking) || ((guildInfo.members?.length || 0) + 1),
-      kills: parseInt(newKills) || 0,
+      kills: 0,
     })
     setSubmitting(false)
 
@@ -159,7 +181,6 @@ export default function GuildsPage() {
       setPlayerSearchQuery('')
       setNewUid('')
       setNewPlayerName('')
-      setNewKills('0')
       setNewGlory('1000')
       load()
     } else {
@@ -210,6 +231,80 @@ export default function GuildsPage() {
     }
   }
 
+  // Guild Rank Challenge Handlers
+  const handleSubmitChallenge = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!challengeTarget || !myGuildMember || !guildInfo?.guild?.id) return
+
+    setSubmittingChallenge(true)
+    const res = await submitGuildChallenge({
+      guildId: guildInfo.guild.id,
+      challengerMemberId: myGuildMember.id,
+      defenderMemberId: challengeTarget.id,
+      note: challengeNote,
+    })
+    setSubmittingChallenge(false)
+
+    if (res.success) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('site_settings_updated'))
+      }
+      showNotification(
+        `Rank challenge sent to ${challengeTarget.player_name || challengeTarget.profiles?.ign || 'defender'}!`
+      )
+      setChallengeTarget(null)
+      setChallengeNote('')
+      load()
+    } else {
+      showNotification(res.error || 'Failed to submit rank challenge', 'error')
+    }
+  }
+
+  const handleResolveChallenge = async (challengeId: string, nextStatus: GuildChallengeStatus) => {
+    if (
+      nextStatus === 'challenger_won' &&
+      !confirm('Confirm challenger won this duel? This will swap the ranks of challenger and defender.')
+    ) {
+      return
+    }
+    setResolvingChallengeId(challengeId)
+    const res = await resolveGuildChallenge(challengeId, nextStatus, {
+      swapRanksOnWin: nextStatus === 'challenger_won',
+    })
+    setResolvingChallengeId(null)
+
+    if (res.success) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('site_settings_updated'))
+      }
+      showNotification(
+        nextStatus === 'challenger_won'
+          ? 'Challenge resolved — ranks swapped successfully!'
+          : `Challenge marked as ${nextStatus.replace('_', ' ')}.`
+      )
+      load()
+    } else {
+      showNotification(res.error || 'Failed to update challenge', 'error')
+    }
+  }
+
+  const handleDeleteChallenge = async (challengeId: string) => {
+    if (!confirm('Remove this rank challenge record?')) return
+    setResolvingChallengeId(challengeId)
+    const res = await deleteGuildChallenge(challengeId)
+    setResolvingChallengeId(null)
+
+    if (res.success) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('site_settings_updated'))
+      }
+      showNotification('Challenge record removed.')
+      load()
+    } else {
+      showNotification(res.error || 'Failed to remove challenge', 'error')
+    }
+  }
+
   if (!loading && !showGuildSection && !isAdmin) {
     return (
       <SitePage>
@@ -244,6 +339,84 @@ export default function GuildsPage() {
       (p.free_fire_uid && p.free_fire_uid.toLowerCase().includes(q))
     )
   })
+
+  const rankedMembers = (guildInfo?.members || []).filter(
+    (m) =>
+      m.profiles?.free_fire_uid !== '1969913248' &&
+      m.player_name !== 'ELITE ಕನ್ನಡಿಗ' &&
+      m.profiles?.ign !== 'ELITE ಕನ್ನಡಿಗ'
+  )
+
+  const hasRosterLeader = rankedMembers.some((m) => getGuildRoleRank(m.guild_role) === 1)
+
+  const myGuildMember = currentUserProfile
+    ? rankedMembers.find(
+        (m) =>
+          (m.user_id && m.user_id === currentUserProfile.id) ||
+          (currentUserProfile.free_fire_uid &&
+            (m.free_fire_uid === currentUserProfile.free_fire_uid ||
+              m.profiles?.free_fire_uid === currentUserProfile.free_fire_uid))
+      ) || null
+    : null
+
+  const ownerSyntheticLeader: GuildMember | null = !hasRosterLeader
+    ? {
+        id: 'guild-owner-leader',
+        guild_id: guildInfo?.guild?.id || '',
+        user_id: '',
+        guild_role: '👑 Leader',
+        glory_contributed: 1000,
+        kills: 0,
+        ranking: 1,
+        player_name: 'ELITE ಕನ್ನಡಿಗ',
+        free_fire_uid: '1969913248',
+        joined_at: '',
+        status: 'active',
+        profiles: {
+          id: 'guild-owner-leader',
+          ign: 'ELITE ಕನ್ನಡಿಗ',
+          avatar_url: ownerProfile?.avatar_url || null,
+          free_fire_uid: '1969913248',
+          level: ownerProfile?.level || 80,
+        } as Profile,
+      }
+    : null
+
+  const challengeEligibleRoster = ownerSyntheticLeader
+    ? [ownerSyntheticLeader, ...rankedMembers]
+    : rankedMembers
+
+  const highestGloryMember = getHighestGloryMember(rankedMembers)
+
+  const myChallengeSummary = myGuildMember
+    ? getMemberChallengeSummary({
+        member: myGuildMember,
+        allMembers: challengeEligibleRoster,
+        existingChallenges: challenges,
+      })
+    : null
+
+  const ownerLeaderCheck =
+    myGuildMember && ownerSyntheticLeader
+      ? canMemberChallengeTarget({
+          challenger: myGuildMember,
+          target: ownerSyntheticLeader,
+          allMembers: challengeEligibleRoster,
+          existingChallenges: challenges,
+        })
+      : null
+
+  const isCurrentUserDefender = (c: GuildChallenge) => {
+    if (!currentUserProfile) return false
+    if (myGuildMember && c.defender_member_id === myGuildMember.id) return true
+    if (
+      c.defender_member_id === 'guild-owner-leader' &&
+      currentUserProfile.free_fire_uid === '1969913248'
+    ) {
+      return true
+    }
+    return false
+  }
 
   return (
     <SitePage>
@@ -335,6 +508,41 @@ export default function GuildsPage() {
                     </>
                   )}
                 </p>
+
+                {!hasRosterLeader && myGuildMember && myChallengeSummary?.myTier === 2 && ownerSyntheticLeader && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {challenges.some(
+                      (c) =>
+                        c.status === 'pending' &&
+                        c.challenger_member_id === myGuildMember.id &&
+                        c.defender_member_id === ownerSyntheticLeader.id
+                    ) ? (
+                      <span className="badge border-brand-border bg-brand-muted text-brand-bright">
+                        <Swords size={12} />
+                        Challenge pending
+                      </span>
+                    ) : ownerLeaderCheck?.allowed ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChallengeNote('')
+                          setChallengeTarget(ownerSyntheticLeader)
+                        }}
+                        className="btn-primary btn-sm"
+                      >
+                        <Swords size={13} />
+                        Challenge Leader
+                      </button>
+                    ) : (
+                      <span
+                        title={ownerLeaderCheck?.reason}
+                        className="badge text-ink-subtle"
+                      >
+                        Need {MIN_CHALLENGE_GLORY.toLocaleString()} GP to challenge Leader
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -360,183 +568,487 @@ export default function GuildsPage() {
           </div>
         </div>
 
-        {/* Player Roster Section */}
-        {(() => {
-          const rankedMembers = (guildInfo?.members || []).filter(
-            (m) =>
-              m.profiles?.free_fire_uid !== '1969913248' &&
-              m.player_name !== 'ELITE ಕನ್ನಡಿಗ' &&
-              m.profiles?.ign !== 'ELITE ಕನ್ನಡಿಗ'
-          )
-
-          return (
-            <div>
-              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="kicker">
-                    <span className="kicker-line" aria-hidden="true" />
-                    Official roster
-                  </p>
-                  <h2 className="display-section mt-2">Competitive rankings</h2>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="badge">{rankedMembers.length} active</span>
-                  {isAdmin && (
-                    <div className="sm:hidden">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNewRanking(String((guildInfo?.members?.length || 0) + 1))
-                          setIsAddModalOpen(true)
-                        }}
-                        className="btn-secondary btn-sm"
-                      >
-                        <Plus size={14} />
-                        Add
-                      </button>
-                    </div>
-                  )}
-                </div>
+        {/* Guild Rank Challenge Rules & Eligibility */}
+        <div className="card mb-8 p-5 sm:mb-10 sm:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="badge badge-brand">
+                  <Swords size={12} />
+                  Rank challenges
+                </span>
+                <span className="badge">
+                  <Flame size={12} />
+                  {MIN_CHALLENGE_GLORY.toLocaleString()}+ GP required
+                </span>
               </div>
+              <h2 className="mt-2.5 text-base font-semibold text-ink sm:text-lg">
+                1-Rank-Above Challenge Ladder
+              </h2>
+              <p className="mt-1 text-xs leading-relaxed text-ink-muted sm:text-sm">
+                Players can challenge only <strong className="text-ink">1 rank tier above</strong> their
+                current role (only Co-Leaders can challenge the Leader). All challengers must reach{' '}
+                <strong className="text-ink">{MIN_CHALLENGE_GLORY.toLocaleString()} Glory Points</strong>, and
+                among Members only the{' '}
+                <strong className="text-ink">#1 Highest-Glory Member</strong> can challenge an Elder.
+              </p>
 
-              <div className="card divide-y divide-line-subtle overflow-hidden">
-                {rankedMembers.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
-                    <span className="grid h-12 w-12 place-items-center rounded-lg border border-line bg-surface-2 text-ink-subtle">
-                      <ShieldCheck size={22} />
-                    </span>
-                    <p className="mt-4 text-sm font-semibold text-ink">
-                      No guild members yet
-                    </p>
-                    <p className="mt-1 max-w-sm text-xs text-ink-subtle">
-                      {isAdmin
-                        ? 'Add your first member by selecting from the registered players list.'
-                        : 'The official roster is being updated. Please check back soon.'}
-                    </p>
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNewRanking('1')
-                          setIsAddModalOpen(true)
-                        }}
-                        className="btn-primary btn-sm mt-5"
-                      >
-                        <Plus size={14} />
-                        Add first member
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  rankedMembers.map((m: any, index: number) => {
-                    const assignedRank = m.ranking ?? (index + 1)
-                    const role =
-                      normalizeGuildRole(m.guild_role)
-                        .replace(/[^\p{L}\s]/gu, '')
-                        .trim() || 'Member'
-                    const isLeader = role.toLowerCase().includes('leader')
-
-                    return (
-                      <div
-                        key={m.id || index}
-                        className={`flex flex-col gap-4 px-4 py-4 transition-colors hover:bg-surface-2 sm:flex-row sm:items-center sm:justify-between sm:px-5 ${
-                          assignedRank === 1 ? 'bg-brand-muted' : ''
+              <div className="mt-4 flex flex-wrap items-center gap-1.5 text-xs">
+                {GUILD_RANK_TIERS.map((tier, idx) => {
+                  const isMine = myChallengeSummary?.myTier === tier.rank
+                  return (
+                    <span key={tier.rank} className="inline-flex items-center gap-1.5">
+                      <span
+                        className={`rounded-md border px-2 py-0.5 font-medium ${
+                          isMine
+                            ? 'border-brand-border bg-brand-muted text-brand-bright'
+                            : 'border-line bg-surface-2 text-ink-muted'
                         }`}
                       >
-                        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                        {tier.label}
+                        {tier.rank === 8 ? ' (#1 GP)' : ''}
+                      </span>
+                      {idx < GUILD_RANK_TIERS.length - 1 && (
+                        <span className="text-ink-subtle" aria-hidden="true">
+                          ←
+                        </span>
+                      )}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="w-full shrink-0 rounded-lg border border-line bg-surface-2 p-4 lg:w-80">
+              <p className="label">Your challenge status</p>
+              {myGuildMember && myChallengeSummary ? (
+                <div className="mt-2 space-y-2 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-ink-subtle">Role</span>
+                    <span className="font-semibold text-ink">
+                      {normalizeGuildRole(myGuildMember.guild_role)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-ink-subtle">Glory</span>
+                    <span
+                      className={`font-semibold tabular-nums ${
+                        myChallengeSummary.hasEnoughGlory ? 'text-ink' : 'text-brand-bright'
+                      }`}
+                    >
+                      {myChallengeSummary.myGlory.toLocaleString()} / {MIN_CHALLENGE_GLORY.toLocaleString()} GP
+                    </span>
+                  </div>
+                  <p className="border-t border-line-subtle pt-2 leading-relaxed text-ink-muted">
+                    {myChallengeSummary.blockReason}
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-2 text-xs leading-relaxed text-ink-muted">
+                  Sign in with a registered ELITE ARMY roster UID to issue rank challenges.
+                </p>
+              )}
+
+              {highestGloryMember && (
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-line-subtle pt-2.5 text-xs">
+                  <span className="inline-flex items-center gap-1 text-ink-subtle">
+                    <Trophy size={12} className="text-brand-bright" />
+                    Top Member
+                  </span>
+                  <span className="truncate font-semibold text-ink">
+                    {highestGloryMember.player_name || highestGloryMember.profiles?.ign || 'Player'} (
+                    {(highestGloryMember.glory_contributed ?? 0).toLocaleString()} GP)
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Player Roster Section */}
+        <div>
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="kicker">
+                <span className="kicker-line" aria-hidden="true" />
+                Official roster
+              </p>
+              <h2 className="display-section mt-2">Competitive rankings</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="badge">{rankedMembers.length} active</span>
+              {isAdmin && (
+                <div className="sm:hidden">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewRanking(String((guildInfo?.members?.length || 0) + 1))
+                      setIsAddModalOpen(true)
+                    }}
+                    className="btn-secondary btn-sm"
+                  >
+                    <Plus size={14} />
+                    Add
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="card divide-y divide-line-subtle overflow-hidden">
+            {rankedMembers.length === 0 ? (
+              <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
+                <span className="grid h-12 w-12 place-items-center rounded-lg border border-line bg-surface-2 text-ink-subtle">
+                  <ShieldCheck size={22} />
+                </span>
+                <p className="mt-4 text-sm font-semibold text-ink">
+                  No guild members yet
+                </p>
+                <p className="mt-1 max-w-sm text-xs text-ink-subtle">
+                  {isAdmin
+                    ? 'Add your first member by selecting from the registered players list.'
+                    : 'The official roster is being updated. Please check back soon.'}
+                </p>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewRanking('1')
+                      setIsAddModalOpen(true)
+                    }}
+                    className="btn-primary btn-sm mt-5"
+                  >
+                    <Plus size={14} />
+                    Add first member
+                  </button>
+                )}
+              </div>
+            ) : (
+              rankedMembers.map((m, index) => {
+                const assignedRank = m.ranking ?? index + 1
+                const roleRank = getGuildRoleRank(m.guild_role)
+                const role =
+                  normalizeGuildRole(m.guild_role)
+                    .replace(/[^\p{L}\-\s]/gu, '')
+                    .trim() || 'Member'
+                const isLeader = roleRank === 1
+                const isTopMember = Boolean(highestGloryMember && highestGloryMember.id === m.id)
+
+                const isTargetNextTier =
+                  Boolean(myGuildMember && myChallengeSummary) &&
+                  roleRank === (myChallengeSummary?.myTier ?? 99) - 1
+
+                const hasPendingVsTarget = Boolean(
+                  myGuildMember &&
+                    challenges.some(
+                      (c) =>
+                        c.status === 'pending' &&
+                        c.challenger_member_id === myGuildMember.id &&
+                        c.defender_member_id === m.id
+                    )
+                )
+
+                const targetEligibility =
+                  myGuildMember && isTargetNextTier
+                    ? canMemberChallengeTarget({
+                        challenger: myGuildMember,
+                        target: m,
+                        allMembers: challengeEligibleRoster,
+                        existingChallenges: challenges,
+                      })
+                    : null
+
+                const blockedTag =
+                  targetEligibility && !targetEligibility.allowed
+                    ? (myGuildMember?.glory_contributed ?? 0) < MIN_CHALLENGE_GLORY
+                      ? `Need ${MIN_CHALLENGE_GLORY} GP`
+                      : myChallengeSummary?.myTier === 8 && !myChallengeSummary.isHighestGloryMember
+                        ? 'Top Member only'
+                        : 'Unavailable'
+                    : null
+
+                return (
+                  <div
+                    key={m.id || index}
+                    className={`flex flex-col gap-4 px-4 py-4 transition-colors hover:bg-surface-2 sm:flex-row sm:items-center sm:justify-between sm:px-5 ${
+                      assignedRank === 1 ? 'bg-brand-muted' : ''
+                    }`}
+                  >
+                    <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                      <span
+                        className={`w-7 shrink-0 text-center text-sm font-bold tabular-nums ${
+                          assignedRank === 1 ? 'text-brand-bright' : 'text-ink-subtle'
+                        }`}
+                      >
+                        #{assignedRank}
+                      </span>
+
+                      <UserAvatar
+                        src={m.profiles?.avatar_url}
+                        name={m.player_name || m.profiles?.ign}
+                        size="md"
+                        className="h-10 w-10 shrink-0 border border-line sm:h-11 sm:w-11"
+                      />
+
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <h3 className="truncate text-sm font-semibold text-ink">
+                            {m.player_name || m.profiles?.ign || 'ELITE PLAYER'}
+                          </h3>
                           <span
-                            className={`w-7 shrink-0 text-center text-sm font-bold tabular-nums ${
-                              assignedRank === 1
-                                ? 'text-brand-bright'
-                                : 'text-ink-subtle'
+                            className={`badge ${
+                              isLeader
+                                ? 'border-brand-border bg-brand-muted text-brand-bright'
+                                : ''
                             }`}
                           >
-                            #{assignedRank}
+                            {role}
                           </span>
-
-                          <UserAvatar
-                            src={m.profiles?.avatar_url}
-                            name={m.player_name || m.profiles?.ign}
-                            size="md"
-                            className="h-10 w-10 shrink-0 border border-line sm:h-11 sm:w-11"
-                          />
-
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <h3 className="truncate text-sm font-semibold text-ink">
-                                {m.player_name || m.profiles?.ign || 'ELITE PLAYER'}
-                              </h3>
-                              <span
-                                className={`badge ${
-                                  isLeader
-                                    ? 'border-brand-border bg-brand-muted text-brand-bright'
-                                    : ''
-                                }`}
-                              >
-                                {role}
-                              </span>
-                            </div>
-                            <p className="mt-0.5 truncate text-xs text-ink-subtle">
-                              ID {m.profiles?.player_id || 'N/A'} · UID{' '}
-                              {m.profiles?.free_fire_uid || m.free_fire_uid || 'N/A'} · Level{' '}
-                              {m.profiles?.level || 1}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-4 border-t border-line-subtle pt-3 sm:justify-end sm:border-0 sm:pt-0">
-                          <div className="flex items-center gap-4">
-                            <div>
-                              <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
-                                <Swords size={13} className="text-brand-bright" />
-                                {(m.kills || 0).toLocaleString()}
-                              </p>
-                              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-subtle">
-                                Kills
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-ink">
-                                {(m.glory_contributed || 1000).toLocaleString()}
-                              </p>
-                              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-subtle">
-                                Glory
-                              </p>
-                            </div>
-                          </div>
-
-                          {isAdmin && (
-                            <div className="flex items-center gap-1 border-l border-line-subtle pl-2">
-                              <button
-                                type="button"
-                                onClick={() => setEditingMember(m)}
-                                className="grid h-9 w-9 place-items-center rounded-md text-ink-subtle transition-colors hover:bg-surface-3 hover:text-ink"
-                                title="Edit ranking, kills and role"
-                                aria-label={`Edit ${m.player_name || m.profiles?.ign}`}
-                              >
-                                <Edit2 size={16} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteGuildPlayer(m.id, m.user_id)}
-                                className="grid h-9 w-9 place-items-center rounded-md text-ink-subtle transition-colors hover:bg-brand-muted hover:text-brand-bright"
-                                title="Remove member from guild"
-                                aria-label={`Remove ${m.player_name || m.profiles?.ign}`}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
+                          {isTopMember && (
+                            <span className="badge border-brand-border bg-brand-muted text-brand-bright">
+                              <Trophy size={11} />
+                              Top Member
+                            </span>
                           )}
                         </div>
+                        <p className="mt-0.5 truncate text-xs text-ink-subtle">
+                          ID {m.profiles?.player_id || 'N/A'} · UID{' '}
+                          {m.profiles?.free_fire_uid || m.free_fire_uid || 'N/A'} · Level{' '}
+                          {m.profiles?.level || 1}
+                        </p>
                       </div>
-                    )
-                  })
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-subtle pt-3 sm:justify-end sm:border-0 sm:pt-0">
+                      <div className="flex items-center gap-4">
+                        <div>
+                          <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+                            <Swords size={13} className="text-brand-bright" />
+                            {(m.kills || 0).toLocaleString()}
+                          </p>
+                          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-subtle">
+                            Kills
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-ink">
+                            {(m.glory_contributed ?? 0).toLocaleString()}
+                          </p>
+                          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-subtle">
+                            Glory
+                          </p>
+                        </div>
+                      </div>
+
+                      {isTargetNextTier && (
+                        <div className="flex items-center">
+                          {hasPendingVsTarget ? (
+                            <span className="badge border-brand-border bg-brand-muted text-brand-bright">
+                              <Swords size={11} />
+                              Pending
+                            </span>
+                          ) : targetEligibility?.allowed ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setChallengeNote('')
+                                setChallengeTarget(m)
+                              }}
+                              className="btn-primary btn-sm"
+                            >
+                              <Swords size={13} />
+                              Challenge
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              title={targetEligibility?.reason}
+                              className="btn-secondary btn-sm cursor-not-allowed opacity-60"
+                            >
+                              <Swords size={13} />
+                              {blockedTag}
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {isAdmin && (
+                        <div className="flex items-center gap-1 border-l border-line-subtle pl-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingMember(m)}
+                            className="grid h-9 w-9 place-items-center rounded-md text-ink-subtle transition-colors hover:bg-surface-3 hover:text-ink"
+                            title="Edit ranking, kills and role"
+                            aria-label={`Edit ${m.player_name || m.profiles?.ign}`}
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteGuildPlayer(m.id, m.user_id)}
+                            className="grid h-9 w-9 place-items-center rounded-md text-ink-subtle transition-colors hover:bg-brand-muted hover:text-brand-bright"
+                            title="Remove member from guild"
+                            aria-label={`Remove ${m.player_name || m.profiles?.ign}`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
             )}
           </div>
         </div>
-      )
-    })()}
-  </div>
+
+        {/* Active & Recent Rank Challenges Feed */}
+        <div className="mt-10">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="kicker">
+                <span className="kicker-line" aria-hidden="true" />
+                Rank duels
+              </p>
+              <h2 className="display-section mt-2">Active &amp; recent challenges</h2>
+            </div>
+            <span className="badge">
+              {challenges.filter((c) => c.status === 'pending' || c.status === 'accepted').length} active
+            </span>
+          </div>
+
+          <div className="card divide-y divide-line-subtle overflow-hidden">
+            {challenges.length === 0 ? (
+              <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+                <Swords size={26} className="text-ink-subtle" />
+                <p className="mt-2.5 text-sm font-semibold text-ink">
+                  No rank challenges issued yet
+                </p>
+                <p className="mt-1 text-xs text-ink-subtle">
+                  Eligible members with {MIN_CHALLENGE_GLORY.toLocaleString()}+ GP can challenge 1 rank tier above.
+                </p>
+              </div>
+            ) : (
+              challenges.map((c) => {
+                const isBusy = resolvingChallengeId === c.id
+                const canRespond = c.status === 'pending' && (isCurrentUserDefender(c) || isAdmin)
+                const canFinalize =
+                  isAdmin && (c.status === 'pending' || c.status === 'accepted')
+
+                const statusLabel =
+                  c.status === 'challenger_won'
+                    ? 'Challenger Won'
+                    : c.status === 'defender_won'
+                      ? 'Defender Won'
+                      : c.status === 'accepted'
+                        ? 'Accepted'
+                        : c.status === 'declined'
+                          ? 'Declined'
+                          : 'Pending'
+
+                const statusClass =
+                  c.status === 'pending' || c.status === 'accepted'
+                    ? 'border-brand-border bg-brand-muted text-brand-bright'
+                    : ''
+
+                return (
+                  <div
+                    key={c.id}
+                    className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`badge ${statusClass}`}>{statusLabel}</span>
+                        <span className="text-xs text-ink-subtle">
+                          {new Date(c.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      <p className="mt-1.5 text-sm font-semibold text-ink">
+                        <span>{c.challenger_name}</span>{' '}
+                        <span className="text-xs font-medium text-ink-muted">
+                          ({c.challenger_role} · {c.challenger_glory.toLocaleString()} GP)
+                        </span>{' '}
+                        <span className="text-brand-bright">→</span>{' '}
+                        <span>{c.defender_name}</span>{' '}
+                        <span className="text-xs font-medium text-ink-muted">
+                          ({c.defender_role})
+                        </span>
+                      </p>
+
+                      {c.note && (
+                        <p className="mt-1 text-xs italic text-ink-subtle">
+                          &ldquo;{c.note}&rdquo;
+                        </p>
+                      )}
+                    </div>
+
+                    {(canRespond || canFinalize || isAdmin) && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {canRespond && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleResolveChallenge(c.id, 'accepted')}
+                              className="btn-primary btn-sm"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleResolveChallenge(c.id, 'declined')}
+                              className="btn-secondary btn-sm"
+                            >
+                              Decline
+                            </button>
+                          </>
+                        )}
+
+                        {canFinalize && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleResolveChallenge(c.id, 'challenger_won')}
+                              className="btn-primary btn-sm"
+                            >
+                              Challenger won · Swap ranks
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleResolveChallenge(c.id, 'defender_won')}
+                              className="btn-secondary btn-sm"
+                            >
+                              Defender won
+                            </button>
+                          </>
+                        )}
+
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleDeleteChallenge(c.id)}
+                            className="grid h-8 w-8 place-items-center rounded-md text-ink-subtle transition-colors hover:bg-brand-muted hover:text-brand-bright"
+                            title="Delete challenge record"
+                            aria-label="Delete challenge record"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Admin: Add Guild Member Modal */}
       {isAddModalOpen && (
@@ -661,7 +1173,7 @@ export default function GuildsPage() {
                 })()}
               </div>
 
-              {/* Ranking & Kills */}
+              {/* Ranking & Glory Points */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1 block label">
@@ -681,26 +1193,7 @@ export default function GuildsPage() {
 
                 <div>
                   <label className="mb-1 block label">
-                    3. PLAYER KILLS *
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    placeholder="e.g. 250"
-                    value={newKills}
-                    onChange={(e) => setNewKills(e.target.value)}
-                    className="field h-10 text-brand-bright font-semibold"
-                  />
-                  <span className="text-xs text-ink-subtle">Total kills to showcase</span>
-                </div>
-              </div>
-
-              {/* Glory & Guild Role */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block label">
-                    4. GLORY POINTS *
+                    3. GLORY POINTS *
                   </label>
                   <input
                     type="number"
@@ -711,23 +1204,24 @@ export default function GuildsPage() {
                   />
                   <span className="text-xs text-ink-subtle">Initial GP contribution</span>
                 </div>
+              </div>
 
-                <div>
-                  <label className="mb-1 block label">
-                    5. GUILD ROLE
-                  </label>
-                  <select
-                    value={newRole}
-                    onChange={(e) => setNewRole(e.target.value)}
-                    className="field h-10"
-                  >
-                    {GUILD_ROLES.map((r) => (
-                      <option key={r.rank} value={r.name}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* Guild Role */}
+              <div>
+                <label className="mb-1 block label">
+                  4. GUILD ROLE
+                </label>
+                <select
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value)}
+                  className="field h-10"
+                >
+                  {GUILD_ROLES.map((r) => (
+                    <option key={r.rank} value={r.name}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <button
@@ -872,6 +1366,93 @@ export default function GuildsPage() {
               >
                 {submitting ? 'SAVING CHANGES...' : 'SAVE PLAYER DETAILS'}
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Guild Member: Confirm Rank Challenge Modal */}
+      {challengeTarget && myGuildMember && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Issue guild rank challenge"
+        >
+          <div className="modal-panel relative max-w-md space-y-4 p-5 sm:p-6">
+            <button
+              type="button"
+              onClick={() => setChallengeTarget(null)}
+              className="btn-ghost btn-icon absolute right-4 top-4"
+              aria-label="Close modal"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3 border-b border-line-subtle pb-4">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-brand-border bg-brand-muted text-brand-bright">
+                <Swords size={20} />
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-lg font-semibold text-ink">
+                  Challenge {challengeTarget.player_name || challengeTarget.profiles?.ign || 'Player'}
+                </h3>
+                <p className="text-xs text-ink-muted">
+                  1-Rank-Above Duel · {normalizeGuildRole(myGuildMember.guild_role)} →{' '}
+                  {normalizeGuildRole(challengeTarget.guild_role)}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-lg border border-line bg-surface-2 p-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-ink-subtle">Challenger (You)</span>
+                <span className="font-semibold text-ink">
+                  {myGuildMember.player_name || myGuildMember.profiles?.ign} ·{' '}
+                  {(myGuildMember.glory_contributed ?? 0).toLocaleString()} GP
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-ink-subtle">Defender</span>
+                <span className="font-semibold text-ink">
+                  {challengeTarget.player_name || challengeTarget.profiles?.ign} (
+                  {normalizeGuildRole(challengeTarget.guild_role)})
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitChallenge} className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase text-ink-muted">
+                  CHALLENGE NOTE (OPTIONAL)
+                </label>
+                <textarea
+                  rows={2}
+                  maxLength={180}
+                  value={challengeNote}
+                  onChange={(e) => setChallengeNote(e.target.value)}
+                  placeholder="e.g. 1v1 Custom Room · Best of 3 rounds tonight at 9 PM"
+                  className="field min-h-[72px] py-2"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setChallengeTarget(null)}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingChallenge}
+                  className="btn-primary"
+                >
+                  <Swords size={15} />
+                  {submittingChallenge ? 'Sending...' : 'Send challenge'}
+                </button>
+              </div>
             </form>
           </div>
         </div>

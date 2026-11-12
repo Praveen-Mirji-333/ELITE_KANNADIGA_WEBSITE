@@ -164,6 +164,34 @@ export interface GuildMember {
   kills?: number
 }
 
+export type GuildChallengeStatus =
+  | 'pending'
+  | 'accepted'
+  | 'challenger_won'
+  | 'defender_won'
+  | 'declined'
+
+export interface GuildChallenge {
+  id: string
+  guild_id: string
+  challenger_member_id: string
+  challenger_user_id: string
+  challenger_name: string
+  challenger_uid?: string
+  challenger_role: string
+  challenger_glory: number
+  defender_member_id: string
+  defender_user_id: string
+  defender_name: string
+  defender_uid?: string
+  defender_role: string
+  defender_glory: number
+  status: GuildChallengeStatus
+  note?: string
+  created_at: string
+  updated_at?: string
+}
+
 export interface XPTransaction {
   id: string
   user_id: string
