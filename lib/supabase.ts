@@ -3,6 +3,8 @@ import type {
   Profile,
   Tournament,
   TournamentRegistration,
+  ArchivedTournamentTeamSnapshot,
+  TournamentArchive,
   Guild,
   GuildMember,
   GuildChallenge,
@@ -101,6 +103,7 @@ export async function getUserProfile(userId?: string): Promise<Profile | null> {
     const effectiveStreak = calculateEffectiveStreak(data.last_login_date, data.login_streak)
     return {
       ...data,
+      email: data.email || (currentUser && currentUser.id === uid ? currentUser.email : undefined),
       login_streak: effectiveStreak,
       role,
     }
@@ -114,7 +117,44 @@ export async function updateUserProfile(updates: Partial<Profile>) {
     const u = await getCurrentUser()
     if (!u) return { success: false, error: 'Not authenticated' }
 
-    const { id, player_id, total_xp, level, role, ...allowed } = updates as any
+    const { id, player_id, total_xp, level, role, email, free_fire_uid, ...rest } = updates as any
+    const allowed: Record<string, any> = { ...rest }
+
+    // Enforce immutable binding once Free Fire UID is set on a profile
+    const { data: existingProf } = await supabase
+      .from('profiles')
+      .select('free_fire_uid')
+      .eq('id', u.id)
+      .maybeSingle()
+
+    const currentBoundUid = (existingProf?.free_fire_uid || '').trim()
+    const requestedUid = typeof free_fire_uid === 'string' ? free_fire_uid.trim() : undefined
+
+    if (currentBoundUid) {
+      if (requestedUid !== undefined && requestedUid !== currentBoundUid) {
+        return {
+          success: false,
+          error: 'Your Free Fire UID is permanently bound to your registered email and cannot be changed.',
+        }
+      }
+    } else if (requestedUid) {
+      if (!/^\d+$/.test(requestedUid)) {
+        return { success: false, error: 'Free Fire UID must contain numbers only.' }
+      }
+      const { data: uidOwner } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('free_fire_uid', requestedUid)
+        .neq('id', u.id)
+        .maybeSingle()
+      if (uidOwner) {
+        return {
+          success: false,
+          error: `Free Fire UID "${requestedUid}" is already bound to another account.`,
+        }
+      }
+      allowed.free_fire_uid = requestedUid
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -136,160 +176,276 @@ export function getUidCredentials(uid: string) {
   return { cleanUid, syntheticEmail, syntheticPassword }
 }
 
-export async function registerPlayerWithUid(gameUid: string, ign: string) {
-  const cleanUid = gameUid.trim()
-  const cleanIgn = ign.trim()
-
-  if (!cleanUid) {
-    return { success: false, error: 'Free Fire Game UID is required.' }
-  }
-  if (!cleanIgn) {
-    return { success: false, error: 'Player Name (IGN) is required.' }
-  }
-
-  const { syntheticEmail, syntheticPassword } = getUidCredentials(cleanUid)
-
-  // 1. Check if an active auth account already exists for this UID
-  const { data: existingProfile } = await supabase
-    .from('profiles')
-    .select('id, free_fire_uid, ign')
-    .eq('free_fire_uid', cleanUid)
-    .maybeSingle()
-
-  if (existingProfile) {
-    // Try logging in to see if auth credentials already exist
-    const { data: testLogin } = await supabase.auth.signInWithPassword({
-      email: syntheticEmail,
-      password: syntheticPassword,
-    })
-
-    if (testLogin?.user) {
-      // User is already fully registered with auth credentials
-      const profile = await getUserProfile(testLogin.user.id)
-      await trackPageVisit(true)
-      return { success: true, profile, role: profile?.role || 'user' }
-    }
-  }
-
-  // 2. Provision or register player account via RPC or Auth signup
-  let userId: string | null = null
-  const { data: rpcData, error: rpcErr } = await supabase.rpc('create_player_account', {
-    p_email: syntheticEmail,
-    p_password: syntheticPassword,
-    p_ign: cleanIgn,
-    p_uid: cleanUid,
-  })
-
-  if (rpcErr) {
-    if (rpcErr.message?.includes('UID_ALREADY_EXISTS')) {
-      return {
-        success: false,
-        error: `A player account with Game UID "${cleanUid}" is already registered. Please log in with your Game UID.`,
-      }
-    }
-    // Fallback to standard signUp
-    const { data: authData, error: authErr } = await supabase.auth.signUp({
-      email: syntheticEmail,
-      password: syntheticPassword,
-      options: {
-        data: {
-          ign: cleanIgn,
-          free_fire_uid: cleanUid,
-          username: cleanIgn,
-        },
-      },
-    })
-    if (authErr) {
-      return { success: false, error: authErr.message || 'Failed to create player account.' }
-    }
-    userId = authData.user?.id || null
-  } else {
-    userId = rpcData?.user_id || null
-  }
-
-  // 3. Log in with the created credentials
-  const { data: loginData, error: loginErr } = await supabase.auth.signInWithPassword({
-    email: syntheticEmail,
-    password: syntheticPassword,
-  })
-
-  if (loginErr || !loginData.user) {
-    return { success: false, error: loginErr?.message || 'Account created but failed to sign in.' }
-  }
-
-  const currentUserId = loginData.user.id
-
-  // 4. Ensure profile has free_fire_uid and ign updated
-  await supabase
-    .from('profiles')
-    .update({
-      free_fire_uid: cleanUid,
-      ign: cleanIgn,
-      username: cleanIgn,
-    })
-    .eq('id', currentUserId)
-
-  const profile = await getUserProfile(currentUserId)
-  await trackPageVisit(true)
-  return { success: true, profile, role: profile?.role || 'user' }
+function isMissingRpcError(err: any): boolean {
+  if (!err) return false
+  const msg = String(err.message || '').toLowerCase()
+  return (
+    err.code === '42883' ||
+    err.code === 'PGRST202' ||
+    msg.includes('could not find the function') ||
+    msg.includes('does not exist')
+  )
 }
 
-export async function loginPlayerWithUid(gameUid: string) {
-  const cleanUid = gameUid.trim()
-  if (!cleanUid) {
-    return { success: false, error: 'Free Fire Game UID is required.' }
+export async function registerWithEmailPasswordUid(params: {
+  email: string
+  password: string
+  freeFireUid: string
+}) {
+  const cleanEmail = params.email.trim().toLowerCase()
+  const cleanPassword = params.password || ''
+  const cleanUid = params.freeFireUid.trim()
+
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return { success: false, error: 'Please enter a valid email address.' }
+  }
+  if (cleanPassword.length < 6) {
+    return { success: false, error: 'Password must be at least 6 characters.' }
+  }
+  if (!cleanUid || !/^\d+$/.test(cleanUid)) {
+    return { success: false, error: 'Free Fire UID must contain numbers only (digits 0-9).' }
   }
 
-  // 1. Check if profile exists with this UID
-  const { data: existingProfile } = await supabase
+  // 1. Pre-check Email & UID uniqueness and binding
+  try {
+    const { data: bindCheck, error: bindErr } = await supabase.rpc('check_registration_binding', {
+      p_email: cleanEmail,
+      p_uid: cleanUid,
+    })
+    if (!bindErr && bindCheck && bindCheck.available === false) {
+      return { success: false, error: bindCheck.message || 'Email or Free Fire UID is already registered.' }
+    }
+  } catch {
+    // RPC may not be installed yet; client checks below still guard uniqueness
+  }
+
+  const { data: uidConflict } = await supabase
     .from('profiles')
-    .select('id, free_fire_uid, ign')
+    .select('id, free_fire_uid')
     .eq('free_fire_uid', cleanUid)
     .maybeSingle()
 
-  const { syntheticEmail, syntheticPassword } = getUidCredentials(cleanUid)
+  if (uidConflict) {
+    return {
+      success: false,
+      error: `Free Fire UID "${cleanUid}" is already registered and bound to another email. Please log in with that email and password.`,
+    }
+  }
 
-  // 2. Attempt login using synthetic credentials
-  let { data: loginData, error: loginErr } = await supabase.auth.signInWithPassword({
-    email: syntheticEmail,
-    password: syntheticPassword,
+  // Also check profiles.email if column exists
+  try {
+    const { data: emailConflict, error: emailColErr } = await supabase
+      .from('profiles')
+      .select('id, free_fire_uid')
+      .ilike('email', cleanEmail)
+      .maybeSingle()
+
+    if (!emailColErr && emailConflict) {
+      const boundUid = emailConflict.free_fire_uid?.trim()
+      if (boundUid && boundUid !== cleanUid) {
+        return {
+          success: false,
+          error: `This email is already bound to a different Free Fire UID (${boundUid}). Please log in with your email and password.`,
+        }
+      }
+      return {
+        success: false,
+        error: 'An account with this email already exists. Please log in with your email and password.',
+      }
+    }
+  } catch {
+    // Ignore if email column has not been added yet
+  }
+
+  const defaultIgn = cleanEmail.split('@')[0] || `Player_${cleanUid}`
+  let createdUserId: string | null = null
+  let alreadyHasSession = false
+
+  // 2. Register via dedicated Email+UID RPC first (auto-confirms & binds at DB layer)
+  const { data: rpcReg, error: rpcRegErr } = await supabase.rpc('register_with_email_and_uid', {
+    p_email: cleanEmail,
+    p_password: cleanPassword,
+    p_uid: cleanUid,
+    p_ign: defaultIgn,
   })
 
-  if (loginErr) {
-    // Provision/create account via RPC if UID exists in DB or is being logged into
-    const playerIgn = existingProfile?.ign || (await findPlayerNameByUid(cleanUid)) || 'Player ' + cleanUid
-    const { error: rpcErr } = await supabase.rpc('create_player_account', {
-      p_email: syntheticEmail,
-      p_password: syntheticPassword,
-      p_ign: playerIgn,
+  if (!rpcRegErr && rpcReg) {
+    if (rpcReg.success === false) {
+      return { success: false, error: rpcReg.error || 'Registration failed.' }
+    }
+    createdUserId = rpcReg.user_id || null
+  } else if (!rpcRegErr || isMissingRpcError(rpcRegErr)) {
+    // Fallback A: existing create_player_account RPC with real email + password + UID
+    const { data: legacyRpc, error: legacyRpcErr } = await supabase.rpc('create_player_account', {
+      p_email: cleanEmail,
+      p_password: cleanPassword,
+      p_ign: defaultIgn,
       p_uid: cleanUid,
     })
 
-    if (!rpcErr) {
-      // Retry sign in
-      const retry = await supabase.auth.signInWithPassword({
-        email: syntheticEmail,
-        password: syntheticPassword,
-      })
-      loginData = retry.data
-      loginErr = retry.error
-    }
-  }
+    if (!legacyRpcErr && (!legacyRpc || legacyRpc.success !== false)) {
+      createdUserId =
+        (typeof legacyRpc === 'string' ? legacyRpc : null) ||
+        legacyRpc?.user_id ||
+        legacyRpc?.id ||
+        null
+    } else {
+      const legacyMsg =
+        legacyRpcErr?.message || (legacyRpc && legacyRpc.success === false ? legacyRpc.error : '') || ''
+      if (legacyMsg.includes('UID_ALREADY_EXISTS')) {
+        return {
+          success: false,
+          error: `Free Fire UID "${cleanUid}" is already bound to an account. Please log in with your email and password.`,
+        }
+      }
+      if (
+        legacyMsg.toLowerCase().includes('already') ||
+        legacyMsg.toLowerCase().includes('duplicate')
+      ) {
+        return {
+          success: false,
+          error: 'This email or Free Fire UID is already registered. Please log in instead.',
+        }
+      }
 
-  if (loginErr || !loginData?.user) {
+      // Fallback B: standard Supabase signUp
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: cleanPassword,
+        options: {
+          data: {
+            email: cleanEmail,
+            free_fire_uid: cleanUid,
+            ign: defaultIgn,
+            username: defaultIgn,
+          },
+        },
+      })
+
+      if (authErr) {
+        const msg = authErr.message || ''
+        if (msg.toLowerCase().includes('already registered')) {
+          return {
+            success: false,
+            error: 'This email is already registered and bound to an account. Please log in with your email and password.',
+          }
+        }
+        return { success: false, error: msg || 'Failed to create account.' }
+      }
+
+      createdUserId = authData.user?.id || null
+      alreadyHasSession = Boolean(authData.session)
+
+      // If email confirmation is enabled on Supabase Auth and no session was returned
+      if (authData.user && !authData.session) {
+        return {
+          success: false,
+          error:
+            'Account created! Please check your email inbox to confirm your email address, then sign in with your Email & Password.',
+        }
+      }
+    }
+  } else {
     return {
       success: false,
-      error: loginErr?.message || `No account found with Game UID "${cleanUid}". Please click "NEW PLAYER? CREATE PLAYER ACCOUNT" below to register.`,
+      error: rpcRegErr?.message || 'Failed to register account.',
     }
   }
 
-  const profile = await getUserProfile(loginData.user.id)
-  if (profile && (!profile.free_fire_uid || profile.free_fire_uid !== cleanUid)) {
-    await supabase.from('profiles').update({ free_fire_uid: cleanUid }).eq('id', loginData.user.id)
+  // 3. Sign in with the newly registered Email & Password if not already signed in
+  let activeUserId = createdUserId
+  if (!alreadyHasSession) {
+    const { data: loginData, error: loginErr } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password: cleanPassword,
+    })
+
+    if (loginErr || !loginData.user) {
+      return {
+        success: false,
+        error: loginErr?.message || 'Account created, please log in with your email and password.',
+      }
+    }
+    activeUserId = loginData.user.id
   }
 
+  // 4. Bind free_fire_uid (and email if column exists) on profile
+  if (activeUserId) {
+    const { error: bindErr } = await supabase
+      .from('profiles')
+      .update({
+        free_fire_uid: cleanUid,
+        email: cleanEmail,
+      })
+      .eq('id', activeUserId)
+
+    if (bindErr && (bindErr.message?.includes('email') || bindErr.code === '42703')) {
+      await supabase
+        .from('profiles')
+        .update({ free_fire_uid: cleanUid })
+        .eq('id', activeUserId)
+    }
+  }
+
+  const profile = await getUserProfile(activeUserId || undefined)
   await trackPageVisit(true)
-  return { success: true, profile, role: profile?.role || 'user' }
+  return {
+    success: true,
+    profile,
+    role: profile?.role === 'admin' ? 'admin' : 'user',
+  }
+}
+
+export async function loginWithEmailAndPassword(email: string, password: string) {
+  const cleanEmail = email.trim().toLowerCase()
+  const cleanPassword = password || ''
+
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return { success: false, error: 'Please enter a valid email address.' }
+  }
+  if (!cleanPassword) {
+    return { success: false, error: 'Password is required.' }
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: cleanEmail,
+    password: cleanPassword,
+  })
+
+  if (error || !data.user) {
+    const msg = error?.message || ''
+    if (msg.toLowerCase().includes('invalid login credentials')) {
+      return {
+        success: false,
+        error: 'Invalid email or password. If you are new, switch to Register first.',
+      }
+    }
+    return { success: false, error: msg || 'Failed to sign in.' }
+  }
+
+  // Backfill profile binding if missing on legacy rows
+  const metaUid = String(data.user.user_metadata?.free_fire_uid || '').trim()
+  const { data: existingProf } = await supabase
+    .from('profiles')
+    .select('free_fire_uid')
+    .eq('id', data.user.id)
+    .maybeSingle()
+
+  if (existingProf && !existingProf.free_fire_uid && metaUid) {
+    await supabase
+      .from('profiles')
+      .update({ free_fire_uid: metaUid })
+      .eq('id', data.user.id)
+  }
+
+  const profile = await getUserProfile(data.user.id)
+  await trackPageVisit(true)
+
+  return {
+    success: true,
+    profile,
+    role: profile?.role === 'admin' ? 'admin' : 'user',
+  }
 }
 
 
@@ -310,44 +466,18 @@ export async function trackPageVisit(isLogin = false) {
 
 export async function fetchDynamicHomeStats(): Promise<HomeCard[]> {
   try {
-    // 1. Registered Players (total unique players across profiles, tournament registrations, guild, and honors)
+    // 1. Registered Players (actual registered accounts in profiles only — never tournament registrations)
     const uniqueUids = new Set<string>()
 
-    const { data: profiles } = await supabase.from('profiles').select('free_fire_uid, player_id')
+    const { data: profiles } = await supabase.from('profiles').select('id, free_fire_uid, player_id')
     if (profiles) {
       for (const p of profiles) {
-        const uid = (p.free_fire_uid || p.player_id || '').trim()
+        const uid = (p.free_fire_uid || p.player_id || p.id || '').trim()
         if (uid) uniqueUids.add(uid)
       }
     }
 
-    const { data: tourneyRegs } = await supabase.from('tournament_registrations').select('captain_free_fire_uid, teammate_uids')
-    if (tourneyRegs) {
-      for (const r of tourneyRegs) {
-        if (r.captain_free_fire_uid?.trim()) uniqueUids.add(r.captain_free_fire_uid.trim())
-        if (Array.isArray(r.teammate_uids)) {
-          for (const tuid of r.teammate_uids) {
-            if (tuid && String(tuid).trim()) uniqueUids.add(String(tuid).trim())
-          }
-        }
-      }
-    }
-
-    const { data: honors } = await supabase.from('player_honors').select('player_uid')
-    if (honors) {
-      for (const h of honors) {
-        if (h.player_uid?.trim()) uniqueUids.add(h.player_uid.trim())
-      }
-    }
-
-    const { data: guildMembers } = await supabase.from('guild_members').select('player_name')
-    if (guildMembers) {
-      for (const m of guildMembers) {
-        if (m.player_name?.trim()) uniqueUids.add(m.player_name.trim())
-      }
-    }
-
-    const totalRegistrations = Math.max(uniqueUids.size, 1)
+    const totalRegistrations = uniqueUids.size
 
     // 2. Organized Tournaments count (non-draft tournaments)
     const { count: tourneyCount } = await supabase
@@ -476,16 +606,26 @@ export async function deleteHomeCard(cardId: string) {
 
 export async function fetchTournaments(): Promise<Tournament[]> {
   try {
-    const { data, error } = await supabase
-      .from('tournaments')
-      .select('*, tournament_registrations(id)')
-      .order('tournament_start', { ascending: true })
+    const [{ data, error }, archives] = await Promise.all([
+      supabase
+        .from('tournaments')
+        .select('*, tournament_registrations(id)')
+        .order('tournament_start', { ascending: true }),
+      fetchTournamentArchives(),
+    ])
 
-    if (error || !data) {
+    if (error && archives.length === 0) {
       return []
     }
 
-    return data.map((t: any) => {
+    const archiveMap = new Map<string, TournamentArchive>(
+      archives.map((a) => [a.tournament_id, a])
+    )
+    const seenIds = new Set<string>()
+
+    const merged = (data || []).map((t: any) => {
+      seenIds.add(t.id)
+      const archive = archiveMap.get(t.id)
       let localOverride: any = null
       if (typeof window !== 'undefined') {
         try {
@@ -494,33 +634,72 @@ export async function fetchTournaments(): Promise<Tournament[]> {
         } catch {}
       }
 
+      const top3FromTourney =
+        localOverride?.top_3_teams && localOverride.top_3_teams.length > 0
+          ? localOverride.top_3_teams
+          : t.top_3_teams && t.top_3_teams.length > 0
+            ? t.top_3_teams
+            : archive?.top_3_teams
+
       const champImg =
         localOverride?.champions_image_url ||
         t.champions_image_url ||
-        t.top_3_teams?.[0]?.champions_image_url ||
+        top3FromTourney?.[0]?.champions_image_url ||
+        archive?.champions_image_url ||
         undefined
 
       const bgmUrl =
         localOverride?.results_bgm_url ||
         t.results_bgm_url ||
-        t.top_3_teams?.[0]?.results_bgm_url ||
+        top3FromTourney?.[0]?.results_bgm_url ||
+        archive?.results_bgm_url ||
         undefined
 
-      const top3 =
-        localOverride?.top_3_teams && localOverride.top_3_teams.length > 0
-          ? localOverride.top_3_teams
-          : t.top_3_teams
+      const liveSlots = Array.isArray(t.tournament_registrations)
+        ? t.tournament_registrations.length
+        : (t.slots_filled || 0)
+
+      const archivedSlots =
+        archive?.slots_filled || archive?.registrations_snapshot?.length || 0
 
       return {
         ...t,
-        slots_filled: Array.isArray(t.tournament_registrations)
-          ? t.tournament_registrations.length
-          : (t.slots_filled || 0),
+        slots_filled: Math.max(liveSlots, archivedSlots),
         champions_image_url: champImg,
         results_bgm_url: bgmUrl,
-        top_3_teams: top3,
+        top_3_teams: top3FromTourney,
       }
     })
+
+    // Include any archived completed tournaments whose row is no longer in `tournaments`
+    for (const arch of archives) {
+      if (!seenIds.has(arch.tournament_id)) {
+        merged.push({
+          id: arch.tournament_id,
+          title: arch.title,
+          slug: arch.slug || arch.tournament_id,
+          description: arch.description,
+          banner_url: arch.banner_url,
+          game_mode: arch.game_mode,
+          map: arch.map,
+          tournament_type: (arch.tournament_type as any) || 'FREE',
+          entry_type: (arch.entry_type as any) || 'SQUAD',
+          prize_pool: arch.prize_pool,
+          max_slots: arch.max_slots,
+          slots_filled: arch.slots_filled || arch.registrations_snapshot?.length || 0,
+          registration_start: arch.archived_at,
+          tournament_start: arch.tournament_start,
+          status: (arch.status as any) || 'completed',
+          rules: arch.rules,
+          champions_image_url: arch.champions_image_url,
+          results_bgm_url: arch.results_bgm_url,
+          top_3_teams: arch.top_3_teams,
+          created_at: arch.archived_at,
+        })
+      }
+    }
+
+    return merged
   } catch {
     return []
   }
@@ -686,15 +865,55 @@ export async function registerTournamentTeam(regData: {
   }
 }
 
+function mapArchivedSnapshotToRegistration(
+  snap: ArchivedTournamentTeamSnapshot
+): TournamentRegistration {
+  return {
+    id: snap.id,
+    tournament_id: snap.tournament_id,
+    user_id: null,
+    team_name: snap.team_name,
+    captain_name: snap.captain_name,
+    captain_free_fire_uid: snap.captain_free_fire_uid,
+    teammate_uids: snap.teammate_uids || [],
+    teammate_names: snap.teammate_names || [],
+    registration_status: snap.registration_status || 'confirmed',
+    registered_at: snap.registered_at,
+    placement: snap.placement ?? undefined,
+    kills: snap.kills ?? 0,
+    result_verified: Boolean(snap.result_verified),
+  }
+}
+
 export async function fetchTournamentRegistrationsForAdmin(tournamentId: string): Promise<TournamentRegistration[]> {
   try {
-    const { data, error } = await supabase
-      .from('tournament_registrations')
-      .select('*, profiles(ign, player_id)')
-      .eq('tournament_id', tournamentId)
+    const [{ data, error }, archive] = await Promise.all([
+      supabase
+        .from('tournament_registrations')
+        .select('*, profiles(ign, player_id)')
+        .eq('tournament_id', tournamentId),
+      fetchTournamentArchiveByTournamentId(tournamentId),
+    ])
 
-    if (error || !data) return []
-    return data
+    const liveRows = (!error && Array.isArray(data) ? data : []) as TournamentRegistration[]
+    const snapshotRows = (archive?.registrations_snapshot || []).map(mapArchivedSnapshotToRegistration)
+
+    if (liveRows.length === 0) {
+      return snapshotRows
+    }
+    if (snapshotRows.length === 0) {
+      return liveRows
+    }
+
+    // Merge live rows + any snapshot rows whose registrations were pruned
+    const seenIds = new Set(liveRows.map((r) => r.id))
+    const combined = [...liveRows]
+    for (const snap of snapshotRows) {
+      if (!seenIds.has(snap.id)) {
+        combined.push(snap)
+      }
+    }
+    return combined
   } catch {
     return []
   }
@@ -713,7 +932,45 @@ export async function saveMatchResults(registrationId: string, placement: number
       .select()
 
     if (error) return { success: false, error: error.message }
-    return { success: true, data: data[0] }
+    if (data && data.length > 0) {
+      return { success: true, data: data[0] }
+    }
+
+    // Fallback for static archived completed tournaments whose live registrations were pruned
+    const archives = await fetchTournamentArchives()
+    for (const arch of archives) {
+      const snaps = Array.isArray(arch.registrations_snapshot) ? arch.registrations_snapshot : []
+      const idx = snaps.findIndex((s) => s.id === registrationId)
+      if (idx >= 0) {
+        const updatedTeam = {
+          ...snaps[idx],
+          placement,
+          kills,
+          result_verified: true,
+        }
+        const nextSnaps = [...snaps]
+        nextSnaps[idx] = updatedTeam
+        const nowIso = new Date().toISOString()
+
+        await supabase
+          .from('tournament_archives')
+          .update({ registrations_snapshot: nextSnaps, updated_at: nowIso })
+          .eq('tournament_id', arch.tournament_id)
+
+        const settingList = await fetchSiteSettingJson<TournamentArchive[]>(ARCHIVED_TOURNAMENTS_KEY, [])
+        if (Array.isArray(settingList)) {
+          const nextSettings = settingList.map((item) =>
+            item.tournament_id === arch.tournament_id
+              ? { ...item, registrations_snapshot: nextSnaps, updated_at: nowIso }
+              : item
+          )
+          await updateSiteSettingJson(ARCHIVED_TOURNAMENTS_KEY, nextSettings)
+        }
+        return { success: true, data: updatedTeam }
+      }
+    }
+
+    return { success: false, error: 'Registration record not found.' }
   } catch (err: any) {
     return { success: false, error: err.message }
   }
@@ -784,8 +1041,14 @@ export async function updateTournamentTop3AndResults(
 
     if (error) {
       console.warn('Remote Supabase update notice:', error.message)
+      if (status === 'completed') {
+        await archiveCompletedTournament(tournamentId)
+      }
       // If network/remote error occurs, local storage was already updated, so return success for user flow
       return { success: true, data: { id: tournamentId, top_3_teams: top3 } }
+    }
+    if (status === 'completed') {
+      await archiveCompletedTournament(tournamentId)
     }
     return { success: true, data: data?.[0] }
   } catch (err: any) {
@@ -829,6 +1092,8 @@ export async function fetchUserTournamentRegistrations(userId?: string, freeFire
 
     return data.filter((r: any) => {
       if (uid && r.user_id === uid) return true
+      // Do not match unlinked/archived completed tournament rows to newly registered UIDs
+      if (r.tournaments?.status === 'completed' || r.user_id === null) return false
       if (ffUid) {
         if (r.captain_free_fire_uid && r.captain_free_fire_uid.trim() === ffUid) return true
         if (Array.isArray(r.teammate_uids) && r.teammate_uids.some((t: any) => String(t).trim() === ffUid)) return true
@@ -914,36 +1179,18 @@ export function getRankTier(rankNum: number): string {
 
 export async function fetchRankings(): Promise<LeaderboardPlayer[]> {
   try {
-    // 1. Fetch ALL user profiles from profiles table
+    // Only fetch active registered user profiles — never pull tournament_registrations into Leaderboard
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, player_id, username, ign, free_fire_uid, avatar_url, login_streak, longest_login_streak, last_login_date, total_xp, level, guild_id, guilds!fk_profiles_guild(name)')
+      .eq('is_public', true)
       .order('login_streak', { ascending: false })
       .order('longest_login_streak', { ascending: false })
       .order('total_xp', { ascending: false })
 
-    // 2. Fetch ALL tournament registrations to include players registered via tournaments
-    const { data: tourneyRegs } = await supabase
-      .from('tournament_registrations')
-      .select('id, captain_name, captain_free_fire_uid, user_id, teammate_names, teammate_uids')
-
     const playerMap = new Map<string, any>()
 
-    // Build avatar map for quick lookup - only store real avatar URLs
-    const avatarMap = new Map<string, string>()
-    if (profiles) {
-      for (const p of profiles) {
-        if (p.avatar_url && p.avatar_url.trim() !== '') {
-          const url = p.avatar_url
-          if (p.free_fire_uid) avatarMap.set(p.free_fire_uid.trim().toLowerCase(), url)
-          if (p.ign) avatarMap.set(p.ign.trim().toLowerCase(), url)
-          if (p.username) avatarMap.set(p.username.trim().toLowerCase(), url)
-          if (p.player_id) avatarMap.set(p.player_id.trim().toLowerCase(), url)
-        }
-      }
-    }
-
-    // Add profiles to map keyed by UID or ID
+    // Add profiles keyed by UID or ID
     if (profiles) {
       for (const p of profiles) {
         const uid = (p.free_fire_uid || p.player_id || '').trim()
@@ -962,56 +1209,9 @@ export async function fetchRankings(): Promise<LeaderboardPlayer[]> {
           guild: guildName || 'ELITE ARMY',
           logins: effectiveStreak,
           longest_streak: p.longest_login_streak || 0,
-          xp: p.total_xp || 100,
+          xp: p.total_xp ?? 0,
           level: p.level || 1,
         })
-      }
-    }
-
-    // Add tournament registrations captains/teammates if not already present
-    if (tourneyRegs) {
-      for (const reg of tourneyRegs) {
-        const captainUid = (reg.captain_free_fire_uid || '').trim()
-        if (captainUid && !playerMap.has(captainUid)) {
-          const capAvatar =
-            avatarMap.get(captainUid.toLowerCase()) ||
-            avatarMap.get((reg.captain_name || '').trim().toLowerCase()) ||
-            null
-          playerMap.set(captainUid, {
-            id: reg.id,
-            name: reg.captain_name || 'Captain',
-            uid: captainUid,
-            avatar_url: capAvatar,
-            guild: 'ELITE ARMY',
-            logins: 1,
-            xp: 250,
-            level: 5,
-          })
-        }
-
-        // Check teammate UIDs/names
-        if (Array.isArray(reg.teammate_uids) && Array.isArray(reg.teammate_names)) {
-          for (let i = 0; i < reg.teammate_uids.length; i++) {
-            const tUid = (reg.teammate_uids[i] || '').trim()
-            const tName = (reg.teammate_names[i] || '').trim()
-            if (tUid && !playerMap.has(tUid)) {
-              const tmAvatar =
-                avatarMap.get(tUid.toLowerCase()) ||
-                avatarMap.get(tName.toLowerCase()) ||
-                null
-              playerMap.set(tUid, {
-                id: `tm-${tUid}`,
-                name: tName || 'Teammate',
-                uid: tUid,
-                avatar_url: tmAvatar,
-                guild: 'ELITE ARMY',
-                logins: 1,
-                xp: 150,
-                level: 3,
-              })
-            }
-          }
-        }
       }
     }
 
@@ -1025,7 +1225,7 @@ export async function fetchRankings(): Promise<LeaderboardPlayer[]> {
     })
 
     if (allPlayers.length > 0) {
-      const result = allPlayers.map((item, index) => {
+      return allPlayers.map((item, index) => {
         const rankNum = index + 1
         return {
           rank: String(rankNum).padStart(2, '0'),
@@ -1041,40 +1241,12 @@ export async function fetchRankings(): Promise<LeaderboardPlayer[]> {
           change: '+' + (Math.floor(Math.random() * 4) + 1),
         }
       })
-      console.log('[fetchRankings] Returned players with avatars:', result.map(r => ({ name: r.name, uid: r.uid, avatar_url: r.avatar_url })))
-      return result
     }
   } catch (err) {
     console.error('[fetchRankings] Error:', err)
   }
 
-  // Fallback mock rankings if database is completely empty
-  const mockFallback = [
-    { id: '1', name: 'ELITE_RAHUL', uid: '1928374650', guild: 'ELITE ARMY', logins: 48, xp: 24920, level: 42, avatar_url: null },
-    { id: '2', name: 'KANNADA_KING', uid: '9876543210', guild: 'ELITE ARMY', logins: 36, xp: 22840, level: 39, avatar_url: null },
-    { id: '3', name: 'SHADOW_77', uid: '4567891230', guild: 'ELITE ARMY', logins: 29, xp: 21190, level: 36, avatar_url: null },
-    { id: '4', name: 'BL4CK_HAWK', uid: '7891234560', guild: 'ELITE ARMY', logins: 22, xp: 19804, level: 34, avatar_url: null },
-    { id: '5', name: 'NINJA_KANNADIGA', uid: '3216549870', guild: 'ELITE ARMY', logins: 18, xp: 18450, level: 31, avatar_url: null },
-    { id: '6', name: 'FIRE_STORM', uid: '5432167890', guild: 'ELITE ARMY', logins: 14, xp: 15200, level: 28, avatar_url: null },
-    { id: '7', name: 'COBRA_STRIKER', uid: '8765432109', guild: 'ELITE ARMY', logins: 11, xp: 13400, level: 24, avatar_url: null },
-  ]
-
-  return mockFallback.map((item, index) => {
-    const rankNum = index + 1
-    return {
-      rank: String(rankNum).padStart(2, '0'),
-      id: item.id,
-      name: item.name,
-      uid: item.uid,
-      avatar_url: '',
-      guild: item.guild,
-      logins: item.logins,
-      xp: item.xp,
-      level: item.level,
-      tier: getRankTier(rankNum),
-      change: '+' + (Math.floor(Math.random() * 4) + 1),
-    }
-  })
+  return []
 }
 
 // ==========================================
@@ -1133,21 +1305,6 @@ export async function fetchPlayerHonors(category: 'gun_gods' | 'movement_gods'):
     return []
   }
   return []
-
-  // Fallback mock data if database table empty
-  if (category === 'gun_gods') {
-    return [
-      { id: 'h1', category: 'gun_gods', player_uid: '1928374650', player_name: 'ELITE_RAHUL', title_name: 'M1887 One-Tap King', description: 'Dominates 1v1 custom rooms with devastating close-range headshot accuracy.', rank: '01', tier: 'ELITE MASTER', avatar_url: null },
-      { id: 'h2', category: 'gun_gods', player_uid: '9876543210', player_name: 'KANNADA_KING', title_name: 'AWM Sniper God', description: 'Long-range sniper specialist with 95% headshot accuracy in tournament finals.', rank: '02', tier: 'ELITE HEROIC', avatar_url: null },
-      { id: 'h3', category: 'gun_gods', player_uid: '4567891230', player_name: 'SHADOW_77', title_name: 'MP40 Speed Demon', description: 'Insane fire rate spray control and instant close-combat wipes.', rank: '03', tier: 'PLATINUM', avatar_url: null },
-    ]
-  } else {
-    return [
-      { id: 'h4', category: 'movement_gods', player_uid: '4567891230', player_name: 'SHADOW_77', title_name: '360 Gloo Wall Fast Dash', description: 'Lightning fast gloo wall placement and unpredictable zig-zag rush movements.', rank: '01', tier: 'ELITE MASTER', avatar_url: null },
-      { id: 'h5', category: 'movement_gods', player_uid: '7891234560', player_name: 'BL4CK_HAWK', title_name: 'Speed Jump Shot Master', description: 'Extreme agility and jump-shot precision under heavy enemy pressure.', rank: '02', tier: 'ELITE HEROIC', avatar_url: null },
-      { id: 'h6', category: 'movement_gods', player_uid: '3216549870', player_name: 'NINJA_KANNADIGA', title_name: 'Fast Reflex Evasion', description: 'Unmatched reflex dodges and continuous movement maneuvers.', rank: '03', tier: 'PLATINUM', avatar_url: null },
-    ]
-  }
 }
 
 export async function addPlayerHonor(honor: {
@@ -1203,9 +1360,44 @@ export async function deletePlayerHonor(honorId: string) {
 export async function fetchAvatarMap(): Promise<Map<string, string>> {
   const avatarMap = new Map<string, string>()
   try {
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('free_fire_uid, ign, username, player_id, avatar_url')
+    const [{ data: profiles }, archives] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('free_fire_uid, ign, username, player_id, avatar_url'),
+      fetchTournamentArchives(),
+    ])
+
+    // Seed archived avatars first so live profile avatars take priority when both exist
+    for (const arch of archives) {
+      if (arch.player_avatars && typeof arch.player_avatars === 'object') {
+        for (const [k, url] of Object.entries(arch.player_avatars)) {
+          if (k && typeof url === 'string' && url.trim() !== '') {
+            avatarMap.set(k.trim().toLowerCase(), url)
+          }
+        }
+      }
+      if (Array.isArray(arch.registrations_snapshot)) {
+        for (const team of arch.registrations_snapshot) {
+          if (team.captain_avatar_url) {
+            if (team.captain_free_fire_uid) {
+              avatarMap.set(team.captain_free_fire_uid.trim().toLowerCase(), team.captain_avatar_url)
+            }
+            if (team.captain_name) {
+              avatarMap.set(team.captain_name.trim().toLowerCase(), team.captain_avatar_url)
+            }
+          }
+          if (Array.isArray(team.teammate_avatar_urls)) {
+            team.teammate_avatar_urls.forEach((url, idx) => {
+              if (!url) return
+              const tUid = team.teammate_uids?.[idx]
+              const tName = team.teammate_names?.[idx]
+              if (tUid) avatarMap.set(String(tUid).trim().toLowerCase(), url)
+              if (tName) avatarMap.set(String(tName).trim().toLowerCase(), url)
+            })
+          }
+        }
+      }
+    }
 
     if (profiles) {
       for (const p of profiles) {
@@ -1225,12 +1417,615 @@ export async function fetchAvatarMap(): Promise<Map<string, string>> {
   return avatarMap
 }
 
+// ==========================================
+// COMPLETED TOURNAMENT ARCHIVE & SAFE USER PURGE
+// ==========================================
+
+const ARCHIVED_TOURNAMENTS_KEY = 'archived_tournaments'
+
+function mergeArchivePair(primary: TournamentArchive, fallback: TournamentArchive): TournamentArchive {
+  const primRegs = Array.isArray(primary.registrations_snapshot) ? primary.registrations_snapshot : []
+  const fallRegs = Array.isArray(fallback.registrations_snapshot) ? fallback.registrations_snapshot : []
+  const regs = primRegs.length >= fallRegs.length ? primRegs : fallRegs
+
+  const primTop3 = Array.isArray(primary.top_3_teams) ? primary.top_3_teams : []
+  const fallTop3 = Array.isArray(fallback.top_3_teams) ? fallback.top_3_teams : []
+  const top3 = primTop3.length > 0 ? primTop3 : fallTop3
+
+  return {
+    ...fallback,
+    ...primary,
+    champions_image_url: primary.champions_image_url || fallback.champions_image_url,
+    results_bgm_url: primary.results_bgm_url || fallback.results_bgm_url,
+    top_3_teams: top3,
+    registrations_snapshot: regs,
+    slots_filled: Math.max(primary.slots_filled || 0, fallback.slots_filled || 0, regs.length),
+    player_avatars: {
+      ...(fallback.player_avatars || {}),
+      ...(primary.player_avatars || {}),
+    },
+    league_snapshot: primary.league_snapshot || fallback.league_snapshot || null,
+    playoff_snapshot: primary.playoff_snapshot || fallback.playoff_snapshot || null,
+  }
+}
+
+export async function fetchTournamentArchives(): Promise<TournamentArchive[]> {
+  const byTournamentId = new Map<string, TournamentArchive>()
+
+  try {
+    const settingList = await fetchSiteSettingJson<TournamentArchive[]>(ARCHIVED_TOURNAMENTS_KEY, [])
+    if (Array.isArray(settingList)) {
+      for (const item of settingList) {
+        if (item && item.tournament_id) {
+          byTournamentId.set(item.tournament_id, item)
+        }
+      }
+    }
+  } catch {
+    // ignore site_settings fallback errors
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('tournament_archives')
+      .select('*')
+      .order('tournament_start', { ascending: false })
+
+    if (!error && Array.isArray(data)) {
+      for (const row of data as TournamentArchive[]) {
+        if (!row?.tournament_id) continue
+        const existing = byTournamentId.get(row.tournament_id)
+        byTournamentId.set(row.tournament_id, existing ? mergeArchivePair(row, existing) : row)
+      }
+    } else if (error && !isMissingRelationError(error)) {
+      console.warn('fetchTournamentArchives notice:', error.message)
+    }
+  } catch {
+    // ignore
+  }
+
+  return Array.from(byTournamentId.values()).sort(
+    (a, b) => new Date(b.tournament_start || b.archived_at).getTime() - new Date(a.tournament_start || a.archived_at).getTime()
+  )
+}
+
+export async function fetchTournamentArchiveByTournamentId(
+  tournamentId: string
+): Promise<TournamentArchive | null> {
+  if (!tournamentId) return null
+  const all = await fetchTournamentArchives()
+  return all.find((a) => a.tournament_id === tournamentId) || null
+}
+
+export async function archiveCompletedTournament(
+  tournamentId: string
+): Promise<{ success: boolean; archive?: TournamentArchive; error?: string }> {
+  try {
+    if (!tournamentId) {
+      return { success: false, error: 'Tournament ID is required.' }
+    }
+
+    // Attempt SQL archival helper first if installed
+    try {
+      await supabase.rpc('archive_completed_tournament', { p_tournament_id: tournamentId })
+    } catch {
+      // Optional RPC not installed yet — continue cleanly with client/app archival
+    }
+
+    const [{ data: tRow, error: tErr }, { data: regRows }, existingArchive, { data: profRows }] =
+      await Promise.all([
+        supabase.from('tournaments').select('*').eq('id', tournamentId).maybeSingle(),
+        supabase.from('tournament_registrations').select('*').eq('tournament_id', tournamentId),
+        fetchTournamentArchiveByTournamentId(tournamentId),
+        supabase
+          .from('profiles')
+          .select('free_fire_uid, ign, username, player_id, avatar_url'),
+      ])
+
+    if (tErr && !existingArchive) {
+      return { success: false, error: tErr.message }
+    }
+
+    const baseTourney = tRow || existingArchive
+    if (!baseTourney) {
+      return { success: false, error: 'Tournament record not found.' }
+    }
+
+    // Build avatar lookup map preserving previously archived avatars too
+    const avatarLookup: Record<string, string> = {
+      ...(existingArchive?.player_avatars || {}),
+    }
+    if (Array.isArray(profRows)) {
+      for (const p of profRows) {
+        if (!p.avatar_url || p.avatar_url.trim() === '') continue
+        if (p.free_fire_uid) avatarLookup[p.free_fire_uid.trim().toLowerCase()] = p.avatar_url
+        if (p.ign) avatarLookup[p.ign.trim().toLowerCase()] = p.avatar_url
+        if (p.username) avatarLookup[p.username.trim().toLowerCase()] = p.avatar_url
+        if (p.player_id) avatarLookup[p.player_id.trim().toLowerCase()] = p.avatar_url
+      }
+    }
+
+    const resolveAvatar = (uid?: string | null, name?: string | null): string | null => {
+      if (uid && avatarLookup[uid.trim().toLowerCase()]) {
+        return avatarLookup[uid.trim().toLowerCase()]
+      }
+      if (name && avatarLookup[name.trim().toLowerCase()]) {
+        return avatarLookup[name.trim().toLowerCase()]
+      }
+      return null
+    }
+
+    const liveRegs = Array.isArray(regRows) ? regRows : []
+    const existingSnaps = Array.isArray(existingArchive?.registrations_snapshot)
+      ? existingArchive.registrations_snapshot
+      : []
+
+    const teamSnapshots: ArchivedTournamentTeamSnapshot[] =
+      liveRegs.length > 0
+        ? liveRegs
+            .slice()
+            .sort((a: any, b: any) => (a.placement ?? 9999) - (b.placement ?? 9999))
+            .map((r: any) => {
+              const tUids = Array.isArray(r.teammate_uids) ? r.teammate_uids : []
+              const tNames = Array.isArray(r.teammate_names) ? r.teammate_names : []
+              return {
+                id: r.id,
+                tournament_id: r.tournament_id,
+                team_name: r.team_name,
+                captain_name: r.captain_name,
+                captain_free_fire_uid: r.captain_free_fire_uid,
+                teammate_uids: tUids,
+                teammate_names: tNames,
+                registration_status: r.registration_status || 'confirmed',
+                registered_at: r.registered_at || r.created_at || new Date().toISOString(),
+                placement: r.placement ?? null,
+                kills: r.kills ?? 0,
+                result_verified: Boolean(r.result_verified),
+                captain_avatar_url: resolveAvatar(r.captain_free_fire_uid, r.captain_name),
+                teammate_avatar_urls: tNames.map((n: string, idx: number) =>
+                  resolveAvatar(tUids[idx], n)
+                ),
+              }
+            })
+        : existingSnaps
+
+    // Capture full league & playoff snapshots (seasons, teams, pairings, results) so archived data works statically
+    let leagueSnapshot = existingArchive?.league_snapshot || null
+    let playoffSnapshot = existingArchive?.playoff_snapshot || null
+    try {
+      const { data: seasons } = await supabase
+        .from('league_seasons')
+        .select('*')
+        .eq('tournament_id', tournamentId)
+        .order('season_number', { ascending: true })
+      if (Array.isArray(seasons) && seasons.length > 0) {
+        const seasonIds = seasons.map((s: any) => s.id)
+        const [{ data: lTeams }, { data: lPairings }, { data: lResults }] = await Promise.all([
+          supabase
+            .from('league_season_teams')
+            .select('*, tournament_registrations(id, team_name, captain_name)')
+            .in('season_id', seasonIds),
+          supabase
+            .from('league_pairings')
+            .select('*')
+            .in('season_id', seasonIds)
+            .order('round_number', { ascending: true })
+            .order('match_number', { ascending: true }),
+          supabase.from('league_match_results').select('*').in('season_id', seasonIds),
+        ])
+
+        const teamsBySeason: Record<string, any[]> = {}
+        for (const row of lTeams || []) {
+          const reg = (row as any).tournament_registrations || {}
+          const list = teamsBySeason[row.season_id] || []
+          list.push({
+            id: row.id,
+            season_id: row.season_id,
+            registration_id: row.registration_id,
+            status: row.status,
+            team_name: reg.team_name || reg.captain_name || 'Unnamed Team',
+            captain_name: reg.captain_name || null,
+            created_at: row.created_at,
+          })
+          teamsBySeason[row.season_id] = list
+        }
+
+        const pairingsBySeason: Record<string, any[]> = {}
+        for (const p of lPairings || []) {
+          const list = pairingsBySeason[p.season_id] || []
+          list.push(p)
+          pairingsBySeason[p.season_id] = list
+        }
+
+        const resultsBySeason: Record<string, any[]> = {}
+        for (const r of lResults || []) {
+          const list = resultsBySeason[r.season_id] || []
+          list.push(r)
+          resultsBySeason[r.season_id] = list
+        }
+
+        leagueSnapshot = {
+          seasons,
+          teamsBySeason:
+            Object.keys(teamsBySeason).length > 0
+              ? teamsBySeason
+              : existingArchive?.league_snapshot?.teamsBySeason || {},
+          pairingsBySeason:
+            Object.keys(pairingsBySeason).length > 0
+              ? pairingsBySeason
+              : existingArchive?.league_snapshot?.pairingsBySeason || {},
+          resultsBySeason:
+            Object.keys(resultsBySeason).length > 0
+              ? resultsBySeason
+              : existingArchive?.league_snapshot?.resultsBySeason || {},
+        }
+
+        const playoffsBySeason: Record<string, any> = {
+          ...(existingArchive?.playoff_snapshot || {}),
+        }
+        for (const s of seasons) {
+          const bracket = await fetchSiteSettingJson<any>(`league_playoffs_${s.id}`, null)
+          if (bracket) playoffsBySeason[s.id] = bracket
+        }
+        if (Object.keys(playoffsBySeason).length > 0) {
+          playoffSnapshot = playoffsBySeason
+        }
+      }
+    } catch {
+      // Optional league tables may not exist
+    }
+
+    const nowIso = new Date().toISOString()
+    const top3 =
+      Array.isArray((tRow as any)?.top_3_teams) && (tRow as any).top_3_teams.length > 0
+        ? (tRow as any).top_3_teams
+        : existingArchive?.top_3_teams || []
+
+    const archiveRecord: TournamentArchive = {
+      id: existingArchive?.id || tournamentId,
+      tournament_id: tournamentId,
+      title: baseTourney.title,
+      slug: baseTourney.slug,
+      description: baseTourney.description,
+      banner_url: baseTourney.banner_url,
+      game_mode: baseTourney.game_mode,
+      map: baseTourney.map,
+      tournament_type: baseTourney.tournament_type,
+      entry_type: baseTourney.entry_type,
+      prize_pool: baseTourney.prize_pool,
+      max_slots: baseTourney.max_slots || 100,
+      slots_filled: Math.max(teamSnapshots.length, existingArchive?.slots_filled || 0),
+      tournament_start: baseTourney.tournament_start,
+      status: baseTourney.status || 'completed',
+      rules: baseTourney.rules,
+      champions_image_url:
+        (tRow as any)?.champions_image_url ||
+        top3?.[0]?.champions_image_url ||
+        existingArchive?.champions_image_url,
+      results_bgm_url:
+        (tRow as any)?.results_bgm_url ||
+        top3?.[0]?.results_bgm_url ||
+        existingArchive?.results_bgm_url,
+      top_3_teams: top3,
+      registrations_snapshot: teamSnapshots,
+      player_avatars: avatarLookup,
+      league_snapshot: leagueSnapshot,
+      playoff_snapshot: playoffSnapshot,
+      archived_at: existingArchive?.archived_at || nowIso,
+      updated_at: nowIso,
+    }
+
+    // 1. Upsert into dedicated tournament_archives table (if migrated)
+    try {
+      const { error: upErr } = await supabase
+        .from('tournament_archives')
+        .upsert(
+          [
+            {
+              tournament_id: archiveRecord.tournament_id,
+              title: archiveRecord.title,
+              slug: archiveRecord.slug,
+              description: archiveRecord.description,
+              banner_url: archiveRecord.banner_url,
+              game_mode: archiveRecord.game_mode,
+              map: archiveRecord.map,
+              tournament_type: archiveRecord.tournament_type,
+              entry_type: archiveRecord.entry_type,
+              prize_pool: archiveRecord.prize_pool,
+              max_slots: archiveRecord.max_slots,
+              slots_filled: archiveRecord.slots_filled,
+              tournament_start: archiveRecord.tournament_start,
+              status: archiveRecord.status,
+              rules: archiveRecord.rules,
+              champions_image_url: archiveRecord.champions_image_url,
+              results_bgm_url: archiveRecord.results_bgm_url,
+              top_3_teams: archiveRecord.top_3_teams || [],
+              registrations_snapshot: archiveRecord.registrations_snapshot,
+              player_avatars: archiveRecord.player_avatars || {},
+              league_snapshot: archiveRecord.league_snapshot,
+              playoff_snapshot: archiveRecord.playoff_snapshot,
+              updated_at: nowIso,
+            },
+          ],
+          { onConflict: 'tournament_id' }
+        )
+
+      if (upErr && !isMissingRelationError(upErr)) {
+        console.warn('tournament_archives upsert notice:', upErr.message)
+      }
+    } catch {
+      // ignore table upsert errors and keep site_settings backup
+    }
+
+    // 2. Always persist backup in site_settings (`archived_tournaments`)
+    const existingList = await fetchSiteSettingJson<TournamentArchive[]>(ARCHIVED_TOURNAMENTS_KEY, [])
+    const nextList = Array.isArray(existingList)
+      ? existingList.filter((item) => item.tournament_id !== tournamentId)
+      : []
+    nextList.unshift(archiveRecord)
+    await updateSiteSettingJson(ARCHIVED_TOURNAMENTS_KEY, nextList)
+
+    // 3. Best-effort unlink user_id on completed tournament registrations
+    if (liveRegs.length > 0 && archiveRecord.status === 'completed') {
+      try {
+        await supabase
+          .from('tournament_registrations')
+          .update({ user_id: null })
+          .eq('tournament_id', tournamentId)
+      } catch {
+        // Fails softly if FK NOT NULL still exists until SQL migration is applied
+      }
+    }
+
+    return { success: true, archive: archiveRecord }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Failed to archive tournament' }
+  }
+}
+
+export async function archiveAllCompletedTournaments(): Promise<{
+  success: boolean
+  count: number
+  archives: TournamentArchive[]
+  error?: string
+}> {
+  try {
+    const { data: completedRows, error } = await supabase
+      .from('tournaments')
+      .select('id')
+      .eq('status', 'completed')
+
+    if (error) {
+      return { success: false, count: 0, archives: [], error: error.message }
+    }
+
+    const archives: TournamentArchive[] = []
+    for (const row of completedRows || []) {
+      const res = await archiveCompletedTournament(row.id)
+      if (res.success && res.archive) {
+        archives.push(res.archive)
+      }
+    }
+    return { success: true, count: archives.length, archives }
+  } catch (err: any) {
+    return {
+      success: false,
+      count: 0,
+      archives: [],
+      error: err?.message || 'Failed to archive completed tournaments',
+    }
+  }
+}
+
+export async function fetchUserCleanupStats(): Promise<{
+  totalProfiles: number
+  adminProfiles: number
+  nonAdminProfiles: number
+  staleHonors: number
+  staleAchievements: number
+}> {
+  try {
+    const [{ data: profiles }, { data: adminRoles }, { data: honors }, { data: achs }] =
+      await Promise.all([
+        supabase.from('profiles').select('id, free_fire_uid, ign, username'),
+        supabase.from('user_roles').select('user_id').eq('role', 'admin'),
+        supabase.from('player_honors').select('id, player_uid'),
+        supabase.from('achievements').select('id, player_uid, player_name'),
+      ])
+
+    const adminIdSet = new Set((adminRoles || []).map((r: any) => r.user_id))
+    const adminProfilesList = (profiles || []).filter((p: any) => adminIdSet.has(p.id))
+    const adminUidSet = new Set(
+      adminProfilesList
+        .map((p: any) => (p.free_fire_uid || '').trim())
+        .filter(Boolean)
+    )
+    const adminNameSet = new Set(
+      adminProfilesList
+        .flatMap((p: any) => [p.ign, p.username])
+        .map((v: any) => String(v || '').trim().toLowerCase())
+        .filter(Boolean)
+    )
+
+    const total = Array.isArray(profiles) ? profiles.length : 0
+    const admins = adminIdSet.size
+    const nonAdmins = (profiles || []).filter((p: any) => !adminIdSet.has(p.id)).length
+
+    const staleHonors = (honors || []).filter(
+      (h: any) => !adminUidSet.has(String(h.player_uid || '').trim())
+    ).length
+
+    const staleAchievements = (achs || []).filter((a: any) => {
+      const pUid = String(a.player_uid || '').trim()
+      const pName = String(a.player_name || '').trim().toLowerCase()
+      if (!pUid && !pName) return false
+      if (pUid && adminUidSet.has(pUid)) return false
+      if (pName && adminNameSet.has(pName)) return false
+      return true
+    }).length
+
+    return {
+      totalProfiles: total,
+      adminProfiles: admins,
+      nonAdminProfiles: nonAdmins,
+      staleHonors,
+      staleAchievements,
+    }
+  } catch {
+    return {
+      totalProfiles: 0,
+      adminProfiles: 0,
+      nonAdminProfiles: 0,
+      staleHonors: 0,
+      staleAchievements: 0,
+    }
+  }
+}
+
+export async function purgeNonAdminUsers(): Promise<{
+  success: boolean
+  archivedTournaments?: number
+  deletedProfiles?: number
+  deletedAuthUsers?: number
+  preservedAdmins?: number
+  needsSqlMigration?: boolean
+  error?: string
+}> {
+  try {
+    // Always snapshot completed tournaments first before attempting cleanup
+    await archiveAllCompletedTournaments()
+
+    const { data, error } = await supabase.rpc('purge_non_admin_users')
+    if (error) {
+      const msg = String(error.message || '').toLowerCase()
+      if (
+        error.code === '42883' ||
+        error.code === 'PGRST202' ||
+        msg.includes('could not find the function') ||
+        msg.includes('does not exist')
+      ) {
+        return {
+          success: false,
+          needsSqlMigration: true,
+          error:
+            'Run supabase/archive_tournaments_and_cleanup_users.sql in your Supabase SQL Editor to archive Season 1 & 2 and delete non-admin Auth accounts.',
+        }
+      }
+      return { success: false, error: error.message }
+    }
+
+    if (data && data.success === false) {
+      return { success: false, error: data.error || 'Failed to clean non-admin users.' }
+    }
+
+    return {
+      success: true,
+      archivedTournaments: data?.archived_tournaments ?? 0,
+      deletedProfiles: data?.deleted_profiles ?? 0,
+      deletedAuthUsers: data?.deleted_auth_users ?? 0,
+      preservedAdmins: data?.preserved_admins ?? 1,
+    }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Failed to purge non-admin users.' }
+  }
+}
+
+async function emptyStorageBucketsViaApi(): Promise<number> {
+  const buckets = ['avatars', 'tournaments', 'banners', 'clips', 'uploads', 'media']
+  let removed = 0
+
+  async function listFolderFiles(bucket: string, prefix = ''): Promise<string[]> {
+    const { data, error } = await supabase.storage.from(bucket).list(prefix, { limit: 1000 })
+    if (error || !data || data.length === 0) return []
+    const paths: string[] = []
+    for (const item of data) {
+      const fullPath = prefix ? `${prefix}/${item.name}` : item.name
+      if (item.id === null) {
+        const nested = await listFolderFiles(bucket, fullPath)
+        paths.push(...nested)
+      } else {
+        paths.push(fullPath)
+      }
+    }
+    return paths
+  }
+
+  for (const bucket of buckets) {
+    try {
+      const filePaths = await listFolderFiles(bucket)
+      for (let i = 0; i < filePaths.length; i += 100) {
+        const batch = filePaths.slice(i, i + 100)
+        const { error } = await supabase.storage.from(bucket).remove(batch)
+        if (!error) removed += batch.length
+      }
+    } catch {
+      // Skip non-existent or restricted buckets
+    }
+  }
+  return removed
+}
+
+export async function factoryResetKeepAdmin(): Promise<{
+  success: boolean
+  deletedProfiles?: number
+  deletedAuthUsers?: number
+  deletedStorageObjects?: number
+  preservedAdmins?: number
+  needsSqlMigration?: boolean
+  error?: string
+}> {
+  try {
+    const { data, error } = await supabase.rpc('factory_reset_keep_admin')
+    if (error) {
+      const msg = String(error.message || '').toLowerCase()
+      if (
+        error.code === '42883' ||
+        error.code === 'PGRST202' ||
+        msg.includes('could not find the function') ||
+        msg.includes('does not exist')
+      ) {
+        return {
+          success: false,
+          needsSqlMigration: true,
+          error:
+            'Run supabase/full_data_reset.sql in your Supabase SQL Editor to wipe all tournaments, results, users, UIDs, and images cleanly.',
+        }
+      }
+      return { success: false, error: error.message }
+    }
+
+    if (data && data.success === false) {
+      return { success: false, error: data.error || 'Factory reset failed.' }
+    }
+
+    const removedFromStorage = await emptyStorageBucketsViaApi()
+
+    if (typeof window !== 'undefined') {
+      try {
+        Object.keys(localStorage).forEach((k) => {
+          if (k.startsWith('tourney_media_')) localStorage.removeItem(k)
+        })
+      } catch {}
+    }
+
+    return {
+      success: true,
+      deletedProfiles: data?.deleted_profiles ?? 0,
+      deletedAuthUsers: data?.deleted_auth_users ?? 0,
+      deletedStorageObjects: removedFromStorage,
+      preservedAdmins: data?.preserved_admins ?? 1,
+    }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Factory reset failed.' }
+  }
+}
+
 export async function findPlayerProfileByUid(uid: string): Promise<{ ign: string; avatar_url: string | null; level: number; player_id: string } | null> {
   const cleanUid = uid.trim()
   if (!cleanUid) return null
 
   try {
-    // 1. Search profiles
+    // Only search registered site user profiles — never pull tournament registrations
     const { data: profile } = await supabase
       .from('profiles')
       .select('ign, username, player_id, avatar_url, level')
@@ -1243,22 +2038,6 @@ export async function findPlayerProfileByUid(uid: string): Promise<{ ign: string
         avatar_url: profile.avatar_url && profile.avatar_url.trim() !== '' ? profile.avatar_url : null,
         level: profile.level || 1,
         player_id: profile.player_id || '',
-      }
-    }
-
-    // 2. Search tournament registrations as captain
-    const { data: reg } = await supabase
-      .from('tournament_registrations')
-      .select('captain_name')
-      .eq('captain_free_fire_uid', cleanUid)
-      .maybeSingle()
-
-    if (reg && reg.captain_name) {
-      return {
-        ign: reg.captain_name,
-        avatar_url: null,
-        level: 1,
-        player_id: '',
       }
     }
   } catch {
@@ -1387,6 +2166,7 @@ export async function fetchRegisteredPlayers(): Promise<Profile[]> {
     const { data, error } = await supabase
       .from('profiles')
       .select('id, player_id, username, ign, free_fire_uid, avatar_url, level')
+      .eq('is_public', true)
       .order('ign', { ascending: true })
 
     if (error || !data) return []
@@ -1993,20 +2773,7 @@ export async function submitGuildChallenge(params: {
       return { success: false, error: 'Challenger is not an active member of this guild.' }
     }
 
-    let defender = members.find((m) => m.id === params.defenderMemberId)
-    if (!defender && params.defenderMemberId === 'guild-owner-leader') {
-      defender = {
-        id: 'guild-owner-leader',
-        guild_id: params.guildId,
-        user_id: guildRes.guild?.leader_id || 'guild-owner-leader',
-        guild_role: '👑 Leader',
-        glory_contributed: 1000,
-        joined_at: new Date().toISOString(),
-        status: 'active',
-        player_name: 'ELITE ಕನ್ನಡಿಗ',
-        free_fire_uid: '1969913248',
-      }
-    }
+    const defender = members.find((m) => m.id === params.defenderMemberId)
 
     if (!defender) {
       return { success: false, error: 'Target defender not found in guild roster.' }
@@ -2397,14 +3164,14 @@ export async function fetchCommunityClips(): Promise<CommunityClip[]> {
       .order('created_at', { ascending: false })
 
     if (error || !data || data.length === 0) {
-      return MOCK_CLIPS as any
+      return []
     }
     return data.map((item: any) => ({
       ...item,
-      player_name: item.profiles?.ign || item.profiles?.username || 'ELITE PLAYER',
+      player_name: item.profiles?.ign || item.profiles?.username || 'Player',
     }))
   } catch {
-    return MOCK_CLIPS as any
+    return []
   }
 }
 
@@ -2444,63 +3211,21 @@ export async function moderateClipStatus(clipId: string, status: 'approved' | 'r
 // MOCK DATA FALLBACKS
 // ==========================================
 
-export const MOCK_HOME_CARDS: HomeCard[] = [
-  { id: '1', section: 'HERO_STATS', title: '12,482+', stat_number: '12,482+', stat_label: 'REGISTERED PLAYERS', display_order: 1, is_active: true },
-  { id: '2', section: 'HERO_STATS', title: '286', stat_number: '286', stat_label: 'TOURNAMENTS', display_order: 2, is_active: true },
-  { id: '3', section: 'HERO_STATS', title: '₹4.8L+', stat_number: '₹4.8L+', stat_label: 'PRIZES DISTRIBUTED', display_order: 3, is_active: true },
-  { id: '4', section: 'HERO_STATS', title: '1.2M+', stat_number: '1.2M+', stat_label: 'COMMUNITY REACH', display_order: 4, is_active: true },
-]
+export const MOCK_HOME_CARDS: HomeCard[] = []
 
-export const MOCK_LEADERBOARD_SECTIONS: LeaderboardSection[] = [
-  { id: '1', name: 'OVERALL XP', slug: 'overall-xp', icon_name: 'Trophy', description: 'Global rankings', display_order: 1, is_active: true },
-  { id: '2', name: 'WEEKLY XP', slug: 'weekly-xp', icon_name: 'Flame', description: 'Weekly active warriors', display_order: 2, is_active: true },
-  { id: '3', name: 'MONTHLY XP', slug: 'monthly-xp', icon_name: 'Calendar', description: 'Monthly leaderboards', display_order: 3, is_active: true },
-  { id: '4', name: 'STREAM XP', slug: 'stream-xp', icon_name: 'Video', description: 'Stream supporters', display_order: 4, is_active: true },
-  { id: '5', name: 'GUILD GLORY', slug: 'guild-glory', icon_name: 'Shield', description: 'ELITE ARMY glory rankings', display_order: 5, is_active: true },
-]
+export const MOCK_LEADERBOARD_SECTIONS: LeaderboardSection[] = []
 
-export const MOCK_TOURNAMENTS = [
-  { id: '1', title: 'ELITE CLASH #24', type: 'SQUAD BATTLE', game_mode: 'SQUAD BATTLE', prize: '₹10,000', prize_pool: '₹10,000', date: '20 SEP 2026', time: '8:00 PM', slots: '48 / 100', max_slots: 100, status: 'registration_open', entry_type: 'SQUAD' },
-  { id: '2', title: 'NIGHT RAID', type: 'BR SOLO', game_mode: 'BR SOLO', prize: '₹5,000', prize_pool: '₹5,000', date: '24 SEP 2026', time: '9:30 PM', slots: '72 / 100', max_slots: 100, status: 'registration_open', entry_type: 'SOLO' },
-  { id: '3', title: 'GUILD WAR: ORIGIN', type: 'GUILD VS GUILD', game_mode: 'GUILD VS GUILD', prize: '₹25,000', prize_pool: '₹25,000', date: '01 OCT 2026', time: '7:00 PM', slots: '16 / 32', max_slots: 32, status: 'upcoming', entry_type: 'GUILD' },
-]
+export const MOCK_TOURNAMENTS: any[] = []
 
-export const MOCK_RANKINGS = [
-  ['01', 'ELITE_RAHUL', 'ELITE ARMY', '24,920', '+3'],
-  ['02', 'KANNADA_KING', 'ELITE ARMY', '22,840', '+1'],
-  ['03', 'SHADOW_77', 'ELITE ARMY', '21,190', '-2'],
-  ['04', 'BL4CK_HAWK', 'ELITE ARMY', '19,804', '+3'],
-]
+export const MOCK_RANKINGS: string[][] = []
 
-export const MOCK_ELITE_ARMY_GUILD: Guild = {
-  id: 'g-elite-army',
-  name: 'ELITE ARMY',
-  slug: 'elite-army',
-  description: 'The Official Premier Competitive Free Fire Guild of ELITE Kannada',
-  glory_points: 250000,
-  leader_id: 'l-rahul',
-  created_at: new Date().toISOString(),
-}
+export const MOCK_ELITE_ARMY_GUILD: Guild | null = null
 
-export const MOCK_ELITE_ARMY_MEMBERS: any[] = [
-  { id: 'm1', user_id: 'u1', glory_contributed: 45200, guild_role: '👑 Leader', profile: { ign: 'ELITE_RAHUL', player_id: 'ELITE-10482', level: 42 }, ranking: 1, kills: 520 },
-  { id: 'm2', user_id: 'u2', glory_contributed: 38400, guild_role: '🎖️ Co-Leader', profile: { ign: 'KANNADA_KING', player_id: 'ELITE-10892', level: 39 }, ranking: 2, kills: 480 },
-  { id: 'm3', user_id: 'u3', glory_contributed: 32100, guild_role: '⭐⭐⭐ Commander', profile: { ign: 'SHADOW_77', player_id: 'ELITE-10234', level: 36 }, ranking: 3, kills: 390 },
-  { id: 'm4', user_id: 'u4', glory_contributed: 28900, guild_role: '👤 Member', profile: { ign: 'BL4CK_HAWK', player_id: 'ELITE-10771', level: 34 }, ranking: 4, kills: 260 },
-]
+export const MOCK_ELITE_ARMY_MEMBERS: any[] = []
 
-export const MOCK_ACHIEVEMENTS: Achievement[] = [
-  { id: 'a1', name: 'STREAM LEGEND', slug: 'stream-legend', description: '100 LIVESTREAMS WATCHED', rarity: 'LEGENDARY', xp_reward: 500, achievement_type: 'stream', is_active: true },
-  { id: 'a2', name: 'XP HUNTER', slug: 'xp-hunter', description: 'REACH 10,000 TOTAL XP', rarity: 'EPIC', xp_reward: 300, achievement_type: 'xp', is_active: true },
-  { id: 'a3', name: 'TOURNAMENT CHAMPION', slug: 'tournament-champion', description: 'WIN AN OFFICIAL TOURNAMENT', rarity: 'LEGENDARY', xp_reward: 1000, achievement_type: 'tournament', is_active: true },
-  { id: 'a4', name: 'CLUTCH MASTER', slug: 'clutch-master', description: '10 VERIFIED CLUTCH WINS', rarity: 'RARE', xp_reward: 200, achievement_type: 'clips', is_active: true },
-]
+export const MOCK_ACHIEVEMENTS: Achievement[] = []
 
-export const MOCK_CLIPS = [
-  { id: 'c1', title: '1V4 CLUTCH', player_name: 'ELITE_RAHUL', video_url: '#', color: 'from-red-950 via-red-900 to-black' },
-  { id: 'c2', title: 'LAST BULLET', player_name: 'SHADOW_77', video_url: '#', color: 'from-neutral-800 via-red-950 to-black' },
-  { id: 'c3', title: 'BOOYAH FINISH', player_name: 'KANNADA_KING', video_url: '#', color: 'from-red-900 via-black to-neutral-950' },
-]
+export const MOCK_CLIPS: any[] = []
 
 export const MOCK_QNAS: QnAQuestion[] = [
   { id: 'q1', question: 'What is the maximum armor durability of Level 3 Vest in Bermuda?', category: 'Free Fire Intel', options: ['200', '260', '290', '320'], explanation: 'Level 3 vest provides 260 durability.', xp_reward: 10, is_active: true },

@@ -1,6 +1,10 @@
 // Supabase data access for the league / season system.
 
-import { supabase } from './supabase'
+import {
+  supabase,
+  fetchTournamentArchiveByTournamentId,
+  fetchTournamentArchives,
+} from './supabase'
 import type {
   LeagueMatchResult,
   LeaguePairing,
@@ -87,12 +91,23 @@ export async function fetchLeagueSeasons(
     .eq('tournament_id', tournamentId)
     .order('season_number', { ascending: true })
 
+  if (!error && Array.isArray(data) && data.length > 0) {
+    return { seasons: data as LeagueSeason[] }
+  }
+
+  // Fallback to static archived league snapshot if tournament was completed & archived
+  const archive = await fetchTournamentArchiveByTournamentId(tournamentId)
+  const archivedSeasons = archive?.league_snapshot?.seasons
+  if (Array.isArray(archivedSeasons) && archivedSeasons.length > 0) {
+    return { seasons: archivedSeasons as LeagueSeason[] }
+  }
+
   if (error) {
     const message = friendlyLeagueError(error)
     console.warn('fetchLeagueSeasons:', message)
     return { seasons: [], error: message }
   }
-  return { seasons: (data || []) as LeagueSeason[] }
+  return { seasons: [] }
 }
 
 export async function fetchLeagueData(seasonId: string, tournamentId?: string): Promise<LeagueResult> {
@@ -117,21 +132,61 @@ export async function fetchLeagueData(seasonId: string, tournamentId?: string): 
 
     const [seasonRes, teamsRes, pairingsRes, resultsRes] = await Promise.all(queries)
 
+    const liveTeams = (!teamsRes.error && Array.isArray(teamsRes.data) ? teamsRes.data : []).map(mapTeamRow)
+
+    if (!seasonRes.error && liveTeams.length > 0 && !pairingsRes.error && !resultsRes.error) {
+      const season = seasonRes.data as LeagueSeason
+      if (tournamentId && season.tournament_id !== tournamentId) {
+        return { success: false, error: 'This season belongs to a different tournament.' }
+      }
+
+      return {
+        success: true,
+        data: {
+          season,
+          teams: liveTeams,
+          pairings: (pairingsRes.data || []) as LeaguePairing[],
+          results: (resultsRes.data || []) as LeagueMatchResult[],
+        } as LeagueData,
+      }
+    }
+
+    // Fallback to static archived league snapshot (e.g. completed tournament whose live rows were pruned)
+    const archive = tournamentId
+      ? await fetchTournamentArchiveByTournamentId(tournamentId)
+      : (await fetchTournamentArchives()).find(
+          (a) =>
+            Array.isArray(a.league_snapshot?.seasons) &&
+            a.league_snapshot.seasons.some((s: any) => s.id === seasonId)
+        ) || null
+
+    const snap = archive?.league_snapshot
+    const snapSeason = Array.isArray(snap?.seasons)
+      ? snap.seasons.find((s: any) => s.id === seasonId)
+      : null
+
+    if (snap && snapSeason) {
+      return {
+        success: true,
+        data: {
+          season: snapSeason as LeagueSeason,
+          teams: (snap.teamsBySeason?.[seasonId] || []) as LeagueSeasonTeam[],
+          pairings: (snap.pairingsBySeason?.[seasonId] || []) as LeaguePairing[],
+          results: (snap.resultsBySeason?.[seasonId] || []) as LeagueMatchResult[],
+        } as LeagueData,
+      }
+    }
+
     if (seasonRes.error) return { success: false, error: friendlyLeagueError(seasonRes.error) }
     if (teamsRes.error) return { success: false, error: friendlyLeagueError(teamsRes.error) }
     if (pairingsRes.error) return { success: false, error: friendlyLeagueError(pairingsRes.error) }
     if (resultsRes.error) return { success: false, error: friendlyLeagueError(resultsRes.error) }
 
-    const season = seasonRes.data as LeagueSeason
-    if (tournamentId && season.tournament_id !== tournamentId) {
-      return { success: false, error: 'This season belongs to a different tournament.' }
-    }
-
     return {
       success: true,
       data: {
-        season,
-        teams: (teamsRes.data || []).map(mapTeamRow),
+        season: seasonRes.data as LeagueSeason,
+        teams: liveTeams,
         pairings: (pairingsRes.data || []) as LeaguePairing[],
         results: (resultsRes.data || []) as LeagueMatchResult[],
       } as LeagueData,

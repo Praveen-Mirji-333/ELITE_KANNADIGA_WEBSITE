@@ -133,7 +133,7 @@ export function PlayerDashboard({
 
     const res = await updateUserProfile({
       ign: editIgn,
-      free_fire_uid: editUid,
+      ...(profile.free_fire_uid ? {} : { free_fire_uid: editUid }),
       bio: editBio,
     })
 
@@ -476,16 +476,41 @@ export function PlayerDashboard({
                     className="w-full border border-line bg-surface-2 px-4 py-2.5 text-base sm:text-sm text-ink focus:border-brand focus:outline-none"
                   />
                 </div>
+                {profile.email && (
+                  <div>
+                    <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
+                      REGISTERED EMAIL (UNIQUE KEY)
+                    </label>
+                    <input
+                      type="email"
+                      value={profile.email}
+                      readOnly
+                      disabled
+                      className="w-full cursor-not-allowed border border-line bg-surface-2/60 px-4 py-2.5 text-base sm:text-sm text-ink-muted focus:outline-none"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
-                    FREE FIRE UID
+                    FREE FIRE UID {profile.free_fire_uid ? '(BOUND UNIQUE KEY)' : ''}
                   </label>
                   <input
                     type="text"
                     value={editUid}
                     onChange={(e) => setEditUid(e.target.value)}
-                    className="w-full border border-line bg-surface-2 px-4 py-2.5 text-base sm:text-sm text-ink focus:border-brand focus:outline-none"
+                    readOnly={Boolean(profile.free_fire_uid)}
+                    disabled={Boolean(profile.free_fire_uid)}
+                    className={`w-full border border-line px-4 py-2.5 text-base sm:text-sm focus:outline-none ${
+                      profile.free_fire_uid
+                        ? 'cursor-not-allowed bg-surface-2/60 text-ink-muted'
+                        : 'bg-surface-2 text-ink focus:border-brand'
+                    }`}
                   />
+                  {profile.free_fire_uid && (
+                    <p className="mt-1 text-[11px] text-ink-subtle">
+                      Permanently bound to your registered email (unique key).
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">

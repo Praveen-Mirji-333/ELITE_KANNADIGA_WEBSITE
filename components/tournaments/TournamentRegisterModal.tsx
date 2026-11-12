@@ -309,7 +309,7 @@ export function TournamentRegisterModal({
                   required
                   value={captainName}
                   onChange={(e) => setCaptainName(e.target.value)}
-                  placeholder="e.g. ELITE_RAHUL"
+                  placeholder="e.g. PlayerName"
                   className="w-full border border-line bg-surface-2 px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none placeholder-ink-subtle"
                 />
               </div>

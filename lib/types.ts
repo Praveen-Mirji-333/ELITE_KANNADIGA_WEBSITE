@@ -5,6 +5,7 @@ export interface Profile {
   player_id: string
   username: string
   ign: string
+  email?: string
   free_fire_uid?: string
   avatar_url?: string
   banner_url?: string
@@ -100,15 +101,14 @@ export const PRESET_BGMS: BGMOption[] = [
 ]
 
 export const PRESET_CHAMPION_IMAGES = [
-  { label: '🥇 Aliens No. 1 Players (Season 1 Champions)', url: '/images/carousel-aliens-champions.jpg' },
-  { label: '👑 Elite Kannadiga King (Throne & Trophy)', url: '/images/carousel-elite-kannadiga.jpg' },
+  { label: '👑 Elite Kannadiga (Throne & Trophy)', url: '/images/carousel-elite-kannadiga.jpg' },
   { label: '🦁 Elite Army Squad (Golden Lion Crest)', url: '/images/carousel-elite-army.jpg' },
 ]
 
 export interface TournamentRegistration {
   id: string
   tournament_id: string
-  user_id: string
+  user_id: string | null
   team_name?: string
   captain_name?: string
   captain_free_fire_uid?: string
@@ -122,6 +122,51 @@ export interface TournamentRegistration {
   kills?: number
   result_verified: boolean
   tournaments?: Tournament
+}
+
+export interface ArchivedTournamentTeamSnapshot {
+  id: string
+  tournament_id: string
+  team_name?: string
+  captain_name?: string
+  captain_free_fire_uid?: string
+  teammate_uids?: string[]
+  teammate_names?: string[]
+  registration_status: 'confirmed' | 'waitlist' | 'cancelled'
+  registered_at: string
+  placement?: number | null
+  kills?: number
+  result_verified: boolean
+  captain_avatar_url?: string | null
+  teammate_avatar_urls?: (string | null)[]
+}
+
+export interface TournamentArchive {
+  id: string
+  tournament_id: string
+  title: string
+  slug?: string
+  description?: string
+  banner_url?: string
+  game_mode: string
+  map: string
+  tournament_type?: string
+  entry_type?: 'SOLO' | 'SQUAD' | 'GUILD' | string
+  prize_pool: string
+  max_slots: number
+  slots_filled: number
+  tournament_start: string
+  status: string
+  rules?: string
+  champions_image_url?: string
+  results_bgm_url?: string
+  top_3_teams?: TopTeamDetail[]
+  registrations_snapshot: ArchivedTournamentTeamSnapshot[]
+  player_avatars?: Record<string, string>
+  league_snapshot?: Record<string, any> | null
+  playoff_snapshot?: Record<string, any> | null
+  archived_at: string
+  updated_at?: string
 }
 
 export interface Guild {

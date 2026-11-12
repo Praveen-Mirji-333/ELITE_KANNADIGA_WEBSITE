@@ -22,17 +22,24 @@ import {
   User,
 } from 'lucide-react'
 import { SitePage } from '../components/layout/SitePage'
-import { fetchTournaments, trackPageVisit } from '../lib/supabase'
-import type { Tournament } from '../lib/types'
+import {
+  fetchDynamicHomeStats,
+  fetchEliteArmyGuild,
+  fetchRankings,
+  fetchTournaments,
+  LeaderboardPlayer,
+  trackPageVisit,
+} from '../lib/supabase'
+import type { Guild, GuildMember, Tournament } from '../lib/types'
 
 const mascotSlides = [
   {
     id: 1,
     image: '/images/carousel-elite-kannadiga.jpg',
     title: 'ELITE ಕನ್ನಡಿಗ',
-    subtitle: 'UID: 1969913248 • Lv. 67 • 7 Years Old',
-    badge: 'LEADER',
-    progress: 88,
+    subtitle: 'Official Karnataka Esports Hub',
+    badge: 'COMMUNITY',
+    progress: 100,
   },
   {
     id: 2,
@@ -40,90 +47,8 @@ const mascotSlides = [
     title: 'ELITE ARMY',
     subtitle: 'Official Guild Roster & Squad',
     badge: 'GUILD ROSTER',
-    progress: 96,
-  },
-  {
-    id: 3,
-    image: '/images/carousel-aliens-champions.jpg',
-    title: 'ALIENS — NO. 1 PLAYERS',
-    subtitle: 'Season 1 Tournament Champions',
-    badge: 'CHAMPIONS',
     progress: 100,
   },
-]
-
-const defaultTournaments = [
-  {
-    id: 't-1',
-    title: 'ELITE KARNATAKA SHOWDOWN',
-    game_mode: 'FREE FIRE • BATTLE ROYALE',
-    map: 'BERMUDA',
-    tournament_start: '2026-10-28T19:00:00Z',
-    entry_status: 'REGISTRATION OPEN',
-    prize_pool: '₹10,000 CASH',
-    slots_filled: 38,
-    max_slots: 48,
-  },
-  {
-    id: 't-2',
-    title: 'KANNADA CLASH SQUAD ARENA',
-    game_mode: 'FREE FIRE • CLASH SQUAD',
-    map: 'PURGATORY',
-    tournament_start: '2026-11-02T20:00:00Z',
-    entry_status: 'REGISTRATION OPEN',
-    prize_pool: '₹5,000 CASH',
-    slots_filled: 14,
-    max_slots: 16,
-  },
-  {
-    id: 't-3',
-    title: 'ELITE WEEKLY PRO SCRIMS',
-    game_mode: 'FREE FIRE • SQUAD BR',
-    map: 'KALAHARI',
-    tournament_start: '2026-11-08T18:30:00Z',
-    entry_status: 'VERIFIED PLAYERS',
-    prize_pool: '₹3,500 CASH',
-    slots_filled: 22,
-    max_slots: 24,
-  },
-]
-
-const playersData = {
-  KILLS: [
-    { rank: 1, ign: 'GL', score: '284', label: 'kills', kd: '6.42 K/D', statLevel: 98 },
-    { rank: 2, ign: 'TH-WHITE', score: '261', label: 'kills', kd: '5.88 K/D', statLevel: 89 },
-    { rank: 3, ign: 'ELITE-RAJ', score: '245', label: 'kills', kd: '5.40 K/D', statLevel: 82 },
-    { rank: 4, ign: 'NEXA FF', score: '232', label: 'kills', kd: '5.12 K/D', statLevel: 76 },
-    { rank: 5, ign: 'DARK LORD', score: '218', label: 'kills', kd: '4.85 K/D', statLevel: 71 },
-  ],
-  WINS: [
-    { rank: 1, ign: 'GL', score: '42', label: 'wins', kd: '6.42 K/D', statLevel: 95 },
-    { rank: 2, ign: 'TH-WHITE', score: '38', label: 'wins', kd: '5.88 K/D', statLevel: 86 },
-    { rank: 3, ign: 'ELITE-RAJ', score: '35', label: 'wins', kd: '5.40 K/D', statLevel: 79 },
-    { rank: 4, ign: 'NEXA FF', score: '31', label: 'wins', kd: '5.12 K/D', statLevel: 70 },
-    { rank: 5, ign: 'DARK LORD', score: '29', label: 'wins', kd: '4.85 K/D', statLevel: 65 },
-  ],
-  'K/D': [
-    { rank: 1, ign: 'GL', score: '6.42', label: 'K/D', kd: '284 kills', statLevel: 100 },
-    { rank: 2, ign: 'TH-WHITE', score: '5.88', label: 'K/D', kd: '261 kills', statLevel: 92 },
-    { rank: 3, ign: 'ELITE-RAJ', score: '5.40', label: 'K/D', kd: '245 kills', statLevel: 84 },
-    { rank: 4, ign: 'NEXA FF', score: '5.12', label: 'K/D', kd: '232 kills', statLevel: 80 },
-    { rank: 5, ign: 'DARK LORD', score: '4.85', label: 'K/D', kd: '218 kills', statLevel: 75 },
-  ],
-}
-
-const recentWinners = [
-  { place: '1ST', name: 'TEAM HAWK', tournament: 'Karnataka Championship S4', date: 'Oct 14, 2026', points: '142 pts' },
-  { place: '2ND', name: 'GL', tournament: 'Solo Bermuda Cup', date: 'Oct 10, 2026', points: '128 pts' },
-  { place: '3RD', name: 'NEXA FF', tournament: 'Weekly Clash Squad #18', date: 'Oct 05, 2026', points: '115 pts' },
-  { place: 'MVP', name: 'TH-WHITE', tournament: 'Invitational Pro Scrims', date: 'Sep 29, 2026', points: '24 kills' },
-]
-
-const stats = [
-  { value: '142+', label: 'Registered players', chart: [35, 55, 45, 75, 60, 90, 100] },
-  { value: '23', label: 'Tournaments hosted', chart: [20, 30, 45, 60, 50, 75, 85] },
-  { value: '3K+', label: 'Community members', chart: [40, 50, 65, 70, 80, 85, 95] },
-  { value: '497K', label: 'Arena visits', chart: [50, 65, 60, 85, 90, 95, 100] },
 ]
 
 /* --- Compact Wrapped Navigation Hub (Designed for non-tech & mobile users) --- */
@@ -296,8 +221,20 @@ function NeuMiniBarChart({ values = [30, 50, 40, 70, 60, 90, 100] }: { values?: 
 
 export default function HomePage() {
   const [activeMascotIndex, setActiveMascotIndex] = useState(0)
-  const [activeLeaderboardTab, setActiveLeaderboardTab] = useState<'KILLS' | 'WINS' | 'K/D'>('KILLS')
+  const [activeLeaderboardTab, setActiveLeaderboardTab] = useState<'XP' | 'STREAK' | 'LEVEL'>('XP')
+  const [allTournaments, setAllTournaments] = useState<Tournament[]>([])
   const [dbTournaments, setDbTournaments] = useState<Tournament[]>([])
+  const [rankings, setRankings] = useState<LeaderboardPlayer[]>([])
+  const [guildSummary, setGuildSummary] = useState<{ guild: Guild | null; members: GuildMember[] }>({
+    guild: null,
+    members: [],
+  })
+  const [liveStats, setLiveStats] = useState([
+    { value: '0', label: 'Registered players', chart: [15, 20, 25, 20, 30, 25, 35] },
+    { value: '0', label: 'Tournaments hosted', chart: [15, 20, 25, 20, 30, 25, 35] },
+    { value: '0', label: 'Guild members', chart: [15, 20, 25, 20, 30, 25, 35] },
+    { value: '0', label: 'Arena visits', chart: [15, 20, 25, 20, 30, 25, 35] },
+  ])
   const [tournamentSearch, setTournamentSearch] = useState('')
   const [selectedFormat, setSelectedFormat] = useState('ALL')
 
@@ -305,12 +242,34 @@ export default function HomePage() {
     trackPageVisit(false)
     async function loadData() {
       try {
-        const fetched = await fetchTournaments()
-        if (fetched && fetched.length > 0) {
-          setDbTournaments(fetched.slice(0, 3))
-        }
+        const [fetchedTournaments, dynamicCards, fetchedRankings, fetchedGuild] = await Promise.all([
+          fetchTournaments(),
+          fetchDynamicHomeStats(),
+          fetchRankings(),
+          fetchEliteArmyGuild(),
+        ])
+
+        setAllTournaments(fetchedTournaments || [])
+        const upcomingOrActive = (fetchedTournaments || []).filter(
+          (t) => t.status !== 'completed' && t.status !== 'cancelled'
+        )
+        setDbTournaments((upcomingOrActive.length > 0 ? upcomingOrActive : fetchedTournaments || []).slice(0, 3))
+        setRankings(fetchedRankings || [])
+        setGuildSummary(fetchedGuild || { guild: null, members: [] })
+
+        const playersVal = dynamicCards?.[0]?.stat_number || '0'
+        const tourneysVal = dynamicCards?.[1]?.stat_number || String((fetchedTournaments || []).length)
+        const visitsVal = dynamicCards?.[2]?.stat_number || '0'
+        const guildMemberCount = String(fetchedGuild?.members?.length || 0)
+
+        setLiveStats([
+          { value: playersVal, label: 'Registered players', chart: [25, 40, 35, 60, 55, 80, 95] },
+          { value: tourneysVal, label: 'Tournaments hosted', chart: [20, 30, 45, 60, 50, 75, 85] },
+          { value: guildMemberCount, label: 'Guild members', chart: [30, 45, 55, 65, 70, 80, 90] },
+          { value: visitsVal, label: 'Arena visits', chart: [40, 55, 60, 75, 85, 90, 100] },
+        ])
       } catch {
-        // Fallback to defaultTournaments
+        // Keep clean empty defaults on error
       }
     }
     loadData()
@@ -331,21 +290,72 @@ export default function HomePage() {
     }
   }
 
-  const currentTournaments =
-    dbTournaments.length > 0
-      ? dbTournaments.map((tournament) => ({
-          id: tournament.id,
-          title: tournament.title,
-          game_mode: tournament.game_mode || 'FREE FIRE • BATTLE ROYALE',
-          map: tournament.map || 'BERMUDA',
-          tournament_start: tournament.tournament_start,
-          entry_status:
-            tournament.status === 'registration_open' ? 'REGISTRATION OPEN' : 'UPCOMING',
-          prize_pool: tournament.prize_pool || '₹5,000 CASH',
-          slots_filled: tournament.slots_filled || 32,
-          max_slots: tournament.max_slots || 48,
-        }))
-      : defaultTournaments
+  const currentTournaments = dbTournaments.map((tournament) => ({
+    id: tournament.id,
+    title: tournament.title,
+    game_mode: tournament.game_mode || 'FREE FIRE • BATTLE ROYALE',
+    map: tournament.map || 'BERMUDA',
+    tournament_start: tournament.tournament_start,
+    entry_status:
+      tournament.status === 'registration_open'
+        ? 'REGISTRATION OPEN'
+        : tournament.status === 'completed'
+        ? 'COMPLETED'
+        : 'UPCOMING',
+    prize_pool: tournament.prize_pool || 'TBD',
+    slots_filled: tournament.slots_filled || 0,
+    max_slots: tournament.max_slots || 48,
+  }))
+
+  const sortedTopPlayers = [...rankings]
+    .sort((a, b) => {
+      if (activeLeaderboardTab === 'XP') return (b.xp || 0) - (a.xp || 0)
+      if (activeLeaderboardTab === 'STREAK') return (b.logins || 0) - (a.logins || 0)
+      return (b.level || 0) - (a.level || 0)
+    })
+    .slice(0, 5)
+    .map((p, idx) => ({
+      rank: idx + 1,
+      ign: p.name || 'Player',
+      score:
+        activeLeaderboardTab === 'XP'
+          ? String(p.xp || 0)
+          : activeLeaderboardTab === 'STREAK'
+          ? String(p.logins || 0)
+          : String(p.level || 1),
+      label:
+        activeLeaderboardTab === 'XP'
+          ? 'XP'
+          : activeLeaderboardTab === 'STREAK'
+          ? 'days'
+          : 'LVL',
+      kd: p.tier || 'BRONZE',
+    }))
+
+  const recentWinners = allTournaments
+    .filter((t) => t.status === 'completed' && t.top_3_teams && t.top_3_teams.length > 0)
+    .slice(0, 4)
+    .map((t) => {
+      const winner = t.top_3_teams?.find((team) => team.rank === 1) || t.top_3_teams?.[0]
+      return {
+        place: '1ST',
+        name: winner?.team_name || 'Champion Squad',
+        tournament: t.title,
+        date: t.tournament_start
+          ? new Date(t.tournament_start).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+              timeZone: 'UTC',
+            })
+          : 'Completed',
+        points: winner?.prize || t.prize_pool || 'Champion',
+      }
+    })
+
+  const guildMemberCount = guildSummary.members.length
+  const guildMaxMembers = 50
+  const guildCapacityPercent = Math.min(100, Math.round((guildMemberCount / guildMaxMembers) * 100))
 
   const activeSlide = mascotSlides[activeMascotIndex]
 
@@ -530,7 +540,7 @@ export default function HomePage() {
               STATS BAR — 3D Telemetry Mixer Panel (Mobile-optimized)
               ============================================================ */}
           <div className="neu-raised mt-8 sm:mt-12 lg:mt-14 grid grid-cols-2 gap-2.5 sm:gap-4 p-3 sm:p-5 lg:grid-cols-4 lg:gap-5">
-            {stats.map((stat, idx) => (
+            {liveStats.map((stat, idx) => (
               <div
                 key={stat.label}
                 className="neu-inset-sm flex flex-col justify-between p-3 sm:p-4 transition-transform duration-200 hover:scale-[1.02]"
@@ -866,93 +876,106 @@ export default function HomePage() {
           </div>
 
           {/* Tournament Cards Grid */}
-          <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredTournaments.map((tournament) => {
-              const filledPercent = Math.round(
-                (tournament.slots_filled / tournament.max_slots) * 100
-              )
+          {filteredTournaments.length === 0 ? (
+            <div className="neu-raised p-8 text-center">
+              <Trophy size={28} className="mx-auto text-ink-subtle" />
+              <p className="mt-3 text-sm font-bold text-ink">No tournaments scheduled yet</p>
+              <p className="mt-1 text-xs text-ink-muted">
+                Check back soon or ask an admin to publish an upcoming bracket.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredTournaments.map((tournament) => {
+                const filledPercent =
+                  tournament.max_slots > 0
+                    ? Math.round((tournament.slots_filled / tournament.max_slots) * 100)
+                    : 0
 
-              return (
-                <article
-                  key={tournament.id}
-                  className="neu-raised neu-raised-hover flex flex-col justify-between p-4 sm:p-6"
-                >
-                  <div>
-                    {/* Card Top: Date & Status */}
-                    <div className="flex items-center justify-between gap-2 border-b border-black/[0.08] pb-3">
-                      <span className="flex items-center gap-1.5 text-xs text-ink-subtle font-medium" suppressHydrationWarning>
-                        <Calendar size={13} className="text-brand" />
-                        {new Date(tournament.tournament_start).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          timeZone: 'UTC',
-                        })}
-                      </span>
-                      <span className="neu-badge-crimson !py-0.5 text-[10px]">
-                        {tournament.entry_status}
-                      </span>
-                    </div>
-
-                    {/* Title */}
-                    <h3 className="mt-3.5 line-clamp-2 text-sm sm:text-base lg:text-lg font-bold tracking-tight text-ink">
-                      {tournament.title}
-                    </h3>
-
-                    {/* Mode & Map */}
-                    <div className="mt-2.5 flex flex-wrap items-center gap-2.5 text-xs text-ink-muted">
-                      <span className="flex items-center gap-1.5">
-                        <Gamepad2 size={13} className="text-brand" />
-                        {tournament.game_mode}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <MapPin size={13} className="text-brand" />
-                        {tournament.map}
-                      </span>
-                    </div>
-
-                    {/* 3D Telemetry Wells: Prize + Slot Dial */}
-                    <div className="mt-4 grid grid-cols-2 gap-2.5">
-                      <div className="neu-inset-sm flex flex-col justify-center p-2.5 sm:p-3">
-                        <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
-                          Prize Pool
+                return (
+                  <article
+                    key={tournament.id}
+                    className="neu-raised neu-raised-hover flex flex-col justify-between p-4 sm:p-6"
+                  >
+                    <div>
+                      {/* Card Top: Date & Status */}
+                      <div className="flex items-center justify-between gap-2 border-b border-black/[0.08] pb-3">
+                        <span className="flex items-center gap-1.5 text-xs text-ink-subtle font-medium" suppressHydrationWarning>
+                          <Calendar size={13} className="text-brand" />
+                          {tournament.tournament_start
+                            ? new Date(tournament.tournament_start).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                timeZone: 'UTC',
+                              })
+                            : 'TBD'}
                         </span>
-                        <p className="mt-0.5 text-xs sm:text-sm font-black text-ink">
-                          {tournament.prize_pool}
-                        </p>
+                        <span className="neu-badge-crimson !py-0.5 text-[10px]">
+                          {tournament.entry_status}
+                        </span>
                       </div>
 
-                      <div className="neu-inset-sm flex items-center justify-between p-2.5 sm:p-3">
-                        <div>
+                      {/* Title */}
+                      <h3 className="mt-3.5 line-clamp-2 text-sm sm:text-base lg:text-lg font-bold tracking-tight text-ink">
+                        {tournament.title}
+                      </h3>
+
+                      {/* Mode & Map */}
+                      <div className="mt-2.5 flex flex-wrap items-center gap-2.5 text-xs text-ink-muted">
+                        <span className="flex items-center gap-1.5">
+                          <Gamepad2 size={13} className="text-brand" />
+                          {tournament.game_mode}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <MapPin size={13} className="text-brand" />
+                          {tournament.map}
+                        </span>
+                      </div>
+
+                      {/* 3D Telemetry Wells: Prize + Slot Dial */}
+                      <div className="mt-4 grid grid-cols-2 gap-2.5">
+                        <div className="neu-inset-sm flex flex-col justify-center p-2.5 sm:p-3">
                           <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
-                            Slots
+                            Prize Pool
                           </span>
-                          <p className="mt-0.5 text-[11px] sm:text-xs font-bold text-ink">
-                            {tournament.slots_filled}/{tournament.max_slots}
+                          <p className="mt-0.5 text-xs sm:text-sm font-black text-ink">
+                            {tournament.prize_pool}
                           </p>
                         </div>
-                        <NeuCircularDial percent={filledPercent} size={36} strokeWidth={3.5} />
+
+                        <div className="neu-inset-sm flex items-center justify-between p-2.5 sm:p-3">
+                          <div>
+                            <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                              Slots
+                            </span>
+                            <p className="mt-0.5 text-[11px] sm:text-xs font-bold text-ink">
+                              {tournament.slots_filled}/{tournament.max_slots}
+                            </p>
+                          </div>
+                          <NeuCircularDial percent={filledPercent} size={36} strokeWidth={3.5} />
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Card Bottom: Action */}
-                  <div className="mt-5 flex items-center justify-between gap-3 border-t border-black/[0.08] pt-3.5">
-                    <Link
-                      href="/tournaments"
-                      className="text-xs font-bold text-ink-subtle hover:text-ink transition-colors"
-                    >
-                      Rules
-                    </Link>
+                    {/* Card Bottom: Action */}
+                    <div className="mt-5 flex items-center justify-between gap-3 border-t border-black/[0.08] pt-3.5">
+                      <Link
+                        href="/tournaments"
+                        className="text-xs font-bold text-ink-subtle hover:text-ink transition-colors"
+                      >
+                        Rules
+                      </Link>
 
-                    <Link href="/tournaments" className="neu-btn-crimson !min-h-[2.35rem] !px-3.5 text-xs">
-                      <span>Register</span>
-                      <ArrowRight size={13} />
-                    </Link>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
+                      <Link href="/tournaments" className="neu-btn-crimson !min-h-[2.35rem] !px-3.5 text-xs">
+                        <span>Register</span>
+                        <ArrowRight size={13} />
+                      </Link>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
         </div>
       </section>
 
@@ -978,7 +1001,7 @@ export default function HomePage() {
 
               {/* 3D Segment Switcher */}
               <div className="neu-tabs py-1 w-fit">
-                {(['KILLS', 'WINS', 'K/D'] as const).map((tab) => (
+                {(['XP', 'STREAK', 'LEVEL'] as const).map((tab) => (
                   <button
                     key={tab}
                     type="button"
@@ -995,58 +1018,64 @@ export default function HomePage() {
 
             {/* Tactile Player Strip List */}
             <div className="mt-5 sm:mt-7 space-y-2.5">
-              {playersData[activeLeaderboardTab].map((player) => (
-                <div
-                  key={`${player.rank}-${player.ign}`}
-                  className="neu-inset-sm flex items-center justify-between gap-2.5 p-3 sm:px-4 transition-all duration-200 hover:scale-[1.01]"
-                >
-                  <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-                    {/* Rank Badge */}
-                    <span
-                      className={`grid h-7 w-7 sm:h-8 sm:w-8 place-items-center rounded-full text-xs font-black shrink-0 ${
-                        player.rank === 1
-                          ? 'neu-circle-crimson'
-                          : 'neu-circle text-ink-muted'
-                      }`}
-                    >
-                      {player.rank}
-                    </span>
-
-                    {/* Avatar Well */}
-                    <span className="neu-circle h-8 w-8 sm:h-9 sm:w-9 text-xs font-bold text-ink shrink-0">
-                      {player.ign.slice(0, 2)}
-                    </span>
-
-                    {/* Name */}
-                    <div className="min-w-0 truncate">
-                      <p className="text-xs sm:text-sm font-bold text-ink truncate">{player.ign}</p>
-                      <p className="text-[10px] text-ink-subtle truncate">Verified Elite Player</p>
-                    </div>
-                  </div>
-
-                  {/* Equalizer Waveform & Score */}
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="hidden sm:block">
-                      <AudioFrequencyWaveform active={player.rank <= 3} barCount={8} />
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-xs sm:text-sm font-black text-ink">
-                        {player.score}{' '}
-                        <span className="text-[10px] sm:text-xs font-semibold text-brand">
-                          {player.label}
-                        </span>
-                      </p>
-                      <p className="text-[10px] text-ink-subtle">{player.kd}</p>
-                    </div>
-                  </div>
+              {sortedTopPlayers.length === 0 ? (
+                <div className="neu-inset-sm p-6 text-center text-xs text-ink-muted">
+                  No ranked players yet. Register and compete in tournaments to appear here.
                 </div>
-              ))}
+              ) : (
+                sortedTopPlayers.map((player) => (
+                  <div
+                    key={`${player.rank}-${player.ign}`}
+                    className="neu-inset-sm flex items-center justify-between gap-2.5 p-3 sm:px-4 transition-all duration-200 hover:scale-[1.01]"
+                  >
+                    <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+                      {/* Rank Badge */}
+                      <span
+                        className={`grid h-7 w-7 sm:h-8 sm:w-8 place-items-center rounded-full text-xs font-black shrink-0 ${
+                          player.rank === 1
+                            ? 'neu-circle-crimson'
+                            : 'neu-circle text-ink-muted'
+                        }`}
+                      >
+                        {player.rank}
+                      </span>
+
+                      {/* Avatar Well */}
+                      <span className="neu-circle h-8 w-8 sm:h-9 sm:w-9 text-xs font-bold text-ink shrink-0">
+                        {player.ign.slice(0, 2)}
+                      </span>
+
+                      {/* Name */}
+                      <div className="min-w-0 truncate">
+                        <p className="text-xs sm:text-sm font-bold text-ink truncate">{player.ign}</p>
+                        <p className="text-[10px] text-ink-subtle truncate">Verified Elite Player</p>
+                      </div>
+                    </div>
+
+                    {/* Equalizer Waveform & Score */}
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="hidden sm:block">
+                        <AudioFrequencyWaveform active={player.rank <= 3} barCount={8} />
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-xs sm:text-sm font-black text-ink">
+                          {player.score}{' '}
+                          <span className="text-[10px] sm:text-xs font-semibold text-brand">
+                            {player.label}
+                          </span>
+                        </p>
+                        <p className="text-[10px] text-ink-subtle">{player.kd}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
             <div className="mt-5 sm:mt-6 flex justify-end">
               <Link href="/leaderboard" className="neu-btn-dark !min-h-[2.35rem] sm:!min-h-[2.5rem] !px-3.5 sm:!px-4 text-xs">
-                <span>View Full 100-Player Leaderboard</span>
+                <span>View Full Leaderboard</span>
                 <ArrowRight size={13} />
               </Link>
             </div>
@@ -1079,27 +1108,27 @@ export default function HomePage() {
 
               <p className="mt-4 text-xs sm:text-sm leading-relaxed text-ink-muted">
                 The frontline competitive roster of ELITE ಕನ್ನಡಿಗ. Scrims, official state
-                qualifiers, and clan tournaments with zero losses in 8 consecutive fixtures.
+                qualifiers, and clan tournaments across Karnataka.
               </p>
 
-              {/* 3D Tactile Member Capacity Slider (Matching reference image slider) */}
+              {/* 3D Tactile Member Capacity Slider */}
               <div className="neu-inset-sm mt-5 p-3 sm:p-4">
                 <div className="flex items-center justify-between text-xs font-bold text-ink">
                   <span>Guild Capacity</span>
-                  <span className="text-brand">48 / 50 Members</span>
+                  <span className="text-brand">{guildMemberCount} / {guildMaxMembers} Members</span>
                 </div>
                 {/* Sunken track with raised coral-red knob */}
                 <div className="neu-inset-pill relative mt-2.5 h-3 w-full overflow-hidden">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-[#eb3845] to-[#ff5e6b] shadow-[0_1px_6px_rgba(235,56,69,0.4)]"
-                    style={{ width: '96%' }}
+                    style={{ width: `${guildCapacityPercent}%` }}
                   />
                 </div>
               </div>
 
               {/* Badges */}
               <div className="mt-4 flex flex-wrap gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
-                {['Free Fire Tier 1', 'Weekly Scrims', 'UID: 1969913248', 'Verified'].map((tag) => (
+                {['Free Fire Tier 1', 'Weekly Scrims', 'Official Roster', 'Verified'].map((tag) => (
                   <span key={tag} className="neu-badge !py-0.5 !px-2">
                     {tag}
                   </span>
@@ -1128,35 +1157,41 @@ export default function HomePage() {
 
               {/* Champions Rows */}
               <div className="mt-4 space-y-2.5">
-                {recentWinners.map((winner) => (
-                  <div
-                    key={`${winner.place}-${winner.name}`}
-                    className="neu-inset-sm flex items-center justify-between p-3"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className={`grid h-7 w-8 place-items-center rounded-lg text-xs font-black ${
-                          winner.place === '1ST'
-                            ? 'neu-circle-crimson'
-                            : 'neu-circle text-ink-muted'
-                        }`}
-                      >
-                        {winner.place}
-                      </span>
-                      <div>
-                        <p className="text-xs sm:text-sm font-bold text-ink">{winner.name}</p>
-                        <p className="text-[10px] sm:text-[11px] text-ink-subtle">{winner.tournament}</p>
+                {recentWinners.length === 0 ? (
+                  <div className="neu-inset-sm p-6 text-center text-xs text-ink-muted">
+                    No completed tournament champions recorded yet.
+                  </div>
+                ) : (
+                  recentWinners.map((winner) => (
+                    <div
+                      key={`${winner.place}-${winner.name}-${winner.tournament}`}
+                      className="neu-inset-sm flex items-center justify-between p-3"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`grid h-7 w-8 place-items-center rounded-lg text-xs font-black ${
+                            winner.place === '1ST'
+                              ? 'neu-circle-crimson'
+                              : 'neu-circle text-ink-muted'
+                          }`}
+                        >
+                          {winner.place}
+                        </span>
+                        <div>
+                          <p className="text-xs sm:text-sm font-bold text-ink">{winner.name}</p>
+                          <p className="text-[10px] sm:text-[11px] text-ink-subtle">{winner.tournament}</p>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="neu-badge-crimson !py-0.5 text-[9px] sm:text-[10px]">
+                          {winner.points}
+                        </span>
+                        <p className="mt-0.5 text-[9px] sm:text-[10px] text-ink-subtle">{winner.date}</p>
                       </div>
                     </div>
-
-                    <div className="text-right">
-                      <span className="neu-badge-crimson !py-0.5 text-[9px] sm:text-[10px]">
-                        {winner.points}
-                      </span>
-                      <p className="mt-0.5 text-[9px] sm:text-[10px] text-ink-subtle">{winner.date}</p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
 
@@ -1178,7 +1213,7 @@ export default function HomePage() {
               <div className="max-w-xl">
                 <span className="neu-badge-crimson !py-0.5 text-[10px] sm:text-[11px]">
                   <Sparkles size={12} />
-                  Season 2 Registrations Open
+                  Arena Registrations Open
                 </span>
 
                 <h2 className="mt-3 text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight text-ink">

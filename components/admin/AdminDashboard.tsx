@@ -36,11 +36,13 @@ import {
   Pause,
   RefreshCw,
   Swords,
+  Archive,
 } from 'lucide-react'
 import {
   HomeCard,
   Tournament,
   TournamentRegistration,
+  TournamentArchive,
   LeaderboardSection,
   Achievement,
   CommunityClip,
@@ -63,6 +65,12 @@ import {
   deleteTournamentRegistration,
   saveMatchResults,
   updateTournamentTop3AndResults,
+  fetchTournamentArchives,
+  archiveCompletedTournament,
+  archiveAllCompletedTournaments,
+  fetchUserCleanupStats,
+  purgeNonAdminUsers,
+  factoryResetKeepAdmin,
   fetchLeaderboardSections,
   createLeaderboardSection,
   updateLeaderboardSection,
@@ -122,6 +130,17 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
   // 2. Tournaments State & Form Inputs
   const [tournaments, setTournaments] = useState<Tournament[]>([])
+  const [tournamentArchives, setTournamentArchives] = useState<TournamentArchive[]>([])
+  const [userCleanupStats, setUserCleanupStats] = useState({
+    totalProfiles: 0,
+    adminProfiles: 0,
+    nonAdminProfiles: 0,
+    staleHonors: 0,
+    staleAchievements: 0,
+  })
+  const [archivingTourneyId, setArchivingTourneyId] = useState<string | null>(null)
+  const [purgingUsers, setPurgingUsers] = useState(false)
+  const [resettingAllData, setResettingAllData] = useState(false)
   const [newTourneyTitle, setNewTourneyTitle] = useState('')
   const [newTourneyMode, setNewTourneyMode] = useState('CS SQUAD BATTLE')
   const [customPrizeText, setCustomPrizeText] = useState('₹10,000')
@@ -143,7 +162,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
   const [top1Team, setTop1Team] = useState<TopTeamDetail>({ rank: 1, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: ['', '', '', ''], player_uids: ['', '', '', ''] })
   const [top2Team, setTop2Team] = useState<TopTeamDetail>({ rank: 2, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: ['', '', '', ''], player_uids: ['', '', '', ''] })
   const [top3Team, setTop3Team] = useState<TopTeamDetail>({ rank: 3, team_name: '', captain_name: '', captain_uid: '', kills: 0, points: 0, prize: '', player_names: ['', '', '', ''], player_uids: ['', '', '', ''] })
-  const [finishChampionsImageUrl, setFinishChampionsImageUrl] = useState<string>('/images/carousel-aliens-champions.jpg')
+  const [finishChampionsImageUrl, setFinishChampionsImageUrl] = useState<string>('')
   const [finishResultsBgmUrl, setFinishResultsBgmUrl] = useState<string>('')
   const [imageFileName, setImageFileName] = useState<string>('')
   const [audioFileName, setAudioFileName] = useState<string>('')
@@ -371,9 +390,15 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
     const cards = await fetchHomeCards()
     setHomeCards(cards)
 
-    // Load Tournaments
-    const tourneys = await fetchTournaments()
+    // Load Tournaments & Archives + User Cleanup Stats
+    const [tourneys, archives, cleanupStats] = await Promise.all([
+      fetchTournaments(),
+      fetchTournamentArchives(),
+      fetchUserCleanupStats(),
+    ])
     setTournaments(tourneys)
+    setTournamentArchives(archives)
+    setUserCleanupStats(cleanupStats)
 
     // Load Leaderboard Sections
     const secs = await fetchLeaderboardSections()
@@ -713,7 +738,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
 
   const handleOpenFinishModal = async (t: Tournament) => {
     setFinishingTourney(t)
-    setFinishChampionsImageUrl(t.champions_image_url || '/images/carousel-aliens-champions.jpg')
+    setFinishChampionsImageUrl(t.champions_image_url || '')
     setFinishResultsBgmUrl(t.results_bgm_url || '')
     setImageFileName('')
     setAudioFileName('')
@@ -956,6 +981,85 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
     if (!error) {
       showNotification('Tournament deleted.')
       loadAllAdminData()
+    }
+  }
+
+  const handleArchiveTournament = async (tournamentId: string, title?: string) => {
+    setArchivingTourneyId(tournamentId)
+    const res = await archiveCompletedTournament(tournamentId)
+    setArchivingTourneyId(null)
+    if (res.success) {
+      showNotification(`Archived "${title || res.archive?.title || 'Tournament'}" (${res.archive?.slots_filled || 0} teams saved separately).`)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('tournaments_updated'))
+      }
+      await Promise.all([loadAllAdminData(), loadHonorsData()])
+    } else {
+      showNotification(res.error || 'Failed to archive tournament', 'error')
+    }
+  }
+
+  const handleArchiveAllCompleted = async () => {
+    setArchivingTourneyId('all')
+    const res = await archiveAllCompletedTournaments()
+    setArchivingTourneyId(null)
+    if (res.success) {
+      showNotification(`Archived ${res.count} completed tournament(s) separately!`)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('tournaments_updated'))
+      }
+      await Promise.all([loadAllAdminData(), loadHonorsData()])
+    } else {
+      showNotification(res.error || 'Failed to archive completed tournaments', 'error')
+    }
+  }
+
+  const handlePurgeNonAdminUsers = async () => {
+    if (
+      !confirm(
+        `This will:\n1. Save separate permanent archives of all finished tournaments (Season 1, Season 2, etc.) with all teams & podiums.\n2. Delete ALL ${userCleanupStats.nonAdminProfiles} non-admin / dummy user accounts from the application while keeping Admin accounts untouched.\n\nProceed?`
+      )
+    ) {
+      return
+    }
+    setPurgingUsers(true)
+    const res = await purgeNonAdminUsers()
+    setPurgingUsers(false)
+    if (res.success) {
+      showNotification(
+        `Done! Archived ${res.archivedTournaments} tournament(s), deleted ${res.deletedProfiles} profile(s) & ${res.deletedAuthUsers} auth account(s), preserved ${res.preservedAdmins} admin(s).`
+      )
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('tournaments_updated'))
+      }
+      await Promise.all([loadAllAdminData(), loadHonorsData()])
+    } else {
+      showNotification(res.error || 'Failed to clean up non-admin users', 'error')
+    }
+  }
+
+  const handleFactoryReset = async () => {
+    if (
+      !confirm(
+        'WARNING: This will PERMANENTLY delete ALL tournaments, tournament results, archives, leaderboard honors, achievements, guild members, uploaded player images, and ALL non-admin user accounts & UIDs.\n\nOnly Admin login accounts will be preserved.\n\nProceed with full reset?'
+      )
+    ) {
+      return
+    }
+    setResettingAllData(true)
+    const res = await factoryResetKeepAdmin()
+    setResettingAllData(false)
+    if (res.success) {
+      showNotification(
+        `Factory reset complete! Deleted ${res.deletedProfiles ?? 0} profile(s), ${res.deletedAuthUsers ?? 0} auth user(s), and ${res.deletedStorageObjects ?? 0} storage file(s). Kept ${res.preservedAdmins ?? 1} admin login.`
+      )
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('tournaments_updated'))
+        window.dispatchEvent(new Event('site_settings_updated'))
+      }
+      await Promise.all([loadAllAdminData(), loadHonorsData()])
+    } else {
+      showNotification(res.error || 'Factory reset failed', 'error')
     }
   }
 
@@ -1779,6 +1883,135 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                   </div>
                 ))}
               </div>
+
+              {/* Completed Tournament Separate Archives & Non-Admin User Cleanup */}
+              <div className="border border-brand-border bg-surface-2 p-5 space-y-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-line-subtle pb-4">
+                  <div>
+                    <h4 className="eyebrow flex items-center gap-2 text-brand-bright">
+                      <Archive size={15} /> FINISHED TOURNAMENT ARCHIVES &amp; USER CLEANUP
+                    </h4>
+                    <p className="text-xs text-ink-subtle mt-1">
+                      Finished tournaments (Season 1, Season 2, etc.) are stored separately with all teams, Top 3 podiums, media &amp; standings so user results never break when cleaning dummy user accounts.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={archivingTourneyId !== null}
+                    onClick={handleArchiveAllCompleted}
+                    className="btn-secondary px-3 py-2 text-xs font-bold uppercase shrink-0"
+                  >
+                    <RefreshCw size={13} className={archivingTourneyId === 'all' ? 'animate-spin' : ''} />
+                    {archivingTourneyId === 'all' ? 'ARCHIVING...' : 'ARCHIVE ALL FINISHED'}
+                  </button>
+                </div>
+
+                {/* Archived Finished Tournaments List */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-ink-subtle uppercase">
+                    <span>SEPARATELY ARCHIVED FINISHED TOURNAMENTS ({tournamentArchives.length})</span>
+                    <span>
+                      {tournaments.filter((t) => t.status === 'completed').length} completed total
+                    </span>
+                  </div>
+
+                  {tournamentArchives.length === 0 ? (
+                    <div className="border border-line-subtle bg-surface-1 p-4 text-xs text-ink-subtle">
+                      No snapshots saved yet. Click <strong className="text-ink">ARCHIVE ALL FINISHED</strong> above or finish any tournament to store a separate permanent snapshot.
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {tournamentArchives.map((arch) => (
+                        <div
+                          key={arch.tournament_id}
+                          className="border border-line bg-surface-1 p-3.5 flex items-center justify-between gap-3"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-display text-sm font-extrabold text-ink truncate">
+                              {arch.title}
+                            </p>
+                            <p className="text-xs text-ink-subtle mt-0.5">
+                              <strong className="text-brand-bright">{arch.slots_filled || arch.registrations_snapshot?.length || 0}</strong> teams saved •{' '}
+                              <strong className="text-ink">{arch.top_3_teams?.length || 0}</strong> podium squads
+                            </p>
+                            <p className="text-[11px] text-ink-subtle mt-0.5">
+                              Synced: {new Date(arch.updated_at || arch.archived_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={archivingTourneyId === arch.tournament_id}
+                            onClick={() => handleArchiveTournament(arch.tournament_id, arch.title)}
+                            className="border border-line bg-surface-2 px-2.5 py-1.5 text-[11px] font-bold uppercase text-ink hover:border-brand shrink-0"
+                          >
+                            {archivingTourneyId === arch.tournament_id ? 'SYNCING...' : 'SYNC SNAPSHOT'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Purge Non-Admin Users Control */}
+                <div className="border border-brand bg-brand-muted p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-extrabold uppercase tracking-wider text-brand-bright">
+                      DELETE ALL NON-ADMIN / DUMMY USERS (SAFE MODE)
+                    </p>
+                    <p className="text-xs text-ink-muted mt-1">
+                      Registered profiles: <strong className="text-ink">{userCleanupStats.totalProfiles}</strong> •{' '}
+                      Admins preserved: <strong className="text-ink">{userCleanupStats.adminProfiles}</strong> •{' '}
+                      Non-admin profiles: <strong className="text-brand-bright">{userCleanupStats.nonAdminProfiles}</strong> •{' '}
+                      Leftover Leaderboard honors: <strong className="text-brand-bright">{userCleanupStats.staleHonors}</strong> •{' '}
+                      Leftover player achievements: <strong className="text-brand-bright">{userCleanupStats.staleAchievements}</strong>
+                    </p>
+                    <p className="text-[11px] text-ink-subtle mt-1">
+                      Note: Execute <code className="text-ink">supabase/archive_tournaments_and_cleanup_users.sql</code> in the Supabase SQL Editor to snapshot completed tournaments as static data and purge all non-admin profiles, auth accounts, honors, and player achievement cards.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={
+                      purgingUsers ||
+                      (userCleanupStats.nonAdminProfiles === 0 &&
+                        userCleanupStats.staleHonors === 0 &&
+                        userCleanupStats.staleAchievements === 0)
+                    }
+                    onClick={handlePurgeNonAdminUsers}
+                    className="btn-primary px-4 py-2.5 text-xs font-extrabold uppercase shrink-0 disabled:opacity-50"
+                  >
+                    <Trash2 size={14} />
+                    {purgingUsers ? 'CLEANING USERS...' : 'ARCHIVE & PURGE NON-ADMIN USERS'}
+                  </button>
+                </div>
+
+                {/* Full Factory Reset Control */}
+                <div className="border border-brand bg-brand-muted p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-extrabold uppercase tracking-wider text-brand-bright">
+                      FULL FACTORY RESET (DELETE ALL DATA — KEEP ADMIN LOGIN ONLY)
+                    </p>
+                    <p className="text-xs text-ink-muted mt-1">
+                      Deletes all tournaments, tournament results, archives, honors, achievements, guild members, giveaways, Q&amp;A, clips, announcements, uploaded images, and all non-admin users &amp; UIDs while keeping your Admin login.
+                    </p>
+                    <p className="text-[11px] text-ink-subtle mt-1">
+                      Note: Execute <code className="text-ink">supabase/full_data_reset.sql</code> in the Supabase SQL Editor once to register and run the clean-slate reset.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={resettingAllData}
+                    onClick={handleFactoryReset}
+                    className="btn-primary px-4 py-2.5 text-xs font-extrabold uppercase shrink-0 disabled:opacity-50"
+                  >
+                    <Trash2 size={14} />
+                    {resettingAllData ? 'RESETTING ALL DATA...' : 'FACTORY RESET ALL DATA'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1831,7 +2064,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     <label className="mb-1 block label">PLAYER NAME (IGN)</label>
                     <input
                       type="text"
-                      placeholder={searchingUid ? "Searching UID..." : "e.g. ELITE_RAHUL"}
+                      placeholder={searchingUid ? "Searching UID..." : "e.g. PlayerName"}
                       value={honorPlayerName}
                       onChange={(e) => setHonorPlayerName(e.target.value)}
                       className="field h-10"
@@ -2427,7 +2660,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     <label className="mb-1 block label">PLAYER NAME / IGN</label>
                     <input
                       type="text"
-                      placeholder="e.g. ELITE_RAHUL"
+                      placeholder="e.g. PlayerName"
                       value={achPlayerName}
                       onChange={(e) => setAchPlayerName(e.target.value)}
                       className="field h-10"
@@ -3895,7 +4128,7 @@ export function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
                     value={editingAch.player_name || ''}
                     onChange={(e) => setEditingAch({ ...editingAch, player_name: e.target.value })}
                     className="field h-10"
-                    placeholder="e.g. ELITE_RAHUL"
+                    placeholder="e.g. PlayerName"
                   />
                 </div>
                 <div>

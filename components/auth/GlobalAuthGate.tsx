@@ -10,13 +10,12 @@ import {
   Lock,
   Mail,
   Shield,
-  User,
 } from 'lucide-react'
 import {
   supabase,
   getUserProfile,
-  registerPlayerWithUid,
-  loginPlayerWithUid,
+  registerWithEmailPasswordUid,
+  loginWithEmailAndPassword,
 } from '../../lib/supabase'
 import { Profile } from '../../lib/types'
 
@@ -30,9 +29,8 @@ export function GlobalAuthGate({ children }: GlobalAuthGateProps) {
   const [userProfile, setUserProfile] = useState<Profile | null>(null)
 
   // Auth Form State
-  const [authMode, setAuthMode] = useState<'player_login' | 'register' | 'admin_login'>('player_login')
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [freeFireUid, setFreeFireUid] = useState('')
-  const [ign, setIgn] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
@@ -91,13 +89,19 @@ export function GlobalAuthGate({ children }: GlobalAuthGateProps) {
 
     try {
       if (authMode === 'register') {
-        // Player Registration with Game UID and Player Name
-        const res = await registerPlayerWithUid(freeFireUid, ign)
+        // Player Registration with Email, Password, and permanently bound Free Fire UID
+        const res = await registerWithEmailPasswordUid({
+          email,
+          password,
+          freeFireUid,
+        })
         if (!res.success || !res.profile) {
           throw new Error(res.error || 'Registration failed. Please try again.')
         }
 
-        setSuccessMsg(`Welcome ${res.profile.ign || ign}! Account created. Entering Arena...`)
+        setSuccessMsg(
+          `Welcome ${res.profile.ign || freeFireUid}! Email & UID bound. Entering Arena...`
+        )
         setUserProfile(res.profile)
 
         setTimeout(() => {
@@ -109,23 +113,20 @@ export function GlobalAuthGate({ children }: GlobalAuthGateProps) {
             )
           }
         }, 600)
-      } else if (authMode === 'admin_login') {
-        // Admin Login with Email & Password
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-        if (error) throw error
+      } else {
+        // Login with Email & Password (Players & Admins)
+        const res = await loginWithEmailAndPassword(email, password)
+        if (!res.success || !res.profile) {
+          throw new Error(res.error || 'Login failed. Please verify your email and password.')
+        }
 
-        const prof = await getUserProfile(data.user.id)
-        const role = prof?.role === 'admin' ? 'admin' : 'user'
-
+        const role = res.role === 'admin' ? 'admin' : 'user'
         setSuccessMsg(
           role === 'admin'
             ? 'Welcome Administrator! Entering Control Center...'
-            : 'Logged in successfully! Opening Player Dashboard...'
+            : `Welcome back, ${res.profile.ign || 'Player'}! Entering Arena...`
         )
-        setUserProfile(prof)
+        setUserProfile(res.profile)
 
         setTimeout(() => {
           if (typeof window !== 'undefined') {
@@ -136,30 +137,11 @@ export function GlobalAuthGate({ children }: GlobalAuthGateProps) {
             )
           }
         }, 600)
-      } else {
-        // Player Login with Free Fire Game UID
-        const res = await loginPlayerWithUid(freeFireUid)
-        if (!res.success || !res.profile) {
-          throw new Error(res.error || 'Login failed. Please verify your Game UID.')
-        }
-
-        setSuccessMsg(`Welcome back, ${res.profile.ign || 'Player'}! Entering Arena...`)
-        setUserProfile(res.profile)
-
-        setTimeout(() => {
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(
-              new CustomEvent('open_player_dashboard', {
-                detail: { role: res.role || 'user' },
-              })
-            )
-          }
-        }, 600)
       }
     } catch (err: any) {
       const msg = err.message || ''
       if (msg.toLowerCase().includes('invalid login credentials')) {
-        setErrorMsg('Invalid login credentials. If you are a new player, click "REGISTER" above.')
+        setErrorMsg('Invalid email or password. If you are a new player, click "Register" above.')
       } else {
         setErrorMsg(msg || 'Authentication failed. Please check your inputs.')
       }
@@ -268,26 +250,19 @@ export function GlobalAuthGate({ children }: GlobalAuthGateProps) {
                 Secure player access
               </p>
               <h2 className="mt-2 text-2xl font-bold tracking-tight text-ink">
-                {authMode === 'register'
-                  ? 'Create your player account'
-                  : authMode === 'admin_login'
-                    ? 'Administrator login'
-                    : 'Welcome back'}
+                {authMode === 'register' ? 'Create your player account' : 'Welcome back'}
               </h2>
               <p className="mt-1 text-sm text-ink-muted">
                 {authMode === 'register'
-                  ? 'Register with your Free Fire UID and in-game name.'
-                  : authMode === 'admin_login'
-                    ? 'Sign in with your administrator email and password.'
-                    : 'Sign in with your registered Free Fire UID.'}
+                  ? 'Register with a unique email, password, and Free Fire UID (permanently bound).'
+                  : 'Sign in with your registered email and password.'}
               </p>
 
-              <div className="mt-5 grid grid-cols-3 gap-1 rounded-lg border border-line bg-surface-2 p-1">
+              <div className="mt-5 grid grid-cols-2 gap-1 rounded-lg border border-line bg-surface-2 p-1">
                 {(
                   [
-                    ['player_login', 'Login'],
+                    ['login', 'Login'],
                     ['register', 'Register'],
-                    ['admin_login', 'Admin'],
                   ] as const
                 ).map(([mode, label]) => (
                   <button
@@ -298,7 +273,7 @@ export function GlobalAuthGate({ children }: GlobalAuthGateProps) {
                       setErrorMsg('')
                       setSuccessMsg('')
                     }}
-                    className={`min-h-9 min-w-0 rounded-md px-1 text-[11px] font-semibold uppercase tracking-normal transition-colors sm:px-2 sm:text-xs sm:tracking-[0.06em] ${
+                    className={`min-h-9 min-w-0 rounded-md px-2 text-xs font-semibold uppercase tracking-[0.06em] transition-colors ${
                       authMode === mode
                         ? 'bg-brand text-white'
                         : 'text-ink-muted hover:bg-surface-3 hover:text-ink'
@@ -327,129 +302,85 @@ export function GlobalAuthGate({ children }: GlobalAuthGateProps) {
               )}
 
               <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-                {authMode === 'player_login' && (
+                <div>
+                  <label className="label mb-1.5 block" htmlFor="auth-email">
+                    Email address
+                  </label>
+                  <div className="relative">
+                    <Mail
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle"
+                      size={16}
+                    />
+                    <input
+                      id="auth-email"
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="player@example.com"
+                      className="field h-11 pl-10"
+                      autoComplete="email"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label mb-1.5 block" htmlFor="auth-password">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle"
+                      size={16}
+                    />
+                    <input
+                      id="auth-password"
+                      type="password"
+                      required
+                      minLength={6}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="••••••••"
+                      className="field h-11 pl-10"
+                      autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
+                    />
+                  </div>
+                </div>
+
+                {authMode === 'register' && (
                   <div>
-                    <label className="label mb-1.5 block" htmlFor="login-uid">
+                    <label className="label mb-1.5 block" htmlFor="register-uid">
                       Free Fire UID
                     </label>
                     <div className="relative">
-                      <Gamepad className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" size={16} />
+                      <Gamepad
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle"
+                        size={16}
+                      />
                       <input
-                        id="login-uid"
+                        id="register-uid"
                         type="text"
+                        inputMode="numeric"
                         required
                         value={freeFireUid}
                         onChange={(event) => setFreeFireUid(event.target.value)}
                         placeholder="e.g. 1928374650"
                         className="field h-11 pl-10"
-                        autoComplete="username"
+                        autoComplete="off"
                       />
                     </div>
                     <p className="mt-1.5 text-xs text-ink-subtle">
-                      Use the UID registered with ELITE ಕನ್ನಡಿಗ.
+                      Unique key permanently bound to this email address.
                     </p>
                   </div>
-                )}
-
-                {authMode === 'register' && (
-                  <>
-                    <div>
-                      <label className="label mb-1.5 block" htmlFor="register-uid">
-                        Free Fire UID
-                      </label>
-                      <div className="relative">
-                        <Gamepad className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" size={16} />
-                        <input
-                          id="register-uid"
-                          type="text"
-                          required
-                          value={freeFireUid}
-                          onChange={(event) => setFreeFireUid(event.target.value)}
-                          placeholder="e.g. 1928374650"
-                          className="field h-11 pl-10"
-                          autoComplete="username"
-                        />
-                      </div>
-                      <p className="mt-1.5 text-xs text-ink-subtle">
-                        This becomes your unique player identity.
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="label mb-1.5 block" htmlFor="register-ign">
-                        Player name (IGN)
-                      </label>
-                      <div className="relative">
-                        <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" size={16} />
-                        <input
-                          id="register-ign"
-                          type="text"
-                          required
-                          value={ign}
-                          onChange={(event) => setIgn(event.target.value)}
-                          placeholder="e.g. ELITE_RAHUL"
-                          className="field h-11 pl-10"
-                          autoComplete="nickname"
-                        />
-                      </div>
-                      <p className="mt-1.5 text-xs text-ink-subtle">
-                        Shown on leaderboards and guild rosters.
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                {authMode === 'admin_login' && (
-                  <>
-                    <div>
-                      <label className="label mb-1.5 block" htmlFor="admin-email">
-                        Admin email
-                      </label>
-                      <div className="relative">
-                        <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" size={16} />
-                        <input
-                          id="admin-email"
-                          type="email"
-                          required
-                          value={email}
-                          onChange={(event) => setEmail(event.target.value)}
-                          placeholder="admin@elitekannadiga.com"
-                          className="field h-11 pl-10"
-                          autoComplete="email"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="label mb-1.5 block" htmlFor="admin-password">
-                        Password
-                      </label>
-                      <div className="relative">
-                        <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle" size={16} />
-                        <input
-                          id="admin-password"
-                          type="password"
-                          required
-                          minLength={6}
-                          value={password}
-                          onChange={(event) => setPassword(event.target.value)}
-                          placeholder="••••••••"
-                          className="field h-11 pl-10"
-                          autoComplete="current-password"
-                        />
-                      </div>
-                    </div>
-                  </>
                 )}
 
                 <button type="submit" disabled={loading} className="btn-primary w-full">
                   {loading
                     ? 'Verifying...'
                     : authMode === 'register'
-                      ? 'Create account'
-                      : authMode === 'admin_login'
-                        ? 'Login as admin'
-                        : 'Login'}
+                      ? 'Create account & bind UID'
+                      : 'Login'}
                 </button>
               </form>
 
@@ -458,7 +389,7 @@ export function GlobalAuthGate({ children }: GlobalAuthGateProps) {
                   <button
                     type="button"
                     onClick={() => {
-                      setAuthMode('player_login')
+                      setAuthMode('login')
                       setErrorMsg('')
                       setSuccessMsg('')
                     }}
@@ -466,10 +397,10 @@ export function GlobalAuthGate({ children }: GlobalAuthGateProps) {
                   >
                     Already registered?{' '}
                     <span className="font-semibold text-brand-bright underline">
-                      Login with UID
+                      Login with Email
                     </span>
                   </button>
-                ) : authMode === 'player_login' ? (
+                ) : (
                   <button
                     type="button"
                     onClick={() => {
@@ -482,21 +413,6 @@ export function GlobalAuthGate({ children }: GlobalAuthGateProps) {
                     New player?{' '}
                     <span className="font-semibold text-brand-bright underline">
                       Create an account
-                    </span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthMode('player_login')
-                      setErrorMsg('')
-                      setSuccessMsg('')
-                    }}
-                    className="text-xs font-medium text-ink-muted transition-colors hover:text-brand-bright"
-                  >
-                    Return to{' '}
-                    <span className="font-semibold text-brand-bright underline">
-                      player login
                     </span>
                   </button>
                 )}

@@ -12,7 +12,6 @@ import {
   addOrRegisterGuildMember,
   updateGuildMemberDetails,
   deleteGuildMember,
-  findPlayerProfileByUid,
   fetchGuildChallenges,
   submitGuildChallenge,
   resolveGuildChallenge,
@@ -38,7 +37,6 @@ export default function GuildsPage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null)
   const [registeredPlayers, setRegisteredPlayers] = useState<Profile[]>([])
-  const [ownerProfile, setOwnerProfile] = useState<{ ign?: string; avatar_url?: string | null; level?: number; player_id?: string } | null>(null)
   const [challenges, setChallenges] = useState<GuildChallenge[]>([])
 
   // Admin Modals & Controls State
@@ -67,12 +65,11 @@ export default function GuildsPage() {
 
   async function load() {
     try {
-      const [isVisible, prof, data, players, owner] = await Promise.all([
+      const [isVisible, prof, data, players] = await Promise.all([
         fetchSiteSetting('show_guild_section', 'true'),
         getUserProfile(),
         fetchEliteArmyGuild(),
         fetchRegisteredPlayers(),
-        findPlayerProfileByUid('1969913248'),
       ])
       const challengeList = await fetchGuildChallenges(data?.guild?.id)
       setShowGuildSection(isVisible)
@@ -80,7 +77,6 @@ export default function GuildsPage() {
       setIsAdmin(prof?.role === 'admin')
       setGuildInfo(data as any)
       setRegisteredPlayers(players || [])
-      setOwnerProfile(owner)
       setChallenges(challengeList || [])
       setNewRanking(String((data?.members?.length || 0) + 1))
       setLoading(false)
@@ -340,14 +336,9 @@ export default function GuildsPage() {
     )
   })
 
-  const rankedMembers = (guildInfo?.members || []).filter(
-    (m) =>
-      m.profiles?.free_fire_uid !== '1969913248' &&
-      m.player_name !== 'ELITE ಕನ್ನಡಿಗ' &&
-      m.profiles?.ign !== 'ELITE ಕನ್ನಡಿಗ'
-  )
+  const rankedMembers = guildInfo?.members || []
 
-  const hasRosterLeader = rankedMembers.some((m) => getGuildRoleRank(m.guild_role) === 1)
+  const rosterLeader = rankedMembers.find((m) => getGuildRoleRank(m.guild_role) === 1) || null
 
   const myGuildMember = currentUserProfile
     ? rankedMembers.find(
@@ -359,32 +350,7 @@ export default function GuildsPage() {
       ) || null
     : null
 
-  const ownerSyntheticLeader: GuildMember | null = !hasRosterLeader
-    ? {
-        id: 'guild-owner-leader',
-        guild_id: guildInfo?.guild?.id || '',
-        user_id: '',
-        guild_role: '👑 Leader',
-        glory_contributed: 1000,
-        kills: 0,
-        ranking: 1,
-        player_name: 'ELITE ಕನ್ನಡಿಗ',
-        free_fire_uid: '1969913248',
-        joined_at: '',
-        status: 'active',
-        profiles: {
-          id: 'guild-owner-leader',
-          ign: 'ELITE ಕನ್ನಡಿಗ',
-          avatar_url: ownerProfile?.avatar_url || null,
-          free_fire_uid: '1969913248',
-          level: ownerProfile?.level || 80,
-        } as Profile,
-      }
-    : null
-
-  const challengeEligibleRoster = ownerSyntheticLeader
-    ? [ownerSyntheticLeader, ...rankedMembers]
-    : rankedMembers
+  const challengeEligibleRoster = rankedMembers
 
   const highestGloryMember = getHighestGloryMember(rankedMembers)
 
@@ -396,11 +362,11 @@ export default function GuildsPage() {
       })
     : null
 
-  const ownerLeaderCheck =
-    myGuildMember && ownerSyntheticLeader
+  const rosterLeaderCheck =
+    myGuildMember && rosterLeader
       ? canMemberChallengeTarget({
           challenger: myGuildMember,
-          target: ownerSyntheticLeader,
+          target: rosterLeader,
           allMembers: challengeEligibleRoster,
           existingChallenges: challenges,
         })
@@ -408,14 +374,7 @@ export default function GuildsPage() {
 
   const isCurrentUserDefender = (c: GuildChallenge) => {
     if (!currentUserProfile) return false
-    if (myGuildMember && c.defender_member_id === myGuildMember.id) return true
-    if (
-      c.defender_member_id === 'guild-owner-leader' &&
-      currentUserProfile.free_fire_uid === '1969913248'
-    ) {
-      return true
-    }
-    return false
+    return Boolean(myGuildMember && c.defender_member_id === myGuildMember.id)
   }
 
   return (
@@ -468,15 +427,15 @@ export default function GuildsPage() {
           }
         />
 
-        {/* Guild owner */}
+        {/* Guild leader */}
         <div className="card mb-8 sm:mb-10">
           <div className="flex flex-col gap-6 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-4">
               <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-brand-border bg-surface-2 sm:h-20 sm:w-20">
-                {ownerProfile?.avatar_url ? (
+                {rosterLeader?.profiles?.avatar_url ? (
                   <img
-                    src={ownerProfile.avatar_url}
-                    alt="ELITE ಕನ್ನಡಿಗ"
+                    src={rosterLeader.profiles.avatar_url}
+                    alt={rosterLeader.player_name || rosterLeader.profiles?.ign || 'Guild Leader'}
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -488,45 +447,63 @@ export default function GuildsPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="badge badge-brand">
                     <Crown size={12} />
-                    Guild owner
+                    {rosterLeader ? 'Guild leader' : 'ELITE ARMY'}
                   </span>
-                  <span className="badge">Founder</span>
+                  <span className="badge">{rosterLeader ? 'Tier 1 Leader' : 'Clean Roster'}</span>
                 </div>
 
                 <h2 className="mt-2 flex items-center gap-2 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-                  ELITE <span className="font-kannada text-brand-bright">ಕನ್ನಡಿಗ</span>
+                  {rosterLeader
+                    ? rosterLeader.player_name || rosterLeader.profiles?.ign || 'Guild Leader'
+                    : (
+                      <>
+                        ELITE <span className="font-kannada text-brand-bright">ARMY</span>
+                      </>
+                    )}
                 </h2>
 
                 <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-subtle">
-                  <span className="font-mono text-brand-bright">UID 1969913248</span>
-                  <span aria-hidden="true">·</span>
-                  <span>Official guild leader</span>
-                  {ownerProfile?.level && (
+                  {rosterLeader ? (
                     <>
-                      <span aria-hidden="true">·</span>
-                      <span>Level {ownerProfile.level}</span>
+                      {(rosterLeader.free_fire_uid || rosterLeader.profiles?.free_fire_uid) && (
+                        <>
+                          <span className="font-mono text-brand-bright">
+                            UID {rosterLeader.free_fire_uid || rosterLeader.profiles?.free_fire_uid}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                        </>
+                      )}
+                      <span>Official guild leader</span>
+                      {rosterLeader.profiles?.level && (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span>Level {rosterLeader.profiles.level}</span>
+                        </>
+                      )}
                     </>
+                  ) : (
+                    <span>No guild leader assigned yet</span>
                   )}
                 </p>
 
-                {!hasRosterLeader && myGuildMember && myChallengeSummary?.myTier === 2 && ownerSyntheticLeader && (
+                {rosterLeader && myGuildMember && myChallengeSummary?.myTier === 2 && (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     {challenges.some(
                       (c) =>
                         c.status === 'pending' &&
                         c.challenger_member_id === myGuildMember.id &&
-                        c.defender_member_id === ownerSyntheticLeader.id
+                        c.defender_member_id === rosterLeader.id
                     ) ? (
                       <span className="badge border-brand-border bg-brand-muted text-brand-bright">
                         <Swords size={12} />
                         Challenge pending
                       </span>
-                    ) : ownerLeaderCheck?.allowed ? (
+                    ) : rosterLeaderCheck?.allowed ? (
                       <button
                         type="button"
                         onClick={() => {
                           setChallengeNote('')
-                          setChallengeTarget(ownerSyntheticLeader)
+                          setChallengeTarget(rosterLeader)
                         }}
                         className="btn-primary btn-sm"
                       >
@@ -535,7 +512,7 @@ export default function GuildsPage() {
                       </button>
                     ) : (
                       <span
-                        title={ownerLeaderCheck?.reason}
+                        title={rosterLeaderCheck?.reason}
                         className="badge text-ink-subtle"
                       >
                         Need {MIN_CHALLENGE_GLORY.toLocaleString()} GP to challenge Leader
@@ -560,7 +537,7 @@ export default function GuildsPage() {
               <div>
                 <p className="label">Guild glory</p>
                 <p className="mt-1 text-2xl font-bold tracking-tight text-ink">
-                  {guildInfo?.guild?.glory_points?.toLocaleString() || '250,000'}
+                  {guildInfo?.guild?.glory_points?.toLocaleString() || '0'}
                   <span className="ml-1 text-xs font-medium text-ink-subtle">GP</span>
                 </p>
               </div>

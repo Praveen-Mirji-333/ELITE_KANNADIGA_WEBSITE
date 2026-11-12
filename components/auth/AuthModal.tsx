@@ -1,12 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CheckCircle2, Shield, X, Lock, Mail, User, Gamepad, Sparkles } from 'lucide-react'
+import { CheckCircle2, Shield, X, Lock, Mail, Gamepad } from 'lucide-react'
 import {
-  supabase,
   getUserProfile,
-  registerPlayerWithUid,
-  loginPlayerWithUid,
+  registerWithEmailPasswordUid,
+  loginWithEmailAndPassword,
 } from '../../lib/supabase'
 
 interface AuthModalProps {
@@ -17,15 +16,11 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: AuthModalProps) {
-  const [authMode, setAuthMode] = useState<'register' | 'player_login' | 'admin_login'>('register')
+  const [authMode, setAuthMode] = useState<'register' | 'login'>('register')
 
-  // Registration & Player Login state
-  const [freeFireUid, setFreeFireUid] = useState('')
-  const [ign, setIgn] = useState('')
-
-  // Admin Login state
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [freeFireUid, setFreeFireUid] = useState('')
 
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -48,60 +43,42 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
 
     try {
       if (authMode === 'register') {
-        // Player Registration using Game UID and Player Name
-        const res = await registerPlayerWithUid(freeFireUid, ign)
+        const res = await registerWithEmailPasswordUid({
+          email,
+          password,
+          freeFireUid,
+        })
         if (!res.success || !res.profile) {
           throw new Error(res.error || 'Registration failed.')
         }
 
         setSuccessMsg(
-          `Welcome to ELITE Kannada, ${res.profile.ign || ign}! Account created successfully. Entering Arena...`
+          `Welcome to ELITE Kannada! Email & UID ${res.profile.free_fire_uid || freeFireUid} bound successfully. Entering Arena...`
         )
         setTimeout(() => {
           onSuccess(res.role === 'admin' ? 'admin' : 'user')
           if (!forceLock) onClose()
         }, 1100)
-      } else if (authMode === 'admin_login') {
-        // Admin Login using Email & Password
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-        if (error) throw error
+      } else {
+        const res = await loginWithEmailAndPassword(email, password)
+        if (!res.success || !res.profile) {
+          throw new Error(res.error || 'Login failed.')
+        }
 
-        const profile = await getUserProfile(data.user.id)
-        const role = profile?.role === 'admin' ? 'admin' : 'user'
-
+        const role = res.role === 'admin' ? 'admin' : 'user'
         setSuccessMsg(
           role === 'admin'
             ? 'Welcome Administrator! Entering Control Center...'
-            : 'Logged in successfully! Opening Player Dashboard...'
+            : `Welcome back, ${res.profile.ign || 'Player'}! Entering Arena Dashboard...`
         )
 
         setTimeout(() => {
           onSuccess(role)
           if (!forceLock) onClose()
         }, 1000)
-      } else {
-        // Player Login using ONLY Game UID
-        const res = await loginPlayerWithUid(freeFireUid)
-        if (!res.success || !res.profile) {
-          throw new Error(res.error || 'Login failed.')
-        }
-
-        setSuccessMsg(`Welcome back, ${res.profile.ign || 'Player'}! Entering Arena Dashboard...`)
-        setTimeout(() => {
-          onSuccess(res.role === 'admin' ? 'admin' : 'user')
-          if (!forceLock) onClose()
-        }, 1000)
       }
     } catch (err: any) {
-      const msg = err.message || ''
-      if (msg.toLowerCase().includes('invalid login credentials')) {
-        setErrorMsg('Invalid login details. If you are a new player, click "REGISTER AS NEW PLAYER" above.')
-      } else {
-        setErrorMsg(msg || 'Authentication failed. Please verify your inputs.')
-      }
+      setErrorMsg(err.message || 'Authentication failed. Please verify your inputs.')
     } finally {
       setLoading(false)
     }
@@ -113,7 +90,6 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
         forceLock ? 'bg-canvas/95 backdrop-blur-2xl' : 'bg-black/40 backdrop-blur-md'
       }`}
     >
-      {/* Background Ambience */}
       {forceLock && (
         <>
           <div className="absolute top-[10%] left-[20%] h-80 w-80 rounded-full bg-brand/10 blur-[130px] pointer-events-none" />
@@ -126,6 +102,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
           <button
             onClick={onClose}
             className="neu-circle absolute right-4 top-4 h-8 w-8 text-ink-muted hover:text-ink transition"
+            aria-label="Close authentication modal"
           >
             <X size={16} />
           </button>
@@ -145,13 +122,13 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
           </h2>
           <p className="mt-1 text-xs text-ink-muted max-w-xs mx-auto">
             {forceLock
-              ? 'Please log in or register your player account to enter the arena and view your User Dashboard.'
+              ? 'Please log in with your Email & Password or register with Email, Password & UID.'
               : 'Join the premier Free Fire competitive community in Karnataka.'}
           </p>
         </div>
 
         {/* Mode Switcher Tabs */}
-        <div className="mb-5 grid grid-cols-3 neu-tabs w-full p-1 gap-1">
+        <div className="mb-5 grid grid-cols-2 neu-tabs w-full p-1 gap-1">
           <button
             type="button"
             onClick={() => {
@@ -170,32 +147,17 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
           <button
             type="button"
             onClick={() => {
-              setAuthMode('player_login')
+              setAuthMode('login')
               setErrorMsg('')
               setSuccessMsg('')
             }}
             className={`py-2 text-[11px] sm:text-xs font-bold tracking-wider uppercase rounded-full transition ${
-              authMode === 'player_login'
+              authMode === 'login'
                 ? 'neu-tab-btn active text-white'
                 : 'neu-tab-btn text-ink-muted hover:text-ink'
             }`}
           >
-            LOGIN (UID)
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAuthMode('admin_login')
-              setErrorMsg('')
-              setSuccessMsg('')
-            }}
-            className={`py-2 text-[11px] sm:text-xs font-bold tracking-wider uppercase rounded-full transition ${
-              authMode === 'admin_login'
-                ? 'neu-tab-btn active text-white'
-                : 'neu-tab-btn text-ink-muted hover:text-ink'
-            }`}
-          >
-            ADMIN
+            LOGIN
           </button>
         </div>
 
@@ -213,112 +175,64 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* PLAYER REGISTRATION VIEW */}
+          <div>
+            <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
+              EMAIL ADDRESS *
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-3 text-ink-subtle" size={16} />
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="player@example.com"
+                autoComplete="email"
+                className="w-full border border-line bg-surface-2 py-2.5 pl-10 pr-4 text-base sm:text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
+              PASSWORD *
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-3 text-ink-subtle" size={16} />
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
+                className="w-full border border-line bg-surface-2 py-2.5 pl-10 pr-4 text-base sm:text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
+              />
+            </div>
+          </div>
+
           {authMode === 'register' && (
-            <>
-              <div>
-                <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
-                  FREE FIRE GAME UID *
-                </label>
-                <div className="relative">
-                  <Gamepad className="absolute left-3 top-3 text-ink-subtle" size={16} />
-                  <input
-                    type="text"
-                    required
-                    value={freeFireUid}
-                    onChange={(e) => setFreeFireUid(e.target.value)}
-                    placeholder="e.g. 1928374650"
-                    className="w-full border border-line bg-surface-2 py-2.5 pl-10 pr-4 text-base sm:text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
-                  />
-                </div>
-                <p className="mt-1 text-xs text-ink-subtle">
-                  Your Free Fire in-game UID is used as your unique player login key.
-                </p>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
-                  PLAYER NAME (IGN) *
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 text-ink-subtle" size={16} />
-                  <input
-                    type="text"
-                    required
-                    value={ign}
-                    onChange={(e) => setIgn(e.target.value)}
-                    placeholder="e.g. ELITE_RAHUL"
-                    className="w-full border border-line bg-surface-2 py-2.5 pl-10 pr-4 text-base sm:text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
-                  />
-                </div>
-                <p className="mt-1 text-xs text-ink-subtle">
-                  Your official In-Game Name as shown in Free Fire.
-                </p>
-              </div>
-            </>
-          )}
-
-          {/* PLAYER LOGIN VIEW (UID ONLY) */}
-          {authMode === 'player_login' && (
             <div>
               <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
-                ENTER YOUR FREE FIRE GAME UID *
+                FREE FIRE GAME UID *
               </label>
               <div className="relative">
                 <Gamepad className="absolute left-3 top-3 text-ink-subtle" size={16} />
                 <input
                   type="text"
+                  inputMode="numeric"
                   required
                   value={freeFireUid}
-                  onChange={(e) => setFreeFireUid(e.target.value)}
+                  onChange={(e) => setFreeFireUid(e.target.value.replace(/\s+/g, ''))}
                   placeholder="e.g. 1928374650"
                   className="w-full border border-line bg-surface-2 py-2.5 pl-10 pr-4 text-base sm:text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
                 />
               </div>
-              <p className="mt-1.5 text-xs text-ink-subtle">
-                Enter your registered Free Fire UID to open your User Dashboard immediately.
+              <p className="mt-1 text-xs text-ink-subtle">
+                Unique UID permanently bound to your email address after registration.
               </p>
             </div>
-          )}
-
-          {/* ADMIN LOGIN VIEW (EMAIL & PASSWORD) */}
-          {authMode === 'admin_login' && (
-            <>
-              <div>
-                <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
-                  ADMIN EMAIL ADDRESS *
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 text-ink-subtle" size={16} />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@elitekannadiga.com"
-                    className="w-full border border-line bg-surface-2 py-2.5 pl-10 pr-4 text-base sm:text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-bold tracking-widest text-ink-muted">
-                  PASSWORD *
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 text-ink-subtle" size={16} />
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full border border-line bg-surface-2 py-2.5 pl-10 pr-4 text-base sm:text-sm text-ink placeholder-ink-subtle focus:border-brand focus:outline-none"
-                  />
-                </div>
-              </div>
-            </>
           )}
 
           <button
@@ -329,10 +243,8 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
             {loading
               ? 'VERIFYING CREDENTIALS...'
               : authMode === 'register'
-              ? 'REGISTER & OPEN USER DASHBOARD'
-              : authMode === 'admin_login'
-              ? 'LOGIN AS ADMIN'
-              : 'LOGIN & OPEN USER DASHBOARD'}
+                ? 'REGISTER & BIND EMAIL + UID'
+                : 'LOGIN TO ARENA'}
           </button>
         </form>
 
@@ -341,15 +253,15 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
             <button
               type="button"
               onClick={() => {
-                setAuthMode('player_login')
+                setAuthMode('login')
                 setErrorMsg('')
                 setSuccessMsg('')
               }}
               className="text-xs font-bold tracking-wider text-ink-muted hover:text-brand-bright transition"
             >
-              ALREADY REGISTERED? <span className="text-brand-bright underline">LOGIN WITH UID</span>
+              ALREADY REGISTERED? <span className="text-brand-bright underline">LOGIN WITH EMAIL</span>
             </button>
-          ) : authMode === 'player_login' ? (
+          ) : (
             <button
               type="button"
               onClick={() => {
@@ -359,19 +271,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, forceLock = false }: Aut
               }}
               className="text-xs font-bold tracking-wider text-ink-muted hover:text-brand-bright transition"
             >
-              NEW PLAYER? <span className="text-brand-bright underline">CREATE PLAYER ACCOUNT</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('player_login')
-                setErrorMsg('')
-                setSuccessMsg('')
-              }}
-              className="text-xs font-bold tracking-wider text-ink-muted hover:text-brand-bright transition"
-            >
-              RETURN TO <span className="text-brand-bright underline">PLAYER LOGIN</span>
+              NEW PLAYER? <span className="text-brand-bright underline">REGISTER WITH EMAIL &amp; UID</span>
             </button>
           )}
         </div>

@@ -1,4 +1,9 @@
-import { fetchSiteSettingJson, updateSiteSettingJson } from './supabase'
+import {
+  fetchSiteSettingJson,
+  updateSiteSettingJson,
+  fetchTournamentArchiveByTournamentId,
+  fetchTournamentArchives,
+} from './supabase'
 import type { LeagueStanding } from './types'
 import type {
   PlayoffBracketData,
@@ -353,10 +358,20 @@ export function resetPlayoffMatchResult(
 /**
  * Supabase read & write operations using site_settings
  */
-export async function fetchPlayoffData(seasonId: string): Promise<PlayoffBracketData | null> {
+export async function fetchPlayoffData(
+  seasonId: string,
+  tournamentId?: string
+): Promise<PlayoffBracketData | null> {
   if (!seasonId) return null
   const key = getPlayoffSettingKey(seasonId)
-  return await fetchSiteSettingJson<PlayoffBracketData | null>(key, null)
+  const live = await fetchSiteSettingJson<PlayoffBracketData | null>(key, null)
+  if (live) return live
+
+  const archive = tournamentId
+    ? await fetchTournamentArchiveByTournamentId(tournamentId)
+    : (await fetchTournamentArchives()).find((a) => Boolean(a.playoff_snapshot?.[seasonId])) || null
+
+  return (archive?.playoff_snapshot?.[seasonId] as PlayoffBracketData | undefined) || null
 }
 
 export async function savePlayoffData(

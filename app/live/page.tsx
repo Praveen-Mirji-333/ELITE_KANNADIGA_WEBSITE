@@ -6,32 +6,12 @@ import { SitePage } from '../../components/layout/SitePage'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { SectionHeader } from '../../components/layout/SectionHeader'
 import { LiveTournamentSection } from '../../components/dashboard/LiveTournamentSection'
-import { getUserProfile, supabase } from '../../lib/supabase'
-import type { Profile } from '../../lib/types'
-
-const clips = [
-  {
-    title: '1V4 clutch',
-    player: 'ELITE_RAHUL',
-    color: 'from-brand-muted via-surface-2 to-canvas',
-    views: '14.2K',
-  },
-  {
-    title: 'Last bullet',
-    player: 'SHADOW_77',
-    color: 'from-surface-2 via-brand-muted to-canvas',
-    views: '9.8K',
-  },
-  {
-    title: 'Booyah finish',
-    player: 'KANNADA_KING',
-    color: 'from-brand-muted via-canvas to-surface-2',
-    views: '22.1K',
-  },
-]
+import { fetchCommunityClips, getUserProfile, supabase } from '../../lib/supabase'
+import type { CommunityClip, Profile } from '../../lib/types'
 
 export default function LivePage() {
   const [userProfile, setUserProfile] = useState<Profile | null>(null)
+  const [clips, setClips] = useState<CommunityClip[]>([])
 
   const loadUser = async () => {
     try {
@@ -43,6 +23,7 @@ export default function LivePage() {
 
   useEffect(() => {
     loadUser()
+    fetchCommunityClips().then(setClips).catch(() => setClips([]))
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => loadUser())
@@ -175,10 +156,10 @@ export default function LivePage() {
 
                 <dl className="mt-4 space-y-3.5 text-sm">
                   {[
-                    ['Top viewer', 'NAYAKA_07'],
-                    ['Current giveaway', '₹500 redeem code'],
-                    ['Stream XP pool', '8,420 XP'],
-                    ['MV player', 'ELITE_RAHUL'],
+                    ['Channel', 'ELITE ಕನ್ನಡಿಗ'],
+                    ['Status', 'Standby'],
+                    ['Stream XP pool', 'Active'],
+                    ['Server', 'India / Karnataka'],
                   ].map(([label, value]) => (
                     <div key={label} className="flex items-center justify-between gap-3">
                       <dt className="text-ink-subtle">{label}</dt>
@@ -206,29 +187,38 @@ export default function LivePage() {
             description="The best plays, clutches, and finishes from the community."
           />
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 3xl:grid-cols-4">
-            {clips.map((clip) => (
-              <article
-                key={clip.title}
-                className={`clip-card group relative flex min-h-[190px] flex-col justify-between overflow-hidden border border-line bg-gradient-to-br ${clip.color} p-5 transition-colors hover:border-line-strong sm:p-6`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="badge border-white/15 bg-black/30 text-white/85">
-                    {clip.title}
-                  </span>
-                  <span className="grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/35 text-white transition-colors group-hover:border-brand group-hover:bg-brand">
-                    <Play size={14} fill="currentColor" className="ml-0.5" />
-                  </span>
-                </div>
-                <div>
-                  <p className="text-lg font-semibold text-ink">{clip.player}</p>
-                  <p className="mt-1 text-xs font-medium uppercase tracking-[0.1em] text-ink-subtle">
-                    {clip.views} views · 840 likes
-                  </p>
-                </div>
-              </article>
-            ))}
-          </div>
+          {clips.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-line bg-surface px-6 py-12 text-center">
+              <p className="text-sm font-semibold text-ink">No community clips published yet</p>
+              <p className="mt-1 text-xs text-ink-muted">
+                Approved highlights and clutches will appear here once submitted.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 3xl:grid-cols-4">
+              {clips.map((clip: any) => (
+                <article
+                  key={clip.id || clip.title}
+                  className="clip-card group relative flex min-h-[190px] flex-col justify-between overflow-hidden border border-line bg-gradient-to-br from-brand-muted via-surface-2 to-canvas p-5 transition-colors hover:border-line-strong sm:p-6"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="badge border-white/15 bg-black/30 text-white/85">
+                      {clip.title}
+                    </span>
+                    <span className="grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/35 text-white transition-colors group-hover:border-brand group-hover:bg-brand">
+                      <Play size={14} fill="currentColor" className="ml-0.5" />
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-ink">{clip.player_name || 'Player'}</p>
+                    <p className="mt-1 text-xs font-medium uppercase tracking-[0.1em] text-ink-subtle">
+                      Community highlight
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
       </div>
     </SitePage>

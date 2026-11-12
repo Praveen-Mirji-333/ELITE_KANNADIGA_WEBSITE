@@ -729,14 +729,20 @@ export default function TournamentsPage() {
               {/* TOP CHAMPIONS SHOWCASE (1:1 Aspect Ratio, No White Shadow, Inner Black Vignette) */}
               <div className="mx-auto w-full max-w-[460px] sm:max-w-[500px]">
                 <div className="relative aspect-square w-full overflow-hidden rounded-2xl border-2 border-brand bg-black">
-                  <img
-                    src={viewResultsModalTourney.champions_image_url || '/images/carousel-aliens-champions.jpg'}
-                    alt="Tournament Champions"
-                    className="h-full w-full object-cover object-center"
-                    onError={(e) => {
-                      ;(e.target as HTMLImageElement).src = '/images/carousel-aliens-champions.jpg'
-                    }}
-                  />
+                  {viewResultsModalTourney.champions_image_url ? (
+                    <img
+                      src={viewResultsModalTourney.champions_image_url}
+                      alt="Tournament Champions"
+                      className="h-full w-full object-cover object-center"
+                      onError={(e) => {
+                        ;(e.target as HTMLImageElement).style.display = 'none'
+                      }}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-900 via-black to-brand/20">
+                      <Trophy size={72} className="text-brand/40" />
+                    </div>
+                  )}
 
                   {/* Subtle, Balanced Inner Black Vignette & Gentle Bottom Scrim */}
                   <div

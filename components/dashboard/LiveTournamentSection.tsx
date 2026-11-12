@@ -18,7 +18,7 @@ import {
   Shield,
 } from 'lucide-react'
 import type { Tournament, TournamentRegistration, Profile } from '../../lib/types'
-import { fetchTournaments, fetchSiteSettingText, supabase } from '../../lib/supabase'
+import { fetchTournaments, fetchTournamentRegistrationsForAdmin, fetchSiteSettingText } from '../../lib/supabase'
 import { fetchLeagueSeasons, fetchLeagueData, type LeagueData } from '../../lib/league-service'
 import { computeStandings } from '../../lib/league'
 import { TournamentRegisterModal } from '../tournaments/TournamentRegisterModal'
@@ -99,13 +99,9 @@ export function LiveTournamentSection({
     if (!tourneyId) return
     setRefreshing(true)
     try {
-      // Fetch registrations for this tournament
-      const { data: regs } = await supabase
-        .from('tournament_registrations')
-        .select('*')
-        .eq('tournament_id', tourneyId)
-        .order('created_at', { ascending: true })
-      setRegisteredTeams((regs || []) as TournamentRegistration[])
+      // Fetch registrations for this tournament (with automatic fallback to archived snapshot)
+      const regs = await fetchTournamentRegistrationsForAdmin(tourneyId)
+      setRegisteredTeams(regs)
 
       // Fetch league seasons
       const { seasons: sList } = await fetchLeagueSeasons(tourneyId)
@@ -132,7 +128,7 @@ export function LiveTournamentSection({
   }, [selectedTourneyId, loadTournamentDetails])
 
   // 3. Load league data when season changes
-  const loadSeasonLeagueData = useCallback(async (seasonId: string) => {
+  const loadSeasonLeagueData = useCallback(async (seasonId: string, tourneyId?: string) => {
     if (!seasonId) {
       setLeagueData(null)
       setPlayoffData(null)
@@ -141,8 +137,8 @@ export function LiveTournamentSection({
     setRefreshing(true)
     try {
       const [res, playoffs] = await Promise.all([
-        fetchLeagueData(seasonId),
-        fetchPlayoffData(seasonId),
+        fetchLeagueData(seasonId, tourneyId),
+        fetchPlayoffData(seasonId, tourneyId),
       ])
       if (res.success && res.data) {
         setLeagueData(res.data)
@@ -159,9 +155,9 @@ export function LiveTournamentSection({
 
   useEffect(() => {
     if (selectedSeasonId) {
-      loadSeasonLeagueData(selectedSeasonId)
+      loadSeasonLeagueData(selectedSeasonId, selectedTourneyId)
     }
-  }, [selectedSeasonId, loadSeasonLeagueData])
+  }, [selectedSeasonId, selectedTourneyId, loadSeasonLeagueData])
 
   const selectedTournament = useMemo(
     () => tournaments.find((t) => t.id === selectedTourneyId) || null,
@@ -208,7 +204,7 @@ export function LiveTournamentSection({
       await loadTournamentDetails(selectedTourneyId)
     }
     if (selectedSeasonId) {
-      await loadSeasonLeagueData(selectedSeasonId)
+      await loadSeasonLeagueData(selectedSeasonId, selectedTourneyId)
     }
   }
 
@@ -593,7 +589,7 @@ export function LiveTournamentSection({
               })}
             </div>
           </div>
-        ) : registeredTeams.length > 0 ? (
+        ) : selectedTournament?.status !== 'completed' && registeredTeams.length > 0 ? (
           <div className="space-y-3">
             <div className="border border-brand bg-brand-muted px-3.5 py-2.5 text-xs flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -736,12 +732,16 @@ export function LiveTournamentSection({
           <div className="border border-line-subtle bg-surface-2 p-6 text-center space-y-2">
             <Trophy className="mx-auto text-brand-bright" size={28} />
             <p className="text-xs font-bold text-ink">
-              {seasons.length > 0
-                ? 'Matches are currently being drawn or scheduled.'
-                : 'Registrations are open! Points table will go live once tournament wheel matches begin.'}
+              {selectedTournament?.status === 'completed'
+                ? 'Tournament completed — Official winners and final standings are published in Tournaments Results.'
+                : seasons.length > 0
+                  ? 'Matches are currently being drawn or scheduled.'
+                  : 'Registrations are open! Points table will go live once tournament wheel matches begin.'}
             </p>
             <p className="text-xs text-ink-subtle">
-              No squads registered yet. Register your squad above to be placed on the points table!
+              {selectedTournament?.status === 'completed'
+                ? 'Visit the Tournaments page and click Results to view the final leaderboard and champions.'
+                : 'No squads registered yet. Register your squad above to be placed on the points table!'}
             </p>
           </div>
         )}
@@ -816,8 +816,8 @@ export function LiveTournamentSection({
         </div>
       )}
 
-      {/* 5. Registered Teams Pool */}
-      {registeredTeams.length > 0 && (
+      {/* 5. Registered Teams Pool (only for active/upcoming tournaments — completed teams stay inside Results) */}
+      {selectedTournament?.status !== 'completed' && registeredTeams.length > 0 && (
         <div className="space-y-3">
           <p className="eyebrow flex items-center gap-2">
             <Users size={14} className="text-ink-muted" /> REGISTERED SQUADS ({registeredTeams.length})
